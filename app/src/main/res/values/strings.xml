@@ -1,0 +1,6 @@
+<resources>
+    <string name="app_name">MatrixAgent</string>
+    <string name="current_planner">当前 Gateway：%1$s</string>
+    <string name="protocol_key_required">协议：%1$s\n需要 API Key</string>
+    <string name="protocol_key_optional">协议：%1$s\nAPI Key 可留空</string>
+</resources>

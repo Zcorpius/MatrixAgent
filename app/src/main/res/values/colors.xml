@@ -1,0 +1,10 @@
+<resources>
+    <color name="matrix_primary">#176B5B</color>
+    <color name="matrix_primary_dark">#0E463C</color>
+    <color name="matrix_accent">#E9A23B</color>
+    <color name="matrix_surface">#F4F7F6</color>
+    <color name="matrix_text">#17201E</color>
+    <color name="matrix_muted">#5C6C68</color>
+    <color name="matrix_border">#D2DEDA</color>
+    <color name="matrix_badge">#E8F4F1</color>
+</resources>
