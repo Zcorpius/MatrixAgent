@@ -507,3 +507,15 @@ V0.5.4 落地后,用户做了第五轮深度审查,发现 V0.5.4 修复**仍留�
 - **Room schema migration**:V0.5.5 不改 schema(列名保留),V0.6.0 做正式 migration。
 - **跨进程 epoch 一致性 androidTest**:V0.5.5 JVM fake database 验证,V0.5.6 视情补 androidTest。
 - **D1 流式 SSE / D3 token 主路径真切换 / D5 删除剩余 @Deprecated / D6 副驾 zone 推断 / D7 on-device embedding / D8 AgentBudget char-based 删除 / D9 PromptComposer / D10 SessionContext 结构化 / D11 master_key 别名迁移 / D12 AAOS 多 session 注入** —— 与 V0.5.4 推迟项一致,继续推迟。
+
+## V0.5.6 改进(登记中)
+
+V0.5.5 落地后,用户对"测试通过但语义/契约仍有缺口"的路径做了第三轮登记——3 个 P2 都不阻塞 V0.5.5(已在 V0.5.5 上做了最小修复或文档化),完整 enforcement 推到 V0.6.0。
+
+- **P2-D 2048 是 Java char(UTF-16 code unit),不是 UTF-8 字节**——V0.5.5 P2-B 的 `value.length() <= 2048`(Writer)与 `maxLength(2048)`(Schema)限制的都是 Java char 数,中文 / emoji 等 UTF-8 实际字节数可能远超过 2KB(最坏 ~4 倍)。修复方向二选一:按字节限,或文档/UI 明确"最多 2048 字符"。V0.5.5 选后者(JSON Schema maxLength 标准就是字符数,Schema 不动):`CapabilityRegistry.memory.semantic.save` value 参数 description 改为"最多 2048 字符"并注明 UTF-8 字节会更多;`RoomMemoryWriter.SEMANTIC_VALUE_MAX_LEN` 常量 Javadoc 加 V0.5.6 P2-D 注解;UTF-8 字节上限(单行最坏 8KB,SQLite TEXT 无压力)留 V0.6.0 视真实 PII 容量需求评估。无测试增量(语义未变)。
+- **P2-E epoch 原子性真实 Room androidTest**——V0.5.4 P1-1 的 epoch 原子性设计正确,但 JVM fake 测试用 `Runnable::run` 模拟事务,关键保证依赖真实 Room / SQLite 写者锁的串行语义。新增 `RoomMemoryWriterEpochAtomicityInstrumentedTest`(androidTest +2):不变式 A(clearUserDataAndBump 先完成 epoch bump → 在途任务用旧 requestEpoch 调 writeEpisodicOnTerminal / writeSemantic 必须被事务内 read-then-check 拒绝,两表均无旧数据);不变式 B(writeEpisodicOnTerminal 用合法 requestEpoch commit 后 → clearUserDataAndBump 必须清空刚写入的行,SQLite 写者锁保证两 transaction 串行)。真实并发交错由 SQLite 单写者锁序列化,两 transaction 不可能交叉,JVM scheduler 顺序无关紧要——这两个不变式覆盖"清除后不可复活"的全部语义。
+- **P2-F MemoryWriter userId/zone 调用方契约**——`RoomMemoryWriter.writeSemantic(userId, zone, ...)` / `readSemantic(userId, zone, key)` 由调用方传入访问域,Writer 不做"调用方身份与参数一致"校验。当前唯一调用方 `MockCapabilityProvider.MemorySemanticSaveHandler` 用 `ActorUsers.userIdOf(request)` + `request.getOccupantZone().wireValue()` 推导正确,无实际越权路径;但未来真实 AAOS Provider 或第三方插件若误传其他用户 / zone 的值,可能写入错误访问域。本轮在 `RoomMemoryWriter` 类级 Javadoc + `writeSemantic` / `readSemantic` 方法级 Javadoc 标注 V0.5.6 P2-F 契约;V0.6.0 引入 `CallerContext`(PolicyEngine 已持有的 `request.userId` / `zone` 透传到 Writer 入口)做 enforcement。无测试增量(契约尚未 enforce)。
+
+**修复总结**:JVM 测试 **810 零回归**,androidTest **23 → 25**(+2 epoch 原子性真实 Room 验证),`assembleDebug` + `testDebugUnitTest` + `assembleDebugAndroidTest` 全绿。无 public API 变更,无 V0.5.5 行为退化——P2-D 仅文档化、P2-E 仅新增 androidTest、P2-F 仅 Javadoc 契约标注。
+
+## V0.5.6 仍推迟(不在本计划范围)

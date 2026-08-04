@@ -39,6 +39,14 @@ import com.matrix.agent.data.db.SessionHistoryEntity;
  *
  * <p>epoch 直接从 memory_record 的 __system__/__system__/preference/__epoch__ 行 SELECT,
  * 不走 RoomMemoryStore.epoch AtomicLong 缓存——数据库是单一权威,跨进程重启不丢。
+ *
+ * <p><b>V0.5.6 P2-F 调用方契约(尚无 enforcement)</b>:{@code writeSemantic / readSemantic}
+ * 的 {@code userId / zone} 参数由调用方传入,本类不做"调用方身份与参数一致"校验。当前唯一调用方
+ * {@code MockCapabilityProvider.MemorySemanticSaveHandler} 用 {@code ActorUsers.userIdOf(request)}
+ * + {@code request.getOccupantZone().wireValue()} 推导,无实际越权路径。但未来真实 AAOS Provider
+ * 或第三方插件若误传其他用户 / zone 的值,可能写入错误访问域。V0.6.0 引入 {@code CallerContext}
+ * (PolicyEngine 已持有的 request.userId / zone 透传到 Writer 入口)做 enforcement;本轮仅在
+ * 此标注契约——调用方必须传"当前 request 的 userId / zone"。
  */
 public final class RoomMemoryWriter implements MemoryWriter {
     private static final String TAG = "MatrixAgent";
@@ -47,11 +55,16 @@ public final class RoomMemoryWriter implements MemoryWriter {
      * V0.5.5 P2-B:writer-side defence-in-depth——与 CapabilityRegistry.memory.semantic.save
      * 的 schema pattern 同款。Schema 已强制,但即便 Provider 漏过(未来真实 AAOS Provider /
      * 第三方实现 / 测试桩直接调 writer),Writer 仍 fail-closed 拒绝。
+     *
+     * <p>V0.5.6 P2-D:{@code SEMANTIC_VALUE_MAX_LEN = 2048} 是 Java char(UTF-16 code unit)数,
+     * <b>不是</b> UTF-8 字节数。中文 / emoji 等 UTF-8 实际字节数最多 ~4 倍(最坏 8KB/行,
+     * SQLite TEXT 无压力)。文档/UI 描述必须用"最多 2048 字符",不要用"≤ 2KB"——后者误导。
+     * UTF-8 字节上限留 V0.6.0 视真实 PII 容量需求评估。
      */
     private static final Pattern SEMANTIC_KEY_PATTERN =
             Pattern.compile("^(family|allergy|work|fact)\\.[A-Za-z0-9_.]+$");
     private static final int SEMANTIC_KEY_MAX_LEN = 64;
-    private static final int SEMANTIC_VALUE_MAX_LEN = 2048;
+    private static final int SEMANTIC_VALUE_MAX_LEN = 2048;  // chars (UTF-16 code units), not UTF-8 bytes
     private static final int SOURCE_SESSION_ID_MAX_LEN = 128;
 
     private final SessionHistoryDao sessionHistoryDao;
@@ -143,6 +156,11 @@ public final class RoomMemoryWriter implements MemoryWriter {
         }
     }
 
+    /**
+     * V0.5.6 P2-F 契约:调用方必须传"当前 request 的 userId / zone"——本方法不做"调用方身份
+     * 与参数一致"校验。MockCapabilityProvider.MemorySemanticSaveHandler 推导正确无越权路径;
+     * 第三方 Provider 误传可串数据(V0.6.0 加 CallerContext enforcement)。
+     */
     @Override
     public boolean writeSemantic(String userId, String zone, String key, String value,
             double score, String sourceSessionId, long requestEpoch) {
@@ -202,6 +220,9 @@ public final class RoomMemoryWriter implements MemoryWriter {
         }
     }
 
+    /**
+     * V0.5.6 P2-F 契约:同 {@link #writeSemantic}——调用方必须传当前 request 的 userId / zone。
+     */
     @Override
     public String readSemantic(String userId, String zone, String key) {
         if (memoryRecordDao == null || userId == null || zone == null || key == null) return null;
