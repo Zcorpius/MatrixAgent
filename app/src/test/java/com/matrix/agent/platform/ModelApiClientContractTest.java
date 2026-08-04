@@ -41,7 +41,7 @@ public final class ModelApiClientContractTest {
         JSONObject request = ModelApiClient.buildOpenAiToolRequest(config, "system", "user", tools);
 
         assertEquals("auto", request.getString("tool_choice"));
-        assertEquals(8, request.getJSONArray("tools").length());
+        assertEquals(10, request.getJSONArray("tools").length());
         JSONObject climate = findFunction(request.getJSONArray("tools"),
                 "vehicle_climate_set_temperature");
         JSONObject parameters = climate.getJSONObject("parameters");
@@ -91,9 +91,38 @@ public final class ModelApiClientContractTest {
 
     @Test(expected = IllegalArgumentException.class)
     public void nativeModeRejectsUnsupportedProviderProtocol() {
-        new ModelConfig("gemini", "Gemini", ApiProtocol.GEMINI_GENERATE_CONTENT,
+        // V0.5.2 Stage 10:Gemini 已支持 NATIVE_TOOL_CALLING,改用 OLLAMA_CHAT 作不支持协议。
+        new ModelConfig("ollama", "Ollama", ApiProtocol.OLLAMA_CHAT,
+                "http://10.0.2.2:11434/api/chat", "llama3", "", false,
+                PlannerMode.NATIVE_TOOL_CALLING).validate();
+    }
+
+    @Test
+    public void geminiNativeModeIsAllowedAndBuildsCanonicalRequest() throws Exception {
+        // V0.5.2 Stage 10:Gemini 加入 NATIVE_TOOL_CALLING 白名单。
+        ModelConfig gemini = new ModelConfig("gemini", "Gemini",
+                ApiProtocol.GEMINI_GENERATE_CONTENT,
                 "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
-                "gemini-pro", "key", true, PlannerMode.NATIVE_TOOL_CALLING).validate();
+                "gemini-1.5-pro", "key", true, PlannerMode.NATIVE_TOOL_CALLING);
+        gemini.validate(); // 不应抛
+
+        List<AgentMessage> conversation = new ArrayList<>();
+        conversation.add(AgentMessage.system("system prompt"));
+        conversation.add(AgentMessage.user("空调 24 度"));
+        JSONObject request = ModelApiClient.buildGeminiToolRequest(gemini, "system prompt",
+                conversation, tools);
+
+        assertEquals("system prompt", request.getJSONObject("systemInstruction")
+                .getJSONArray("parts").getJSONObject(0).getString("text"));
+        JSONArray contents = request.getJSONArray("contents");
+        assertEquals(1, contents.length());
+        assertEquals("user", contents.getJSONObject(0).getString("role"));
+        assertEquals("空调 24 度", contents.getJSONObject(0).getJSONArray("parts")
+                .getJSONObject(0).getString("text"));
+        // tools 是 [{functionDeclarations:[...]}]
+        JSONArray functionDeclarations = request.getJSONArray("tools")
+                .getJSONObject(0).getJSONArray("functionDeclarations");
+        assertEquals(10, functionDeclarations.length());
     }
 
     @Test
@@ -224,7 +253,7 @@ public final class ModelApiClientContractTest {
 
         // tool_choice 与 tool 数量保持原生协议
         assertEquals("auto", request.getString("tool_choice"));
-        assertEquals(8, request.getJSONArray("tools").length());
+        assertEquals(10, request.getJSONArray("tools").length());
 
         JSONArray messages = request.getJSONArray("messages");
         // system + user + assistant + tool + tool = 5 条

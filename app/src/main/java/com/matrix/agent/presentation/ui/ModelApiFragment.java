@@ -114,7 +114,14 @@ public final class ModelApiFragment extends Fragment {
             testButton.setEnabled(!state.loading);
             saveButton.setEnabled(!state.loading);
             offlineButton.setEnabled(!state.loading);
-            apiStatus.setText(state.status);
+            // V0.5.3 评审 P1-3:memoryDegraded=true(SQLCipher/Room 不可用)时,在 apiStatus 顶部
+            // 显示 banner,提醒用户"记忆已降级到内存模式,重启后丢失"。fail-closed 文案——
+            // 不暴露具体失败原因,避免给攻击者调试信号。
+            String status = state.status;
+            if (state.memoryDegraded) {
+                status = "⚠️ 记忆已降级到内存模式,重启后丢失\n\n" + status;
+            }
+            apiStatus.setText(status);
         });
     }
 

@@ -45,7 +45,9 @@ public final class SafeLog {
      * **整段** mask,即使内部已有 schema 投影也不在 logcat 中暴露原文结构。
      */
     private static final Set<String> FULLY_REDACTED_CAPABILITIES = new java.util.HashSet<>(
-            java.util.Arrays.asList("memory.preference.save", "memory.preference.get"));
+            java.util.Arrays.asList(
+                    "memory.preference.save", "memory.preference.get",
+                    "memory.semantic.save", "memory.semantic.get"));
 
     private SafeLog() {}
 

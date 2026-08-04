@@ -24,6 +24,14 @@ public final class AgentBudget {
     public static final int DEFAULT_MAX_MESSAGE_CHARS = 8_000;
     public static final int DEFAULT_TOTAL_INPUT_CHARS = 32_000;
     public static final int DEFAULT_MAX_MESSAGE_COUNT = 64;
+    /**
+     * V0.5.0 Stage 5:token 维度保守估算系数——1 token ≈ 4 chars(英文)。
+     * 中文 token 数会更高(每个汉字 ≈ 1-2 token),用 char/4 是下限,避免误拒。
+     * V0.5.1 切 JtokkitTokenizer 后此系数退役。
+     */
+    public static final int CHAR_PER_TOKEN_FALLBACK = 4;
+    /** V0.5.0 Stage 5:assistant 单轮 token 上限——V0.5.1 切 token 时 enforcement 接入。 */
+    public static final int DEFAULT_MAX_ASSISTANT_TOKENS = 1_024;
 
     private final int maxIterations;
     private final int maxToolCalls;
@@ -31,6 +39,15 @@ public final class AgentBudget {
     private final int maxMessageChars;
     private final int totalInputChars;
     private final int maxMessageCount;
+    /**
+     * V0.5.2 Stage 3a:token 维度字段——V0.5.0/V0.5.1 是 char/4 估算的派生值;
+     * V0.5.3 切真实 jtokkit token 时由新构造器显式注入。
+     *
+     * <p>主路径(appendMessageWithBudget)仍用 char——字段先落地,决策切换留 V0.5.3。
+     */
+    private final int maxMessageTokens;
+    private final int totalInputTokens;
+    private final int maxAssistantTokens;
 
     public AgentBudget() {
         this(DEFAULT_MAX_ITERATIONS, DEFAULT_MAX_TOOL_CALLS, DEFAULT_TOTAL_DEADLINE_MILLIS,
@@ -45,18 +62,40 @@ public final class AgentBudget {
 
     public AgentBudget(int maxIterations, int maxToolCalls, long totalDeadlineMillis,
             int maxMessageChars, int totalInputChars, int maxMessageCount) {
+        this(maxIterations, maxToolCalls, totalDeadlineMillis, maxMessageChars, totalInputChars,
+                maxMessageCount,
+                Math.max(1, maxMessageChars / CHAR_PER_TOKEN_FALLBACK),
+                Math.max(1, totalInputChars / CHAR_PER_TOKEN_FALLBACK),
+                DEFAULT_MAX_ASSISTANT_TOKENS);
+    }
+
+    /**
+     * V0.5.2 Stage 3a:9 参构造器——显式传 token 维度(V0.5.3 切真实 jtokkit token 用)。
+     *
+     * <p>V0.5.2 不调用本构造器——主路径仍走 6 参构造器(char/4 估算)。
+     * V0.5.3 切换时 AppContainer 用真实 jtokkit 估算 prompt token,通过本构造器注入。
+     */
+    public AgentBudget(int maxIterations, int maxToolCalls, long totalDeadlineMillis,
+            int maxMessageChars, int totalInputChars, int maxMessageCount,
+            int maxMessageTokens, int totalInputTokens, int maxAssistantTokens) {
         if (maxIterations <= 0) throw new IllegalArgumentException("maxIterations 必须大于 0");
         if (maxToolCalls <= 0) throw new IllegalArgumentException("maxToolCalls 必须大于 0");
         if (totalDeadlineMillis <= 0) throw new IllegalArgumentException("totalDeadlineMillis 必须大于 0");
         if (maxMessageChars <= 0) throw new IllegalArgumentException("maxMessageChars 必须大于 0");
         if (totalInputChars <= 0) throw new IllegalArgumentException("totalInputChars 必须大于 0");
         if (maxMessageCount <= 0) throw new IllegalArgumentException("maxMessageCount 必须大于 0");
+        if (maxMessageTokens <= 0) throw new IllegalArgumentException("maxMessageTokens 必须大于 0");
+        if (totalInputTokens <= 0) throw new IllegalArgumentException("totalInputTokens 必须大于 0");
+        if (maxAssistantTokens <= 0) throw new IllegalArgumentException("maxAssistantTokens 必须大于 0");
         this.maxIterations = maxIterations;
         this.maxToolCalls = maxToolCalls;
         this.totalDeadlineMillis = totalDeadlineMillis;
         this.maxMessageChars = maxMessageChars;
         this.totalInputChars = totalInputChars;
         this.maxMessageCount = maxMessageCount;
+        this.maxMessageTokens = maxMessageTokens;
+        this.totalInputTokens = totalInputTokens;
+        this.maxAssistantTokens = maxAssistantTokens;
     }
 
     public int getMaxIterations() { return maxIterations; }
@@ -65,4 +104,20 @@ public final class AgentBudget {
     public int getMaxMessageChars() { return maxMessageChars; }
     public int getTotalInputChars() { return totalInputChars; }
     public int getMaxMessageCount() { return maxMessageCount; }
+
+    /**
+     * V0.5.2 Stage 3a:读字段(而非每次 char/4 估算)——V0.5.3 切真实 jtokkit token 时
+     * 字段值由 9 参构造器显式注入。
+     */
+    public int getMaxMessageTokens() {
+        return maxMessageTokens;
+    }
+
+    public int getTotalInputTokens() {
+        return totalInputTokens;
+    }
+
+    public int getMaxAssistantTokens() {
+        return maxAssistantTokens;
+    }
 }

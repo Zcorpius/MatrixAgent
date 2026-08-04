@@ -18,10 +18,11 @@ public final class MatrixViewModelFactory implements ViewModelProvider.Factory {
     public <T extends ViewModel> T create(@NonNull Class<T> modelClass) {
         ViewModel viewModel;
         if (modelClass.isAssignableFrom(AgentTestViewModel.class)) {
-            viewModel = new AgentTestViewModel(container.getAgentRuntimeRepository());
+            viewModel = new AgentTestViewModel(container.getAgentRuntimeRepository(),
+                    container.getVehicleStateSource());
         } else if (modelClass.isAssignableFrom(ModelApiViewModel.class)) {
             viewModel = new ModelApiViewModel(container.getAgentRuntimeRepository(),
-                    container.getModelGatewayRepository());
+                    container.getModelGatewayRepository(), container.isMemoryDegraded());
         } else {
             throw new IllegalArgumentException("Unknown ViewModel: " + modelClass.getName());
         }

@@ -21,6 +21,7 @@ import com.matrix.agent.R;
 import com.matrix.agent.app.MatrixAgentApplication;
 import com.matrix.agent.app.AppContainer;
 import com.matrix.agent.core.identity.Actor;
+import com.matrix.agent.core.identity.VehicleState;
 import com.matrix.agent.presentation.viewmodel.AgentTestViewModel;
 import com.matrix.agent.presentation.viewmodel.MatrixViewModelFactory;
 
@@ -28,6 +29,7 @@ public final class AgentTestFragment extends Fragment {
     private AgentTestViewModel viewModel;
     private EditText commandInput;
     private Spinner actorSpinner;
+    private Spinner gearSpinner;
     private Button executeButton;
     private TextView plannerStatus;
     private TextView outputView;
@@ -48,12 +50,29 @@ public final class AgentTestFragment extends Fragment {
 
         commandInput = view.findViewById(R.id.command_input);
         actorSpinner = view.findViewById(R.id.actor_spinner);
+        gearSpinner = view.findViewById(R.id.gear_spinner);
         executeButton = view.findViewById(R.id.execute_button);
         plannerStatus = view.findViewById(R.id.planner_status);
         outputView = view.findViewById(R.id.output_view);
 
         actorSpinner.setAdapter(new ArrayAdapter<>(requireContext(),
                 android.R.layout.simple_spinner_dropdown_item, new String[]{"主驾", "副驾"}));
+        // V0.4.3 Round 3 P2:gear Spinner 让 demo 可手动切档位,验证 PARKED_ONLY 等约束生效。
+        // P 当选:demo 启动默认 gear=P(满足所有 predicate);切到 D 后 climate 写 CAPABILITY 拒绝。
+        ArrayAdapter<String> gearAdapter = new ArrayAdapter<>(requireContext(),
+                android.R.layout.simple_spinner_dropdown_item, new String[]{"P (驻车)", "R (倒车)", "N (空挡)", "D (前进)"});
+        gearSpinner.setAdapter(gearAdapter);
+        gearSpinner.setSelection(0);
+        gearSpinner.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(android.widget.AdapterView<?> parent, View v, int position, long id) {
+                VehicleState.Gear gear = VehicleState.Gear.values()[position];
+                viewModel.setGear(gear);
+            }
+
+            @Override
+            public void onNothingSelected(android.widget.AdapterView<?> parent) { }
+        });
         executeButton.setOnClickListener(ignored -> execute());
         bindSample(view, R.id.quick_multi, "把主驾温度调到24度，然后导航回家");
         bindSample(view, R.id.quick_context, "副驾也一样");

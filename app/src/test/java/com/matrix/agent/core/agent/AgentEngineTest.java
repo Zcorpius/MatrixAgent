@@ -26,6 +26,8 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -63,6 +65,147 @@ public final class AgentEngineTest {
         assertEquals(2, outcome.getResults().size());
         assertTrue(outcome.getResults().get(0).isVerified());
         assertTrue(outcome.getResults().get(1).isVerified());
+    }
+
+    /**
+     * V0.4.1 Stage A:OpenAI Native 多轮 Tool Calling 端到端 happy path。
+     *
+     * <p>模拟 OpenAI Native LLM 在 Agent Loop 中的典型多轮行为——区别于 {@link DemoModelGateway}
+     * 的"一次性返回所有 tool_calls",本测试模拟真 LLM 每轮看 observation 后才决定下一步:
+     * <ol>
+     *   <li>第 1 轮 decide:conversation 只有 user → 返回 1 个 tool_call</li>
+     *   <li>第 2 轮 decide:conversation 含 tool_result → directAnswer 结束</li>
+     * </ol>
+     *
+     * <p>验证项:
+     * <ul>
+     *   <li>iterations.size() == 2(真正跑了 2 轮,不是 1 轮出全部 tool_calls)</li>
+     *   <li>iteration[0]:1 个 tool_call + 1 个 observation</li>
+     *   <li>iteration[1]:无 tool_call、无 observation(directAnswer)</li>
+     *   <li>StopReason.NO_TOOL_CALL + FinalState.SUCCEEDED</li>
+     * </ul>
+     *
+     * <p>本测试是 V0.4.1 Stage A 的核心可执行文档——证明 LlmModelGateway.useOpenAiNative 路径
+     * (production code 已存在)在 Agent Loop 中跑多轮端到端正确。
+     */
+    @Test
+    public void openAiNativeMultiTurnLoopEndsOnDirectAnswerAfterToolResult() {
+        ToolCall call = new ToolCall("vehicle.climate.set_temperature",
+                args("zone", "DRIVER", "temperature", 24));
+        ModelGateway gateway = oneShot(call, "openai-native-multiturn");
+
+        AgentOutcome outcome = createEngine(gateway, provider)
+                .execute(AgentRequest.builder("把主驾温度调到24度", Actor.DRIVER)
+                        .sessionId("oai-multi").build());
+
+        assertEquals(TaskState.SUCCEEDED, outcome.getFinalState());
+        assertEquals(StopReason.NO_TOOL_CALL, outcome.getStopReason());
+
+        List<AgentIteration> iterations = outcome.getTrajectory().getIterations();
+        assertEquals("OpenAI Native 多轮应跑 2 轮(第 1 轮 tool_call,第 2 轮 directAnswer)",
+                2, iterations.size());
+        assertEquals("第 1 轮应触发 1 个 tool_call",
+                1, iterations.get(0).getToolCalls().size());
+        assertEquals("第 1 轮应有 1 个 observation",
+                1, iterations.get(0).getObservations().size());
+        assertTrue("第 2 轮应无 tool_call(directAnswer)",
+                iterations.get(1).getToolCalls().isEmpty());
+        assertTrue("第 2 轮应无 observation",
+                iterations.get(1).getObservations().isEmpty());
+    }
+
+    /**
+     * V0.4.1 Stage C 测试 1:第 2 轮 LLM 调用前(L161 cancel 检查点)触发 cancel。
+     *
+     * <p>场景:第 1 轮 tool_call 已成功执行,然后外部 cancel。第 2 轮 iteration 开始时
+     * L161 检查到 cancel,直接跳出——不调 LLM,不进入 Tool 循环。
+     *
+     * <p>注:gateway.decide 在第 2 轮被调用前的 iteration 顶部检查到 cancel——本测试通过
+     * gateway 第 1 轮正常返回 + CapabilityProvider mock 在第 1 个 tool 完成后 cancel 模拟。
+     * 第 2 轮 iteration 开始时 L161 拦截。
+     */
+    @Test
+    public void agentLoopStopsOnCancelBeforeLlmCall() {
+        CancellationToken token = new CancellationToken();
+        ToolCall firstCall = new ToolCall("vehicle.info.get_battery", args());
+        // 第 1 轮 gateway 返回 tool_call,第 2 轮(若执行)返回 directAnswer
+        ModelGateway gateway = req -> {
+            if (hasToolResult(req.getConversation())) {
+                return ModelTurn.directAnswer("second turn never reached");
+            }
+            return ModelTurn.ofToolCalls(Collections.singletonList(firstCall), "first turn");
+        };
+        // CapabilityProvider mock:第 1 个 tool 执行成功 + 立即 cancel(模拟外部 cancel)
+        CapabilityProvider cancelingProvider = (req, call) -> {
+            ToolResult success = new ToolResult(ToolResult.Status.SUCCESS, call.getCapabilityName(),
+                    "ok", Collections.<String, Object>emptyMap(), true, 5);
+            token.cancel();
+            return success;
+        };
+
+        AgentOutcome outcome = createEngine(gateway, cancelingProvider)
+                .execute(AgentRequest.builder("查电量", Actor.DRIVER)
+                        .sessionId("cancel-pre-llm")
+                        .cancellationToken(token)
+                        .build());
+
+        assertEquals(StopReason.CANCELLED, outcome.getStopReason());
+        assertEquals(TaskState.CANCELLED, outcome.getFinalState());
+        // 第 1 轮 tool 已成功执行(observations 已写入),第 2 轮 L161 拦截未跑 LLM
+        assertEquals(1, outcome.getTrajectory().getIterations().size());
+        assertEquals(1, outcome.getResults().size());
+        assertTrue(outcome.getResults().get(0).isSuccess());
+    }
+
+    /**
+     * V0.4.1 Stage C 测试 2:per-tool-call checkpoint(L269 内循环顶部)触发 cancel。
+     *
+     * <p>场景:gateway 第 1 轮返回 2 个 tool_call,Provider mock 在第 1 个 tool 执行完成后
+     * 触发 cancel。第 2 个 tool 开始前 per-tool checkpoint 检查到 cancel,break toolCallLoop,
+     * 第 2 个 tool 未执行。
+     *
+     * <p>这同时验证 pre-tool checkpoint(264 行)与 per-tool checkpoint(269 行内循环顶部)的
+     * 协同——两个 checkpoint 在 production code 中作为 defense-in-depth 存在。
+     */
+    @Test
+    public void agentLoopStopsOnCancelDuringToolIteration() {
+        CancellationToken token = new CancellationToken();
+        ToolCall firstCall = new ToolCall("vehicle.info.get_battery", args());
+        ToolCall secondCall = new ToolCall("vehicle.info.get_tire_pressure", args());
+        ModelGateway gateway = req -> ModelTurn.ofToolCalls(
+                java.util.Arrays.asList(firstCall, secondCall), "two tools");
+
+        // 自定义 CapabilityProvider:第 1 个 tool 执行成功 + cancel token,第 2 个永远不应被调
+        CapabilityProvider cancelingProvider = new CapabilityProvider() {
+            private final java.util.concurrent.atomic.AtomicInteger invoked =
+                    new java.util.concurrent.atomic.AtomicInteger();
+
+            @Override
+            public ToolResult execute(AgentRequest request, ToolCall call) {
+                int count = invoked.incrementAndGet();
+                if (count == 1) {
+                    token.cancel();   // 第 1 个 tool 完成后 cancel
+                    return new ToolResult(ToolResult.Status.SUCCESS, call.getCapabilityName(),
+                            "first ok", Collections.emptyMap(), true, 5);
+                }
+                throw new AssertionError("第 2 个 tool 不应执行(per-tool checkpoint 应已拦截)");
+            }
+        };
+
+        AgentOutcome outcome = createEngine(gateway, cancelingProvider)
+                .execute(AgentRequest.builder("查电量和胎压", Actor.DRIVER)
+                        .sessionId("cancel-per-tool")
+                        .cancellationToken(token)
+                        .build());
+
+        assertEquals(StopReason.CANCELLED, outcome.getStopReason());
+        assertEquals(TaskState.CANCELLED, outcome.getFinalState());
+        AgentIteration iter = outcome.getTrajectory().getIterations().get(0);
+        assertEquals("第 1 轮应声明 2 个 tool_call",
+                2, iter.getToolCalls().size());
+        assertEquals("实际只执行了 1 个(per-tool checkpoint 后 break)",
+                1, iter.getObservations().size());
+        assertEquals(1, outcome.getResults().size());
     }
 
     @Test
@@ -982,6 +1125,14 @@ public final class AgentEngineTest {
                 toolExecutor);
     }
 
+    /** V0.4.1 Stage D:注入 SteerMailbox 的工厂,启用运行时追加指令路径。 */
+    private AgentEngine createEngineWithSteer(ModelGateway gateway,
+            CapabilityProvider capabilityProvider, SteerMailbox mailbox) {
+        return new AgentEngine(gateway, modelCallExecutor, new PolicyEngine(registry), registry,
+                capabilityProvider, sessionManager, new DefaultContextUpdater(), sessionLockManager,
+                toolExecutor, new AgentBudget(), mailbox);
+    }
+
     /**
      * 单射 ModelGateway:第一次 decide 返回固定 ToolCall,看到 Observation 后直接答复。
      * 与 DemoModelGateway 行为对齐,便于把 V0.3 的 Planner lambda 平移到 Agent Loop。
@@ -998,6 +1149,144 @@ public final class AgentEngineTest {
     private static ModelGateway knowledgeGateway() {
         ToolCall call = new ToolCall("knowledge.answer", args("question", "test"));
         return oneShot(call, "knowledge");
+    }
+
+    /**
+     * V0.4.1 Stage D 测试 1:REPROMPT 在第 1 轮 tool_call 完成后注入,第 2 轮 LLM 应看到追加 user message。
+     *
+     * <p>场景:
+     * <ol>
+     *   <li>第 1 轮 gateway 看到 user "查电量",返回 vehicle.info.get_battery tool_call</li>
+     *   <li>CapabilityProvider 执行 tool 后注入 REPROMPT "顺便也查胎压" 到 mailbox</li>
+     *   <li>第 2 轮 iteration 开始 drainSteerBeforeLlm 把 REPROMPT 合并进 conversation</li>
+     *   <li>第 2 轮 gateway 应看到 2 个 user message(原指令 + 追加)</li>
+     * </ol>
+     */
+    @Test
+    public void agentLoopDrainsRepromptSteerBeforeLlmCall() {
+        SteerMailbox mailbox = new SteerMailbox();
+        ToolCall batteryCall = new ToolCall("vehicle.info.get_battery", args());
+        AtomicInteger userMessageSeen = new AtomicInteger(0);
+        AtomicBoolean repromptSeenInTurn2 = new AtomicBoolean(false);
+        ModelGateway gateway = req -> {
+            long userCount = req.getConversation().stream()
+                    .filter(m -> m.getRole() == AgentMessage.Role.USER).count();
+            userMessageSeen.set((int) userCount);
+            if (userCount >= 2) {
+                repromptSeenInTurn2.set(req.getConversation().stream()
+                        .anyMatch(m -> m.getRole() == AgentMessage.Role.USER
+                                && "顺便也查胎压".equals(m.getContent())));
+                return ModelTurn.directAnswer("好的,一起查");
+            }
+            return ModelTurn.ofToolCalls(Collections.singletonList(batteryCall), "battery");
+        };
+        CapabilityProvider steeringProvider = (req, call) -> {
+            mailbox.offer(req.getSessionId(), Steer.reprompt("顺便也查胎压"));
+            return new ToolResult(ToolResult.Status.SUCCESS, call.getCapabilityName(),
+                    "ok", Collections.<String, Object>emptyMap(), true, 5);
+        };
+
+        AgentOutcome outcome = createEngineWithSteer(gateway, steeringProvider, mailbox)
+                .execute(AgentRequest.builder("查电量", Actor.DRIVER)
+                        .sessionId("steer-reprompt").build());
+
+        assertEquals(TaskState.SUCCEEDED, outcome.getFinalState());
+        assertEquals(StopReason.NO_TOOL_CALL, outcome.getStopReason());
+        assertEquals("第 2 轮 LLM 应被调用且看到 2 个 user message",
+                2, userMessageSeen.get());
+        assertTrue("第 2 轮 LLM 应看到 REPROMPT 文本", repromptSeenInTurn2.get());
+    }
+
+    /**
+     * V0.4.1 Stage D 测试 2:FORCE_TOOL 跳过 LLM 直接执行指定 capability。
+     *
+     * <p>场景:第 1 轮 tool_call 完成后,用户强制下一轮调用 vehicle.info.get_tire_pressure。
+     * gateway 不会在第 2 轮被调用——直接由 drainSteerBeforeLlm 注入 ToolCall。
+     */
+    @Test
+    public void agentLoopDrainsForceToolSteerSkippingLlm() {
+        SteerMailbox mailbox = new SteerMailbox();
+        AtomicInteger gatewayCallCount = new AtomicInteger(0);
+        ModelGateway gateway = req -> {
+            gatewayCallCount.incrementAndGet();
+            // 第 1 轮(无 tool_result)→ 返回 battery tool_call
+            // 第 2 轮(已有 tool_result,FORCE_TOOL 已执行)→ directAnswer 结束
+            if (hasToolResult(req.getConversation())) {
+                return ModelTurn.directAnswer("done");
+            }
+            ToolCall battery = new ToolCall("vehicle.info.get_battery", args());
+            return ModelTurn.ofToolCalls(Collections.singletonList(battery), "battery");
+        };
+        CapabilityProvider steeringProvider = (req, call) -> {
+            if ("vehicle.info.get_battery".equals(call.getCapabilityName())) {
+                mailbox.offer(req.getSessionId(),
+                        Steer.forceTool("vehicle.info.get_tire_pressure", Collections.<String, Object>emptyMap()));
+            }
+            return new ToolResult(ToolResult.Status.SUCCESS, call.getCapabilityName(),
+                    "ok", Collections.<String, Object>emptyMap(), true, 5);
+        };
+
+        AgentOutcome outcome = createEngineWithSteer(gateway, steeringProvider, mailbox)
+                .execute(AgentRequest.builder("查电量", Actor.DRIVER)
+                        .sessionId("steer-force").build());
+
+        assertEquals("FORCE_TOOL 注入的 tool 应执行成功",
+                TaskState.SUCCEEDED, outcome.getFinalState());
+        assertEquals("第 1 轮 battery tool_call + 第 2 轮 FORCE_TOOL tire_pressure = 2 个 tool",
+                2, outcome.getTrajectory().getTotalToolCalls());
+        assertEquals("gateway 应被调 2 次:第 1 轮 battery + 第 3 轮 directAnswer;"
+                + "第 2 轮 FORCE_TOOL 跳过 LLM",
+                2, gatewayCallCount.get());
+    }
+
+    /**
+     * V0.4.1 Stage D 测试 3:DEFER 用户推迟,StopReason.DEFERRED + TaskState.DEFERRED。
+     */
+    @Test
+    public void agentLoopDrainsDeferredSteerStoppingLoop() {
+        SteerMailbox mailbox = new SteerMailbox();
+        ToolCall batteryCall = new ToolCall("vehicle.info.get_battery", args());
+        ModelGateway gateway = req -> ModelTurn.ofToolCalls(
+                Collections.singletonList(batteryCall), "battery");
+        CapabilityProvider steeringProvider = (req, call) -> {
+            mailbox.offer(req.getSessionId(), Steer.defer());
+            return new ToolResult(ToolResult.Status.SUCCESS, call.getCapabilityName(),
+                    "ok", Collections.<String, Object>emptyMap(), true, 5);
+        };
+
+        AgentOutcome outcome = createEngineWithSteer(gateway, steeringProvider, mailbox)
+                .execute(AgentRequest.builder("查电量", Actor.DRIVER)
+                        .sessionId("steer-defer").build());
+
+        assertEquals("DEFER 应导致 DEFERRED 终态",
+                StopReason.DEFERRED, outcome.getStopReason());
+        assertEquals("DEFER 应映射到 TaskState.DEFERRED",
+                TaskState.DEFERRED, outcome.getFinalState());
+        assertEquals("第 1 轮 normal tool_call iteration + 第 2 轮 DEFER iteration = 2",
+                2, outcome.getTrajectory().getIterations().size());
+    }
+
+    /**
+     * V0.4.1 Stage D 测试 4:不同 session 的 Steer 不串号。
+     */
+    @Test
+    public void steerMailboxDrainsPerSession() {
+        SteerMailbox mailbox = new SteerMailbox();
+        mailbox.offer("session-A", Steer.reprompt("AAA"));
+        mailbox.offer("session-B", Steer.reprompt("BBB"));
+        mailbox.offer("session-A", Steer.reprompt("AAA2"));
+
+        List<Steer> drainedA = mailbox.drain("session-A");
+        List<Steer> drainedB = mailbox.drain("session-B");
+        List<Steer> drainedEmpty = mailbox.drain("session-C");
+
+        assertEquals("session-A 应有 2 个 Steer", 2, drainedA.size());
+        assertEquals("session-B 应有 1 个 Steer", 1, drainedB.size());
+        assertEquals("AAA", drainedA.get(0).getPayload());
+        assertEquals("AAA2", drainedA.get(1).getPayload());
+        assertEquals("BBB", drainedB.get(0).getPayload());
+        assertTrue("未注册的 session 应返回空 list", drainedEmpty.isEmpty());
+        assertEquals("drain 后队列应清空", 0, mailbox.pendingCount("session-A"));
     }
 
     private static boolean hasToolResult(List<AgentMessage> conversation) {

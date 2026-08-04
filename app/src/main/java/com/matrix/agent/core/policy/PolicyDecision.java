@@ -36,15 +36,6 @@ public final class PolicyDecision {
         return new PolicyDecision(false, reason, RejectionType.PARAMETER);
     }
 
-    /**
-     * @deprecated V0.4.0 起按拒绝原因显式选 {@link #denyCapability} 或 {@link #denyParameter}。
-     * 旧调用点保留过渡,默认归 PARAMETER(更宽松,允许模型重试)。
-     */
-    @Deprecated
-    public static PolicyDecision deny(String reason) {
-        return denyParameter(reason);
-    }
-
     public boolean isAllowed() { return allowed; }
     public String getReason() { return reason; }
     public RejectionType getRejectionType() { return rejectionType; }

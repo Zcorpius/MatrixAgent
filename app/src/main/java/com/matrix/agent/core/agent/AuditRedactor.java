@@ -45,7 +45,8 @@ public final class AuditRedactor {
     };
     /** 把整条 observation 全脱敏的 capability 集合——value 不该进 Trajectory/UI/Log。 */
     private static final Set<String> FULL_REDACT_CAPABILITIES = new HashSet<>(Arrays.asList(
-            "memory.preference.save", "memory.preference.get"));
+            "memory.preference.save", "memory.preference.get",
+            "memory.semantic.save", "memory.semantic.get"));
 
     /** memory.preference.* observation 脱敏后的 message 占位符,测试与 UI 渲染都会用。 */
     public static final String MEMORY_MESSAGE_PLACEHOLDER = "[user memory preference redacted]";
@@ -63,16 +64,44 @@ public final class AuditRedactor {
      * 第四轮 P1-2:即使 schema 没标 sensitive,这些字段名也无条件视为凭据/敏感字段。
      * 大小写不敏感匹配。这是 schema 元数据缺失时的兜底。
      *
+     * <p>V0.5.3 评审 P1-2:扩充业务 PII key(home_address / contact_phone / id_card 等),
+     * 与 {@link com.matrix.agent.core.SensitiveKeys#BUILTIN_PII_KEYS} 共享 denylist。
+     * 命中 PII key 时 value 替换为 {@code <memory>}(语义同 preference);
+     * key 本身是元数据,不 mask。
+     *
      * <p>注意:不包括 {@code key} 这种过于通用的字段名——memory.preference 等业务场景下
      * key 是偏好名(preferred_temperature / home_address),不能误判为凭据。
      */
-    private static final Set<String> BUILTIN_CREDENTIAL_KEYS = new HashSet<>(Arrays.asList(
-            "api_key", "apikey", "token", "access_token", "refresh_token", "id_token",
-            "authorization", "auth", "bearer", "secret", "client_secret",
-            "password", "passwd", "credential", "credentials"));
+    private static final Set<String> BUILTIN_CREDENTIAL_KEYS;
+    static {
+        Set<String> keys = new HashSet<>(Arrays.asList(
+                "api_key", "apikey", "token", "access_token", "refresh_token", "id_token",
+                "authorization", "auth", "bearer", "secret", "client_secret",
+                "password", "passwd", "credential", "credentials"));
+        // V0.5.3 P1-2:业务 PII key 共享 denylist
+        keys.addAll(com.matrix.agent.core.SensitiveKeys.BUILTIN_PII_KEYS);
+        BUILTIN_CREDENTIAL_KEYS = keys;
+    }
 
     private final int maxChars;
     private final CapabilityRegistry capabilityRegistry;
+    /**
+     * V0.5.1 Stage 4 + C 路线评审反馈 P2:自由文本摘要策略——volatile 让 AppContainer 装配期
+     * {@link #setDigest(AuditDigest)} 注入对其他线程立即可见(AgentEngine 工作线程
+     * 可能在注入前已经构造,但实际 digest() 调用在任务执行期,远晚于装配)。
+     *
+     * <p>默认 {@link UnavailableAuditDigest}——fail-closed:未注入时输出固定
+     * {@code [redacted:chars=N,digest=unavailable]},不暴露"同输入同输出"的稳定性信号,
+     * 杜绝 SHA-1 8 位对低熵文本(电话号码 / 地址 / 固定指令)的枚举反推。
+     *
+     * <p>V0.5.1 C 路线评审反馈 P2 指出:初版默认 {@link Sha1AuditDigest} + {@code setDigest(null)}
+     * 回退 SHA-1,虽然当前 AppContainer 走 {@code KeystoreHmacAuditDigest} 装配路径不会触发,
+     * 但未来遗漏 HMAC 注入(JVM 测试 fake / 新装配路径遗漏 setDigest 调用)时会**静默**降低
+     * 隐私级别——而 SHA-1 8 位正是 Stage 4 升级要修的洞。修复:生产默认与 null 兜底都改 fail-closed,
+     * 仅显式 {@code setDigest(new Sha1AuditDigest())} 时才走 SHA-1(V0.5.0 兼容契约由
+     * {@code AuditFreeTextRedactionTest.sha1DigestOptInViaSetDigest} 显式注入验证)。
+     */
+    private volatile AuditDigest digest = new UnavailableAuditDigest();
 
     public AuditRedactor(int maxChars) {
         this(maxChars, null);
@@ -83,6 +112,22 @@ public final class AuditRedactor {
         if (maxChars <= 0) throw new IllegalArgumentException("maxChars 必须大于 0");
         this.maxChars = maxChars;
         this.capabilityRegistry = registry;
+    }
+
+    /**
+     * V0.5.1 Stage 4 + C 路线评审反馈 P2:AppContainer 装配期注入 digest 策略。
+     *
+     * <p>调用契约:仅在 AgentEngine 构造后立即调用(AppContainer engineFactory lambda 内),
+     * 之后任务执行期不再变更。多次调用幂等(后写覆盖前写)。
+     *
+     * @param digest null 时退化为 {@link UnavailableAuditDigest}(fail-closed,
+     *              不再退回 V0.5.0 SHA-1——避免遗漏 HMAC 注入时静默降低隐私级别)。
+     *              需 V0.5.0 SHA-1 兼容行为的测试请显式传入 {@code new Sha1AuditDigest()}。
+     */
+    public void setDigest(AuditDigest digest) {
+        this.digest = digest == null ? new UnavailableAuditDigest() : digest;
+        Log.i(TAG, "[Audit] digest strategy set to " + this.digest.getClass().getSimpleName()
+                + " prefix=" + this.digest.prefix());
     }
 
     public String redact(String content) {
@@ -108,6 +153,35 @@ public final class AuditRedactor {
                     + " origChars=" + content.length() + " redactedChars=" + result.length());
         }
         return result;
+    }
+
+    /**
+     * 第七轮 P1.2:自由文本 fail-closed —— assistant content / 未配置 audit template 的
+     * capability message 一律用 {@code "[redacted:chars=N,<prefix>=<hex|unavailable>]"}
+     * 替代原文。
+     *
+     * <p>保留 chars 是因为长度本身是诊断信号(max_tokens 截断 / 异常长输入);
+     * digest 字段允许事后按已知明文比对 ("这条审计行对应的是否是
+     * '把主驾温度调到 24 度'"),但不可逆推原文。
+     *
+     * <p>V0.5.1 Stage 4 + C 路线评审反馈 P2:digest 字段三种语义:
+     * <ul>
+     *   <li>{@code hmac=16hex} —— AppContainer 装配 {@link KeystoreHmacAuditDigest} 后的
+     *       生产主路径(HMAC-SHA-256 截断 16 位,64-bit 抗碰撞,Keystore 派生密钥)。</li>
+     *   <li>{@code sha=8hex} —— 显式 {@code setDigest(new Sha1AuditDigest())} 注入的
+     *       V0.5.0 兼容路径;仅用于历史契约测试,生产不再走。</li>
+     *   <li>{@code digest=unavailable} —— **默认值** + {@code setDigest(null)} + AppContainer
+     *       装配失败兜底。fail-closed:任何输入产出相同摘要,杜绝"同输入同输出"枚举反推。</li>
+     * </ul>
+     *
+     * <p>原 {@link #redact(String)} 路径保留——仍是 Tool arguments / ToolResult message
+     * 的默认处理 (凭据正则 + 截断),不破坏 V0.4.3 测试。
+     */
+    public String redactFreeText(String content) {
+        if (content == null) return "";
+        int chars = content.length();
+        String hash = digest.digest(content);
+        return "[redacted:chars=" + chars + "," + digest.prefix() + "=" + hash + "]";
     }
 
     /**
@@ -256,7 +330,10 @@ public final class AuditRedactor {
             }
         }
         ToolResult redacted = new ToolResult(original.getStatus(), original.getCapabilityName(),
-                redact(original.getMessage()), redactMap(original.getObservedState()),
+                // 第八轮 P1.2:无 audit template 的 capability (如 knowledge.answer) 的 message
+                // 也是 Provider 自由文本——可能回显用户问题 / 地址 / 联系人。一律走 redactFreeText
+                // (chars + SHA-8 摘要) 而非 redact(message) (仅凭据正则 + 截断),fail-closed。
+                redactFreeText(original.getMessage()), redactMap(original.getObservedState()),
                 original.isVerified(), original.getDurationMillis());
         return ToolObservation.fromParts(observation.getToolCallId(), observation.getCapabilityName(),
                 redacted, null, false);

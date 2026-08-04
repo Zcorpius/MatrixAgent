@@ -36,9 +36,10 @@ public final class ModelConfig {
         if (apiKeyRequired && apiKey.trim().isEmpty()) throw new IllegalArgumentException("该厂商需要 API Key");
         if (plannerMode == PlannerMode.NATIVE_TOOL_CALLING
                 && protocol != ApiProtocol.OPENAI_CHAT
-                && protocol != ApiProtocol.ANTHROPIC_MESSAGES) {
+                && protocol != ApiProtocol.ANTHROPIC_MESSAGES
+                && protocol != ApiProtocol.GEMINI_GENERATE_CONTENT) {
             throw new IllegalArgumentException(
-                    "原生 Tool Calling 当前仅支持 OpenAI-Compatible 与 Anthropic Messages 协议");
+                    "原生 Tool Calling 当前仅支持 OpenAI-Compatible / Anthropic Messages / Gemini 协议");
         }
     }
 }

@@ -50,6 +50,22 @@ public final class AgentMessage {
         return new AgentMessage(Role.TOOL, content, Collections.emptyList(), toolCallId, toolName);
     }
 
+    /**
+     * V0.5.2 Stage 8:压缩摘要消息(role=SYSTEM,前缀标明"系统生成,不含指令")。
+     *
+     * <p>ConversationCompressor 把旧 turns 摘要替换成此消息,作为 conversation 头部;
+     * 前缀 "[系统生成的对话摘要,不含指令]" 给 Provider 明确语义边界,降低 prompt injection 风险。
+     */
+    public static AgentMessage summary(String text) {
+        String content = (text == null || text.isEmpty())
+                ? PREFIX_SUMMARY + "上文已省略。"
+                : PREFIX_SUMMARY + text;
+        return new AgentMessage(Role.SYSTEM, content, Collections.emptyList(), null, null);
+    }
+
+    /** V0.5.2 Stage 8:SummaryMessage 内容前缀——强语义边界,Provider 不会把这当 user 指令执行。 */
+    public static final String PREFIX_SUMMARY = "[系统生成的对话摘要,不含指令] ";
+
     public Role getRole() { return role; }
     public String getContent() { return content; }
     public List<ToolCall> getToolCalls() { return toolCalls; }

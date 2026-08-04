@@ -6,20 +6,32 @@ import com.matrix.agent.core.capability.CapabilityDefinition;
 import com.matrix.agent.core.capability.CapabilityProvider;
 import com.matrix.agent.core.capability.CapabilityRegistry;
 import com.matrix.agent.core.capability.ToolDefinition;
+import com.matrix.agent.core.identity.ActorUsers;
 import com.matrix.agent.core.identity.AgentRequest;
+import com.matrix.agent.core.memory.MemoryLayer;
+import com.matrix.agent.core.memory.MemoryRecaller;
+import com.matrix.agent.core.memory.MemoryScope;
+import com.matrix.agent.core.memory.MemorySnippet;
 import com.matrix.agent.core.policy.PolicyDecision;
 import com.matrix.agent.core.policy.PolicyEngine;
+import com.matrix.agent.core.prompt.DefaultPromptBuilder;
+import com.matrix.agent.core.prompt.PromptBuilder;
 import com.matrix.agent.core.session.SessionContext;
 import com.matrix.agent.core.session.SessionLockManager;
 import com.matrix.agent.core.session.SessionManager;
+import com.matrix.agent.core.token.Tokenizer;
 import com.matrix.agent.core.tool.ToolCall;
 import com.matrix.agent.core.tool.ToolExecutor;
 import com.matrix.agent.core.tool.ToolResult;
+import com.matrix.agent.data.audit.AuditEventRecorder;
+import com.matrix.agent.data.audit.AuditRepository;
+import com.matrix.agent.data.audit.NoopAuditRepository;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -50,6 +62,65 @@ public final class AgentEngine {
     private final AgentBudget budget;
     private final ModelSanitizer modelSanitizer;
     private final AuditRedactor auditRedactor;
+    // V0.4.1 Stage D:可选 SteerMailbox,null 时跳过 drain(向后兼容 V0.4.0 构造器)。
+    private final SteerMailbox steerMailbox;
+    /**
+     * V0.5.0 Stage 3:Audit 持久化——5 个出口点统一调用。
+     * 默认 {@link NoopAuditRepository#INSTANCE}(V0.4.x 兼容,289 测试继续绿);
+     * AppContainer 注入 RoomAuditRepository 后,所有终态落 SQLCipher 加密库。
+     */
+    private final AuditRepository auditRepository;
+    /**
+     * V0.5.0 Stage 3:Memory 召回——buildSystemPrompt 末尾拼召回 snippet。
+     * null 时退化为 V0.4.3 文案(289 测试兼容);AppContainer 注入 MemoryRouter 后生效。
+     */
+    private final MemoryRecaller memoryRecaller;
+    /**
+     * V0.5.2 Stage 3a:Tokenizer——主路径双轨统计用,不影响 budget 决策。
+     *
+     * <p>null 时退化为 char-based 估算(与 V0.4.x / 289 测试一致);AppContainer 注入
+     * JtokkitTokenizer 后,关键日志点(BEGIN / 迭代边界 / Tool 写入)输出双轨
+     * {@code convChars=N convTokens=M},便于 V0.5.3 决定切主路径时机。
+     *
+     * <p>主路径 {@link #appendMessageWithBudget} 仍用 {@link #estimateConversationChars}
+     * + {@link AgentBudget#getTotalInputChars()} / {@link AgentBudget#getMaxMessageChars()}。
+     */
+    private Tokenizer tokenizer;
+    /**
+     * V0.5.2 Stage 4:audit_event 增量事件落库——PRE_TOOL / POST_TOOL / POLICY / STEER。
+     *
+     * <p>默认 {@link AuditEventRecorder#NOOP}(289 测试 + V0.4.x 兼容);AppContainer
+     * 注入真实 recorder 后,Loop 4 个出口点写入 audit_event 表(异步 fire-and-forget,
+     * Dao 异常仅 log 不阻塞主路径)。Stage 5 加 STEER_DROPPED_STALE 第 5 个出口点。
+     */
+    private AuditEventRecorder auditEventRecorder = AuditEventRecorder.NOOP;
+    /**
+     * V0.5.3 评审 P1-1:Memory 写入——Episodic 自动 + Semantic 显式。
+     *
+     * <p>默认 {@link MemoryWriter#NOOP}(V0.4.x / 289 测试兼容);AppContainer 注入
+     * RoomMemoryWriter 后,主路径终态出口点(L678)+ terminalOutcome 出口点(L783)
+     * 写入 session_history 表,供 EpisodicMemorySourceImpl 召回。
+     */
+    private MemoryWriter memoryWriter = MemoryWriter.NOOP;
+    /**
+     * V0.5.2 Stage 6:PromptBuilder——buildSystemPrompt 委托入口。
+     *
+     * <p>null 时退化为内联拼装(289 测试兼容);AppContainer 注入 DefaultPromptBuilder 后
+     * 走 segmented 路径——V0.5.2 字面等价,V0.5.3 由 PromptComposer 加入 token 预算分配。
+     */
+    private PromptBuilder promptBuilder;
+    /**
+     * V0.5.2 Stage 8:ConversationCompressor——appendMessageWithBudget 失败前压缩旧 turns。
+     *
+     * <p>null 时退化为 V0.4.x 行为(直接 BUDGET_EXHAUSTED);AppContainer 注入后走
+     * LLM 摘要 + heuristic 降级双路径。
+     */
+    private ConversationCompressor conversationCompressor;
+    /**
+     * V0.5.2 Stage 8:当前 AgentRequest——ConversationCompressor.compress 需要
+     * request 作为 SummaryProvider 参数。execute 入口写入,执行完置 null 防止泄漏。
+     */
+    private AgentRequest currentRequest;
 
     public AgentEngine(ModelGateway modelGateway, ModelCallExecutor modelCallExecutor,
             PolicyEngine policyEngine, CapabilityRegistry registry, CapabilityProvider provider,
@@ -63,6 +134,33 @@ public final class AgentEngine {
             PolicyEngine policyEngine, CapabilityRegistry registry, CapabilityProvider provider,
             SessionManager sessionManager, ContextUpdater contextUpdater,
             SessionLockManager sessionLockManager, ToolExecutor toolExecutor, AgentBudget budget) {
+        this(modelGateway, modelCallExecutor, policyEngine, registry, provider, sessionManager,
+                contextUpdater, sessionLockManager, toolExecutor, budget, null);
+    }
+
+    /** V0.4.1 Stage D:注入 SteerMailbox 的全参构造器。null 时跳过 drain,行为与 V0.4.0 一致。 */
+    public AgentEngine(ModelGateway modelGateway, ModelCallExecutor modelCallExecutor,
+            PolicyEngine policyEngine, CapabilityRegistry registry, CapabilityProvider provider,
+            SessionManager sessionManager, ContextUpdater contextUpdater,
+            SessionLockManager sessionLockManager, ToolExecutor toolExecutor,
+            AgentBudget budget, SteerMailbox steerMailbox) {
+        this(modelGateway, modelCallExecutor, policyEngine, registry, provider, sessionManager,
+                contextUpdater, sessionLockManager, toolExecutor, budget, steerMailbox,
+                NoopAuditRepository.INSTANCE, null);
+    }
+
+    /**
+     * V0.5.0 Stage 3:全参构造器——audit + memoryRecaller。
+     *
+     * <p>auditRepository 为 null 时退化 Noop;memoryRecaller 为 null 时 buildSystemPrompt
+     * 走 V0.4.3 旧文案(289 测试兼容)。
+     */
+    public AgentEngine(ModelGateway modelGateway, ModelCallExecutor modelCallExecutor,
+            PolicyEngine policyEngine, CapabilityRegistry registry, CapabilityProvider provider,
+            SessionManager sessionManager, ContextUpdater contextUpdater,
+            SessionLockManager sessionLockManager, ToolExecutor toolExecutor,
+            AgentBudget budget, SteerMailbox steerMailbox,
+            AuditRepository auditRepository, MemoryRecaller memoryRecaller) {
         if (modelGateway == null) throw new IllegalArgumentException("modelGateway 不能为空");
         if (modelCallExecutor == null) throw new IllegalArgumentException("modelCallExecutor 不能为空");
         if (policyEngine == null) throw new IllegalArgumentException("policyEngine 不能为空");
@@ -83,16 +181,113 @@ public final class AgentEngine {
         this.sessionLockManager = sessionLockManager;
         this.toolExecutor = toolExecutor;
         this.budget = budget;
+        this.steerMailbox = steerMailbox;
+        this.auditRepository = auditRepository == null ? NoopAuditRepository.INSTANCE : auditRepository;
+        this.memoryRecaller = memoryRecaller;
         this.modelSanitizer = new ModelSanitizer(budget.getMaxMessageChars());
         // 第四轮 P1-2:注入 CapabilityRegistry,AuditRedactor 按 schema 脱敏 memory.preference.value、
         // navigation.destination、contact.phone 等业务敏感字段,不再依赖自由文本凭据正则。
         this.auditRedactor = new AuditRedactor(budget.getMaxMessageChars(), registry);
         Log.i(TAG, "[Engine] init gateway=" + modelGateway.getClass().getSimpleName()
-                + " budget=" + budget);
+                + " budget=" + budget
+                + " steerMailbox=" + (steerMailbox == null ? "off" : "on")
+                + " audit=" + this.auditRepository.getClass().getSimpleName()
+                + " memoryRecaller=" + (memoryRecaller == null ? "off" : "on"));
+    }
+
+    /** V0.4.1 Stage D:对外暴露的追加转向指令入口,null mailbox 时直接返回 false。 */
+    public boolean offerSteer(String sessionId, Steer steer) {
+        if (steerMailbox == null) {
+            Log.w(TAG, "[Engine] offerSteer ignored, no SteerMailbox configured");
+            return false;
+        }
+        steerMailbox.offer(sessionId, steer);
+        return true;
+    }
+
+    /**
+     * V0.5.1 Stage 4 + C 路线评审反馈 P2:AppContainer 装配期注入 HMAC digest——一行委托到 {@link AuditRedactor}。
+     *
+     * <p>调用契约:仅 AppContainer engineFactory lambda 内,AgentEngine 构造后立即调用;
+     * 任务执行期不再变更。null 时退化为 {@link UnavailableAuditDigest}(fail-closed,
+     * 不再退回 V0.5.0 SHA-1——避免遗漏 HMAC 注入时静默降低隐私级别)。
+     */
+    public void setAuditDigest(AuditDigest digest) {
+        this.auditRedactor.setDigest(digest);
+    }
+
+    /**
+     * V0.5.2 Stage 3a:AppContainer 装配期注入 Tokenizer——主路径双轨统计用。
+     *
+     * <p>null 时退化为 char-based 估算(289 测试兼容);AppContainer 注入 JtokkitTokenizer 后
+     * 关键日志点输出双轨 {@code convChars=N convTokens=M}。**主路径 budget 决策仍用 char**,
+     * 切换留 V0.5.3。
+     */
+    public void setTokenizer(Tokenizer tokenizer) {
+        this.tokenizer = tokenizer;
+        Log.i(TAG, "[Engine] tokenizer set "
+                + (tokenizer == null ? "null (char fallback)"
+                        : tokenizer.encoding() + " available=" + tokenizer.isAvailable()));
+    }
+
+    /**
+     * V0.5.2 Stage 4:AppContainer 装配期注入 AuditEventRecorder。
+     *
+     * <p>null 时退化为 {@link AuditEventRecorder#NOOP}(289 测试兼容);AppContainer 注入真实
+     * recorder 后,Loop 4 个出口点写入 audit_event 表。Stage 5 加 STEER_DROPPED_STALE。
+     */
+    public void setAuditEventRecorder(AuditEventRecorder recorder) {
+        this.auditEventRecorder = recorder == null ? AuditEventRecorder.NOOP : recorder;
+        Log.i(TAG, "[Engine] auditEventRecorder set "
+                + (recorder == null ? "NOOP" : "active"));
+    }
+
+    /**
+     * V0.5.2 Stage 6:AppContainer 装配期注入 PromptBuilder。
+     *
+     * <p>null 时退化为内联拼装(289 测试兼容);AppContainer 注入 DefaultPromptBuilder 后
+     * buildSystemPrompt 走 segmented 路径。V0.5.2 字面等价,V0.5.3 由 PromptComposer
+     * 加入 token 预算分配 / 截断。
+     */
+    public void setPromptBuilder(PromptBuilder promptBuilder) {
+        this.promptBuilder = promptBuilder;
+        Log.i(TAG, "[Engine] promptBuilder set "
+                + (promptBuilder == null ? "null (inline fallback)"
+                        : promptBuilder.getClass().getSimpleName()));
+    }
+
+    /**
+     * V0.5.2 Stage 8:AppContainer 装配期注入 ConversationCompressor。
+     *
+     * <p>null 时 appendMessageWithBudget 在预算超限时直接返回 false(BUDGET_EXHAUSTED 终止,
+     * V0.4.x 行为);AppContainer 注入 ConversationCompressor 后,先压缩再重试 append,
+     * 长任务也能继续跑。Compressor 用 LLM 摘要(provider 注入)或 heuristic 降级(provider=null)。
+     */
+    public void setConversationCompressor(ConversationCompressor compressor) {
+        this.conversationCompressor = compressor;
+        Log.i(TAG, "[Engine] conversationCompressor set "
+                + (compressor == null ? "null (BUDGET_EXHAUSTED 不压缩)"
+                        : "active"));
+    }
+
+    /**
+     * V0.5.3 评审 P1-1:注入 MemoryWriter。
+     *
+     * <p>null 退化为 {@link MemoryWriter#NOOP}(289 测试 + V0.4.x 兼容)。
+     * AppContainer 注入 RoomMemoryWriter 后,主路径终态 + terminalOutcome 出口点
+     * 写入 session_history 表,供 EpisodicMemorySourceImpl 召回。
+     */
+    public void setMemoryWriter(MemoryWriter writer) {
+        this.memoryWriter = writer == null ? MemoryWriter.NOOP : writer;
+        Log.i(TAG, "[Engine] memoryWriter set "
+                + (writer == null ? "null (NOOP,Episodic 不写入)" : "active"));
     }
 
     public AgentOutcome execute(AgentRequest request) {
         long started = System.nanoTime();
+        // V0.5.2 Stage 8:记录当前 request 给 ConversationCompressor 用(appendMessageWithBudget
+        // 调 compressor.compress 时需要 request 作为 SummaryProvider 参数)。
+        this.currentRequest = request;
         // 第七轮 P2-4:BEGIN 行只暴露元数据,用户输入原文用 SafeLog 占位符包裹。
         // 旧实现把 truncate(text, 80) 直接写 logcat——前 80 字符可能含目的地 / 联系人 / 偏好值。
         Log.i(TAG, "[Engine] BEGIN req=" + request.getRequestId()
@@ -133,19 +328,28 @@ public final class AgentEngine {
             trajectory.finish(reason, elapsedMillis(started), 0);
             sessionContext.addTurn("USER: " + SafeLog.USER_INPUT_PLACEHOLDER
                     + " | RESULT: " + preTerminal);
-            return new AgentOutcome(request.getRequestId(), preTerminal, reason, trajectory,
-                    elapsedMillis(started));
+            AgentOutcome preLoopOutcome = new AgentOutcome(request.getRequestId(), preTerminal,
+                    reason, trajectory, elapsedMillis(started));
+            // V0.5.0 Stage 3:出口点 3——pre-loop terminal(cancel/deadline 已触发)
+            auditRepository.persist(preLoopOutcome, request);
+            // V0.5.3 评审 P1-1:pre-loop terminal 也要写 episodic(覆盖 CANCELLED/TIMED_OUT 终态)。
+            // V0.5.4 评审 P1-1:传 request.getEpoch(),RoomMemoryWriter 在 Room 事务内做 epoch gate。
+            memoryWriter.writeEpisodicOnTerminal(request, preLoopOutcome, request.getEpoch());
+            return preLoopOutcome;
         }
 
         String systemPrompt = buildSystemPrompt(request);
-        List<ToolDefinition> tools = registry.toToolDefinitions();
+        // V0.4.3 Stage C:per-request zone 投影——主驾/副驾看到不同 tool 列表,
+        // V0.4.2 Stage E 加的 toToolDefinitions(VehicleZone) 在 V0.4.3 才真正接入。
+        List<ToolDefinition> tools = registry.toToolDefinitions(request.getOccupantZone());
         List<AgentMessage> conversation = new ArrayList<>();
         // 第七轮 P2-2:maxMessageChars 限制单条消息长度——system/user 输入过长会撑爆总字符预算,
         // 也可能直接被模型 API 拒绝。所有进入 conversation 的消息统一过 enforceMessageBudget。
         conversation.add(enforceMessageBudget(AgentMessage.system(systemPrompt)));
         conversation.add(enforceMessageBudget(AgentMessage.user(request.getText())));
         Log.d(TAG, "[Engine] tools=" + tools.size() + " systemPromptChars=" + systemPrompt.length()
-                + " convChars=" + estimateConversationChars(conversation));
+                + " convChars=" + estimateConversationChars(conversation)
+                + " convTokens=" + estimateConversationTokens(conversation));
 
         Set<String> blockedCapabilities = new HashSet<>();
         int totalToolCalls = 0;
@@ -156,7 +360,8 @@ public final class AgentEngine {
         for (int iteration = 1; iteration <= budget.getMaxIterations(); iteration++) {
             Log.d(TAG, "[Engine] --- iteration " + iteration + "/" + budget.getMaxIterations()
                     + " blocked=" + blockedCapabilities + " totalCalls=" + totalToolCalls
-                    + " convChars=" + estimateConversationChars(conversation) + " ---");
+                    + " convChars=" + estimateConversationChars(conversation)
+                    + " convTokens=" + estimateConversationTokens(conversation) + " ---");
 
             TaskState terminal = cancellationState(request);
             if (terminal != null) {
@@ -166,6 +371,9 @@ public final class AgentEngine {
                 Log.w(TAG, "[Engine] iter " + iteration + " terminal=" + terminal + " reason=" + stopReason);
                 break;
             }
+            // V0.5.2-rev 评审 P2-3:80% 主动触发压缩——避免被动到 100% 才触发,
+            // 给本轮 LLM 调用留充足预算。100% 被动路径保留在 appendMessageWithBudget(兜底)。
+            tryCompressConversation(conversation, budget, request);
             if (estimateConversationChars(conversation) > budget.getTotalInputChars()) {
                 stopReason = StopReason.BUDGET_EXHAUSTED;
                 stopMessage = "输入字符预算耗尽";
@@ -175,22 +383,50 @@ public final class AgentEngine {
                 break;
             }
 
+            // V0.4.1 Stage D:LLM 调用前 drain SteerMailbox。
+            // - REPROMPT:把 payload 作为新 user message 加入 conversation,继续本轮 LLM
+            // - FORCE_TOOL:跳过本轮 LLM,直接构造 ToolCall 走 Tool 执行分支(下面 forceToolTurn 分支)
+            // - DEFER:StopReason.DEFERRED,跳出 Loop
             long iterationStarted = System.nanoTime();
-            ModelTurnRequest turnRequest = new ModelTurnRequest(request, conversation, tools,
-                    systemPrompt, sessionContext);
-            Log.d(TAG, "[Engine] iter " + iteration + " -> ModelGateway.decide()");
-            ModelCallExecutor.Result result = modelCallExecutor.decide(modelGateway, turnRequest);
-            if (!result.isSuccess()) {
-                stopReason = result.getTerminalReason();
-                stopMessage = result.getMessage();
-                Log.w(TAG, "[Engine] iter " + iteration + " model call terminal reason="
-                        + stopReason + " msg=" + truncate(result.getMessage(), 160));
+            Steer forcedSteer = drainSteerBeforeLlm(request, conversation, iteration);
+            if (forcedSteer == DEFER_SENTINEL) {
+                stopReason = StopReason.DEFERRED;
+                stopMessage = "用户要求推迟当前任务";
+                Log.i(TAG, "[Engine] iter " + iteration + " steer DEFER -> terminal");
+                trajectory.addIteration(new AgentIteration(iteration,
+                        AgentMessage.assistant("[steer:defer]", Collections.<ToolCall>emptyList()),
+                        Collections.<AgentIteration.ToolCallSnapshot>emptyList(),
+                        Collections.<ToolObservation>emptyList(),
+                        Collections.<PolicyDecision>emptyList(),
+                        elapsedMillis(iterationStarted)));
                 break;
+            }
+
+            ModelTurn turn;
+            if (forcedSteer != null) {
+                // FORCE_TOOL:跳过 LLM,直接构造一个 ModelTurn 包裹用户指定的 ToolCall
+                ToolCall forcedCall = new ToolCall(forcedSteer.getPayload(), forcedSteer.getArguments());
+                turn = ModelTurn.ofToolCalls(Collections.singletonList(forcedCall),
+                        "[steer:force_tool]");
+                Log.i(TAG, "[Engine] iter " + iteration + " steer FORCE_TOOL cap="
+                        + forcedSteer.getPayload() + " -> skip LLM, execute directly");
+            } else {
+                ModelTurnRequest turnRequest = new ModelTurnRequest(request, conversation, tools,
+                        systemPrompt, sessionContext);
+                Log.d(TAG, "[Engine] iter " + iteration + " -> ModelGateway.decide()");
+                ModelCallExecutor.Result result = modelCallExecutor.decide(modelGateway, turnRequest);
+                if (!result.isSuccess()) {
+                    stopReason = result.getTerminalReason();
+                    stopMessage = result.getMessage();
+                    Log.w(TAG, "[Engine] iter " + iteration + " model call terminal reason="
+                            + stopReason + " msg=" + truncate(result.getMessage(), 160));
+                    break;
+                }
+                turn = result.getTurn();
             }
             Log.d(TAG, "[Engine] iter " + iteration + " <- model turn cost="
                     + elapsedMillis(iterationStarted) + "ms");
 
-            ModelTurn turn = result.getTurn();
             // 第七轮 P2-2:assistant message 加入前同样过预算检查(单条截断 + 条数/字符上限)
             if (!appendMessageWithBudget(conversation, turn.getAssistantMessage())) {
                 stopReason = StopReason.BUDGET_EXHAUSTED;
@@ -261,12 +497,61 @@ public final class AgentEngine {
                 break;
             }
 
+            // V0.4.1 Stage C:Tool 执行前显式 cancel 检查——LLM 已返回 tool_calls,
+            // 但若此时外部 cancel 已触发,不进入 Tool 循环。
+            TaskState preToolTerminal = cancellationState(request);
+            if (preToolTerminal != null) {
+                stopReason = preToolTerminal == TaskState.CANCELLED
+                        ? StopReason.CANCELLED : StopReason.TIMEOUT;
+                stopMessage = preToolTerminal == TaskState.CANCELLED
+                        ? "任务在 Tool 执行前已取消" : "任务在 Tool 执行前超过截止时间";
+                Log.w(TAG, "[Engine] iter " + iteration + " pre-tool terminal=" + preToolTerminal
+                        + " reason=" + stopReason);
+                trajectory.addIteration(new AgentIteration(iteration,
+                        auditRedactAssistant(turn.getAssistantMessage()),
+                        snapshots(turn.getToolCalls()), Collections.emptyList(),
+                        Collections.emptyList(), elapsedMillis(iterationStarted)));
+                break;
+            }
+
+            // V0.4.1 Stage D:Tool 执行前 drain SteerMailbox 的 DEFER 指令。
+            // 这里不再处理 REPROMPT / FORCE_TOOL——模型已决策本轮 tool_calls,
+            // 半路塞入会破坏一致性。仅响应 DEFER(用户要求推迟)。
+            if (hasDeferredSteer(request)) {
+                stopReason = StopReason.DEFERRED;
+                stopMessage = "用户在 Tool 执行前要求推迟当前任务";
+                Log.i(TAG, "[Engine] iter " + iteration + " pre-tool steer DEFER -> terminal");
+                trajectory.addIteration(new AgentIteration(iteration,
+                        auditRedactAssistant(turn.getAssistantMessage()),
+                        snapshots(turn.getToolCalls()), Collections.emptyList(),
+                        Collections.emptyList(), elapsedMillis(iterationStarted)));
+                break;
+            }
+
             Log.i(TAG, "[Engine] iter " + iteration + " processing "
                     + turn.getToolCalls().size() + " tool call(s)");
 
             List<ToolObservation> observations = new ArrayList<>();
             List<PolicyDecision> decisions = new ArrayList<>();
+            // V0.4.1 Stage C:label 供 per-tool-call cancel 检查快速跳出 iteration 循环
+            toolCallLoop:
             for (ToolCall call : turn.getToolCalls()) {
+                // V0.4.1 Stage C:per-tool-call cancel 检查——多 tool_call 序列中,
+                // 第 N 个完成后第 N+1 个开始前若 cancel 已触发,立即跳出整个 iteration 循环,
+                // 不让后续 tool 继续执行(车控写操作尤其需要)。
+                TaskState perToolTerminal = cancellationState(request);
+                if (perToolTerminal != null) {
+                    stopReason = perToolTerminal == TaskState.CANCELLED
+                            ? StopReason.CANCELLED : StopReason.TIMEOUT;
+                    stopMessage = perToolTerminal == TaskState.CANCELLED
+                            ? "任务在第 " + totalToolCalls + " 个 Tool Call 后已取消"
+                            : "任务在第 " + totalToolCalls + " 个 Tool Call 后超过截止时间";
+                    Log.w(TAG, "[Engine] iter " + iteration + " per-tool terminal="
+                            + perToolTerminal + " reason=" + stopReason
+                            + " (跳过剩余 " + (turn.getToolCalls().size() - decisions.size())
+                            + " 个 tool_call)");
+                    break toolCallLoop;
+                }
                 totalToolCalls++;
                 // 第七轮 P2-4:Tool args 含目的地 / 联系人 / memory value,绝不原文进 logcat。
                 // 旧实现直接打印 call.getArguments()——destination 等业务字段会泄漏。
@@ -298,11 +583,27 @@ public final class AgentEngine {
                                 + call.getCapabilityName() + " reason=" + decision.getReason()
                                 + " (model may retry with new args)");
                     }
+                    // V0.5.2 Stage 4:POLICY 增量事件——decision.isAllowed()==false 时落 audit_event。
+                    // reason 走 AuditRedactor 字段级脱敏(避免 destination / 联系人 / memory value 泄漏)。
+                    auditEventRecorder.recordPolicyDecision(request.getRequestId(),
+                            ActorUsers.userIdOf(request), auditZone(request), auditActor(request),
+                            call.getCapabilityName(),
+                            capabilityBlock ? "CAPABILITY" : "PARAMETER",
+                            auditRedactor.redactFreeText(decision.getReason()),
+                            request.getEpoch());
                     observations.add(ToolObservation.rejected(call, decision.getReason(),
                             capabilityBlock));
                     continue;
                 }
                 Log.d(TAG, "[Engine]   -> policy ALLOW, executing provider");
+                // V0.5.2 Stage 4:PRE_TOOL 增量事件——policy ALLOW 后,toolExecutor.execute 前。
+                // args 走 AuditRedactor 字段级脱敏,与 TrajectoryEntity snapshots 同保护级别。
+                Map<String, Object> redactedArgsForAudit = auditRedactor.redactArguments(
+                        call.getCapabilityName(), call.getArguments());
+                auditEventRecorder.recordPreTool(request.getRequestId(),
+                        ActorUsers.userIdOf(request), auditZone(request), auditActor(request),
+                        call.getCapabilityName(), redactedArgsForAudit,
+                        redactedArgsForAudit.toString(), request.getEpoch());
                 CapabilityDefinition definition = policyEngine.findDefinition(call.getCapabilityName());
                 ToolResult toolResult = toolExecutor.execute(provider, definition, request, call);
                 // 第七轮 P2-4:ToolResult message 是 Provider 给的诊断文本,可能含目的地 / 联系人
@@ -312,6 +613,16 @@ public final class AgentEngine {
                         + " verified=" + toolResult.isVerified()
                         + " durationMs=" + toolResult.getDurationMillis()
                         + " msg=" + SafeLog.TOOL_RESULT_PLACEHOLDER);
+                // V0.5.2 Stage 4:POST_TOOL 增量事件——toolExecutor 返回后,observation 加入前。
+                // result message 走 AuditRedactor 文本脱敏(避免"导航到 XX 失败"等业务字段泄漏)。
+                auditEventRecorder.recordPostTool(request.getRequestId(),
+                        ActorUsers.userIdOf(request), auditZone(request), auditActor(request),
+                        call.getCapabilityName(),
+                        toolResult.getStatus().name(),
+                        toolResult.isVerified(),
+                        toolResult.getDurationMillis(),
+                        auditRedactor.redactFreeText(toolResult.getMessage()),
+                        request.getEpoch());
                 if (definition.isVerificationRequired() && toolResult.isSuccess()
                         && !toolResult.isVerified()) {
                     Log.w(TAG, "[Engine]   verification required but readback unverified -> VERIFICATION_FAILED");
@@ -385,8 +696,15 @@ public final class AgentEngine {
         sessionContext.addTurn("USER: " + SafeLog.USER_INPUT_PLACEHOLDER
                 + " | RESULT: " + finalState + " | STOP: " + stopReason
                 + " | " + stopMessage);
-        return new AgentOutcome(request.getRequestId(), finalState, stopReason, trajectory,
-                elapsedMillis(started), internalResults);
+        AgentOutcome mainOutcome = new AgentOutcome(request.getRequestId(), finalState, stopReason,
+                trajectory, elapsedMillis(started), internalResults);
+        // V0.5.0 Stage 3:出口点 4——主路径终态(SUCCEEDED/FAILED/PARTIALLY/CANCELLED/TIMED_OUT 等)
+        auditRepository.persist(mainOutcome, request);
+        // V0.5.3 评审 P1-1:Episodic 自动写入——任务终态后写 session_history 表,
+        // 供 EpisodicMemorySourceImpl 召回。fail-log(异常仅 Log.w,不向上传播)。
+        // V0.5.4 评审 P1-1:传 request.getEpoch(),RoomMemoryWriter 在 Room 事务内做 epoch gate。
+        memoryWriter.writeEpisodicOnTerminal(request, mainOutcome, request.getEpoch());
+        return mainOutcome;
     }
 
     /**
@@ -402,6 +720,8 @@ public final class AgentEngine {
     private static TaskState computeFinalState(Trajectory trajectory, StopReason stopReason) {
         if (stopReason == StopReason.CANCELLED) return TaskState.CANCELLED;
         if (stopReason == StopReason.TIMEOUT) return TaskState.TIMED_OUT;
+        // V0.4.1 Stage D:用户推迟语义——不是失败,被推迟的任务可被重新调度。
+        if (stopReason == StopReason.DEFERRED) return TaskState.DEFERRED;
 
         int successCount = trajectory.countSuccessfulToolCalls();
         int total = trajectory.getTotalToolCalls();
@@ -432,7 +752,11 @@ public final class AgentEngine {
      */
     private AgentMessage auditRedactAssistant(AgentMessage original) {
         if (original == null) return null;
-        String redacted = auditRedactor.redact(original.getContent());
+        // 第七轮 P1.2:assistant content 是模型自由文本,凭据正则识别不出业务 PII
+        // (地址 / 联系人 / 电话) ——审计侧用 redactFreeText 长度 + SHA-8 摘要替代原文,
+        // 保留诊断信号 (chars) 与事后比对能力 (sha8),但不可逆推原文。
+        // ToolCall arguments 不动,继续走 schema-aware redactArguments(cap, args)。
+        String redacted = auditRedactor.redactFreeText(original.getContent());
         List<ToolCall> redactedCalls;
         if (original.getToolCalls() == null || original.getToolCalls().isEmpty()) {
             redactedCalls = Collections.emptyList();
@@ -471,16 +795,75 @@ public final class AgentEngine {
         return null;
     }
 
-    private static AgentOutcome terminalOutcome(AgentRequest request, TaskState state,
+    /**
+     * V0.5.0 Stage 3:terminal outcome 改为 instance method——
+     * 内部接入 {@link #auditRepository}.persist(5 个出口点中的 2 个由本方法覆盖)。
+     *
+     * <p>原 V0.4.x 是 static,V0.4.x 测试若直接调 static 版本会编译失败——保留 static bridge
+     * delegate 到 instance 版本(V0.4.3 兼容契约)。
+     */
+    private AgentOutcome terminalOutcome(AgentRequest request, TaskState state,
             StopReason reason, String message, long started) {
         Trajectory trajectory = new Trajectory();
         trajectory.finish(reason, elapsedMillis(started), 0);
-        return new AgentOutcome(request.getRequestId(), state, reason, trajectory,
+        AgentOutcome outcome = new AgentOutcome(request.getRequestId(), state, reason, trajectory,
                 elapsedMillis(started));
+        auditRepository.persist(outcome, request);
+        // V0.5.3 评审 P1-1:Episodic 自动写入——TIMEOUT/CANCELLED/PREEMPTED 终态也写
+        // session_history 表(供 Episodic 召回失败/取消的历史)。fail-log。
+        // V0.5.4 评审 P1-1:传 request.getEpoch(),RoomMemoryWriter 在 Room 事务内做 epoch gate。
+        memoryWriter.writeEpisodicOnTerminal(request, outcome, request.getEpoch());
+        return outcome;
     }
 
-    private static String buildSystemPrompt(AgentRequest request) {
-        return "你是车机 AI 助理。当前发起者=" + request.getActor()
+    /**
+     * V0.5.0 Stage 3:buildSystemPrompt 改为 instance method,可选注入 memoryRecaller。
+     *
+     * <p>memoryRecaller == null 时退化为 V0.4.3 文案(289 测试兼容);
+     * memoryRecaller != null 时,在末尾拼"已召回的 Memory:"段落(layer + key 列表)。
+     * 不拼 value——避免 prompt injection 通过召回 value 注入指令。
+     *
+     * <p>P1.2 修复(评审 V0.5.0):memoryRecaller.recall() 异常时**降级到 base prompt**,
+     * 不向上传播。记忆是增强能力,不能成为车机任务入口的单点故障。
+     * 日志只记错误类型与 requestId,不 dump 异常 stack(snippet value 可能含目的地 / 联系人)。
+     */
+    private String buildSystemPrompt(AgentRequest request) {
+        List<MemorySnippet> recalled = recallSafely(request);
+        // V0.5.2 Stage 6:PromptBuilder 委托路径——AppContainer 注入后走 segmented 拼装。
+        // 字面与 inlineBuildSystemPrompt 等价;V0.5.3 PromptComposer 加入后做 token 截断。
+        if (promptBuilder != null) {
+            try {
+                return DefaultPromptBuilder.join(
+                        promptBuilder.buildSystemPrompt(request, recalled));
+            } catch (Exception ex) {
+                Log.w(TAG, "[Engine] promptBuilder failed, fallback to inline req="
+                        + request.getRequestId() + " cause=" + ex.getClass().getSimpleName());
+            }
+        }
+        return inlineBuildSystemPrompt(request, recalled);
+    }
+
+    /**
+     * V0.5.0 Stage 3 P1.2 + V0.5.2 Stage 6:recallSafely 抽出——异常时返回 emptyList,
+     * 不向上传播(记忆是增强能力,不能成为车机任务入口的单点故障)。
+     */
+    private List<MemorySnippet> recallSafely(AgentRequest request) {
+        if (memoryRecaller == null) return Collections.emptyList();
+        try {
+            MemoryScope scope = new MemoryScope(ActorUsers.userIdOf(request), request.getOccupantZone());
+            List<MemorySnippet> recalled = memoryRecaller.recall(scope, request.getSessionId(),
+                    request.getText(), RECALL_LIMIT_SYSTEM_PROMPT);
+            return recalled == null ? Collections.<MemorySnippet>emptyList() : recalled;
+        } catch (Exception error) {
+            Log.w(TAG, "[Engine] memoryRecaller failed, fallback to base prompt req="
+                    + request.getRequestId() + " cause=" + error.getClass().getSimpleName());
+            return Collections.emptyList();
+        }
+    }
+
+    /** V0.5.2 Stage 6:内联拼装——promptBuilder=null 时的 fallback(289 测试兼容)。 */
+    private String inlineBuildSystemPrompt(AgentRequest request, List<MemorySnippet> recalled) {
+        String base = "你是车机 AI 助理。当前发起者=" + request.getActor()
                 + ",区域=" + request.getOccupantZone()
                 + ",输入来源=" + request.getInputSource() + "。"
                 + "可调用的 capability 见本轮 tools 列表,不允许创造名字。"
@@ -488,11 +871,37 @@ public final class AgentEngine {
                 + "任务完成后请直接给出最终答复(不带 tool_call)。"
                 + "对 PARAMETER_REJECTED 的 Observation 请修正参数后重试;"
                 + "对 CAPABILITY_REJECTED 的 Observation 不要再尝试同一能力。";
+        if (recalled == null || recalled.isEmpty()) return base;
+        // V0.5.3 评审 P1-2 / V0.5.4 评审 P1-4:复用 DefaultPromptBuilder.formatRecalledMemory——
+        // <memory_context> 边界 + 白名单投影 + Episodic 层 deny value + SensitiveKeys 双重底线,
+        // 避免双份实现漂移。
+        return base + DefaultPromptBuilder.formatRecalledMemory(recalled);
     }
+
+    /** V0.5.0 Stage 3:buildSystemPrompt 召回 snippet 上限(保守,V0.5.1 调优)。 */
+    private static final int RECALL_LIMIT_SYSTEM_PROMPT = 8;
 
     private static int estimateConversationChars(List<AgentMessage> conversation) {
         int total = 0;
         for (AgentMessage message : conversation) total += message.estimateChars();
+        return total;
+    }
+
+    /**
+     * V0.5.2 Stage 3a:conversation 累计 token 估算——双轨统计用,**不参与 budget 决策**。
+     *
+     * <p>tokenizer=null 时退化为 char/4 估算(与 V0.4.x 一致);AppContainer 注入 JtokkitTokenizer
+     * 后真实 BPE 估算。仅用于日志输出,为 V0.5.3 主路径切换提供精度数据。
+     */
+    private int estimateConversationTokens(List<AgentMessage> conversation) {
+        if (tokenizer == null) {
+            return Math.max(1, estimateConversationChars(conversation)
+                    / AgentBudget.CHAR_PER_TOKEN_FALLBACK);
+        }
+        int total = 0;
+        for (AgentMessage message : conversation) {
+            total += tokenizer.count(message.getContent());
+        }
         return total;
     }
 
@@ -525,6 +934,34 @@ public final class AgentEngine {
     }
 
     /**
+     * V0.5.2-rev 评审 P2-3:每次迭代主动检查 80% 阈值,压缩 conversation。
+     *
+     * <p>与 {@link #appendMessageWithBudget} 内的 100% 被动压缩互补:
+     * <ul>
+     *   <li>主动 80%:预算真正耗尽前介入,本轮 LLM 调用还有充足预算;</li>
+     *   <li>被动 100%:race 兜底(模型生成期间 turns 突然变多 / 单条极大消息)。</li>
+     * </ul>
+     */
+    private void tryCompressConversation(List<AgentMessage> conversation, AgentBudget budget,
+            AgentRequest request) {
+        if (conversationCompressor == null || conversation.isEmpty()) return;
+        int totalChars = estimateConversationChars(conversation);
+        int triggerThreshold = (int) (budget.getTotalInputChars() * 0.8);
+        if (totalChars <= triggerThreshold) return;
+        Log.i(TAG, "[Engine] active compression trigger convChars=" + totalChars
+                + " threshold=" + triggerThreshold);
+        List<AgentMessage> compressed = conversationCompressor.compress(conversation, budget, request);
+        if (compressed != conversation && compressed.size() < conversation.size()) {
+            int beforeChars = totalChars;
+            conversation.clear();
+            conversation.addAll(compressed);
+            Log.i(TAG, "[Engine] active compression done beforeMsgs/Chars=" + beforeChars
+                    + " afterMsgs=" + conversation.size()
+                    + " afterChars=" + estimateConversationChars(conversation));
+        }
+    }
+
+    /**
      * 第七轮 P2-2:把消息加入 conversation 前检查所有预算维度。
      *
      * <p>返回 true 表示已加入;返回 false 表示**未加入**且应当走 BUDGET_EXHAUSTED 终止。
@@ -544,6 +981,29 @@ public final class AgentEngine {
         }
         int projected = estimateConversationChars(conversation) + truncated.estimateChars();
         if (projected > budget.getTotalInputChars()) {
+            // V0.5.2 Stage 8:ConversationCompressor 注入后,先尝试压缩旧 turns 腾预算。
+            // 压缩成功后重试 append;仍超才返回 false(BUDGET_EXHAUSTED)。
+            if (conversationCompressor != null && !conversation.isEmpty()) {
+                List<AgentMessage> compressed = conversationCompressor.compress(
+                        conversation, budget, currentRequest);
+                if (compressed != conversation && compressed.size() < conversation.size()) {
+                    // 原地替换 conversation 内容(保持 list 引用不变,Loop 内可见)
+                    conversation.clear();
+                    conversation.addAll(compressed);
+                    int recomputed = estimateConversationChars(conversation) + truncated.estimateChars();
+                    if (recomputed <= budget.getTotalInputChars()
+                            && conversation.size() + 1 <= budget.getMaxMessageCount()) {
+                        Log.i(TAG, "[Engine] post-compression retry append convChars="
+                                + estimateConversationChars(conversation)
+                                + " projected=" + recomputed
+                                + " turns=" + conversation.size());
+                        conversation.add(truncated);
+                        return true;
+                    }
+                    Log.w(TAG, "[Engine] post-compression still over budget projected="
+                            + recomputed + " > budget=" + budget.getTotalInputChars());
+                }
+            }
             Log.w(TAG, "[Engine] totalInputChars exceeded projected=" + projected
                     + " > budget=" + budget.getTotalInputChars());
             return false;
@@ -578,5 +1038,94 @@ public final class AgentEngine {
 
     private static long elapsedMillis(long startedNanos) {
         return (System.nanoTime() - startedNanos) / 1_000_000L;
+    }
+
+    /**
+     * V0.4.1 Stage D:Loop 内部 Sentinel——drainSteerBeforeLlm 看到DEFER 时返回此常量,
+     * 让 caller 用 == 比较(不与 null / 真 Steer 实例混淆)。
+     */
+    private static final Steer DEFER_SENTINEL = Steer.defer();
+
+    /**
+     * V0.4.3 Stage E:Tool 执行前检查 mailbox 中是否有 DEFER。
+     *
+     * <p>V0.4.1 旧实现调 drain() 把整个队列掏空,即使无 DEFER,REPROMPT/FORCE_TOOL 也被永久丢弃
+     * (下一轮 drainSteerBeforeLlm 再 drain 已空)。peek 只看不动,保留非 DEFER 指令给下一轮处理。
+     */
+    private boolean hasDeferredSteer(AgentRequest request) {
+        if (steerMailbox == null) return false;
+        boolean deferred = steerMailbox.peekDeferred(request.getSessionId());
+        if (deferred) {
+            Log.i(TAG, "[Engine] pre-tool DEFER detected, non-DEFER steers retained for next drain");
+        }
+        return deferred;
+    }
+
+    /**
+     * V0.4.1 Stage D:在 LLM 调用前 drain SteerMailbox。
+     *
+     * <p>语义:
+     * <ul>
+     *   <li>无 mailbox 或无 Steer → 返回 null(走正常 LLM 路径);</li>
+     *   <li>{@link Steer.Type#REPROMPT} → 把 payload 作为 user message 加入 conversation,
+     *       继续本轮 LLM,返回 null(让 caller 调 LLM);</li>
+     *   <li>{@link Steer.Type#FORCE_TOOL} → 返回该 Steer,caller 据此跳过 LLM 直接构造 ToolCall;</li>
+     *   <li>{@link Steer.Type#DEFER} → 立即返回 {@link #DEFER_SENTINEL},caller 据此走 DEFERRED 终态。</li>
+     * </ul>
+     *
+     * <p>批量 drain 时多个同类型 Steer 按 FIFO 处理;DEFER 优先(一旦见到立即返回,
+     * 后续 Steer 不消费)。REPROMPT 全部加入 conversation,FORCE_TOOL 只取最后一个
+     * (用户多次"强制"应保留最新意图)。
+     */
+    private Steer drainSteerBeforeLlm(AgentRequest request, List<AgentMessage> conversation,
+            int iteration) {
+        if (steerMailbox == null) return null;
+        // V0.5.2 Stage 5:epoch-gated drain——stamped.epoch < request.getEpoch() 的 Steer
+        // 被 drop + audit(STEER_DROPPED_STALE);AgentRequest.epoch 是 Repository.execute
+        // 时注入的 memoryStore.currentEpoch()——clearUserData 后旧 epoch 的 Steer 自动失效。
+        List<Steer> steers = steerMailbox.drain(request.getSessionId(), request.getEpoch());
+        if (steers.isEmpty()) return null;
+
+        Steer lastForceTool = null;
+        for (Steer steer : steers) {
+            Log.i(TAG, "[Engine] iter " + iteration + " drain steer type=" + steer.getType()
+                    + " payloadChars=" + safeLength(steer.getPayload()));
+            // V0.5.2 Stage 4:STEER 增量事件——只记 type + payloadChars,
+            // 不记 payload 内容(REPROMPT payload 可能含用户输入 / 联系人,有 PII 风险)。
+            if (steer.getType() == Steer.Type.FORCE_TOOL || steer.getType() == Steer.Type.DEFER) {
+                auditEventRecorder.recordSteer(request.getRequestId(),
+                        ActorUsers.userIdOf(request), auditZone(request), auditActor(request),
+                        steer.getType().name(), safeLength(steer.getPayload()), request.getEpoch());
+            }
+            switch (steer.getType()) {
+                case REPROMPT:
+                    if (!appendMessageWithBudget(conversation, AgentMessage.user(steer.getPayload()))) {
+                        Log.w(TAG, "[Engine] iter " + iteration
+                                + " REPROMPT 加入失败(预算耗尽),忽略");
+                    } else {
+                        Log.i(TAG, "[Engine] iter " + iteration
+                                + " REPROMPT 已合并到 conversation chars="
+                                + steer.getPayload().length());
+                    }
+                    break;
+                case FORCE_TOOL:
+                    lastForceTool = steer;
+                    break;
+                case DEFER:
+                    return DEFER_SENTINEL;
+                default:
+                    Log.w(TAG, "[Engine] iter " + iteration + " unknown steer type " + steer.getType());
+            }
+        }
+        return lastForceTool;
+    }
+
+    /** V0.5.2 Stage 4:audit_event 行 zone 列——与历史 V0.5.0 行一致用 Actor.name() 大写。 */
+    private static String auditZone(AgentRequest request) {
+        return request.getActor() == null ? "" : request.getActor().name();
+    }
+
+    private static String auditActor(AgentRequest request) {
+        return request.getActor() == null ? "" : request.getActor().name();
     }
 }

@@ -84,10 +84,19 @@ public final class AuditRedactorTest {
         assertEquals(AuditRedactor.MEMORY_MESSAGE_PLACEHOLDER, redacted.getResult().getMessage());
     }
 
-    /** 非 memory 类 capability 只走 secret mask + 截断,保留 observedState 原值(车辆状态)。 */
+    /**
+     * 非 memory 类 capability 的 observedState 原值保留(车辆状态)。
+     *
+     * <p>第八轮 P1.2 修订:无 audit template 时 message 走 {@code redactFreeText}
+     * ({@code [redacted:chars=N,sha=xxxxxxxx]}),不再保留原文 + 凭据正则——
+     * 模型 / Provider 自由文本含业务 PII 时凭据正则识别不出,fail-closed 才安全。
+     */
     @Test
     public void nonMemoryCapabilityKeepsObservedValuesIntact() {
+        // V0.5.1 C 路线评审反馈 P2:AuditRedactor 默认已改 fail-closed UnavailableAuditDigest,
+        // 测试 SHA-1 格式契约必须显式 opt-in。
         AuditRedactor redactor = new AuditRedactor(1000);
+        redactor.setDigest(new Sha1AuditDigest());
         Map<String, Object> observed = new LinkedHashMap<>();
         observed.put("driver.temperature", 24);
         observed.put("driver.humidity", 50);
@@ -100,8 +109,10 @@ public final class AuditRedactorTest {
 
         ToolObservation redacted = redactor.redact(observation);
 
-        assertTrue("API key in message must be masked",
-                redacted.getResult().getMessage().contains("***"));
+        assertTrue("第八轮 P1.2: 无 template message 应走 redactFreeText 格式, 实际="
+                + redacted.getResult().getMessage(),
+                redacted.getResult().getMessage().matches(
+                        "^\\[redacted:chars=\\d+,sha=[0-9a-f]{8}\\]$"));
         assertEquals(24, redacted.getResult().getObservedState().get("driver.temperature"));
         assertEquals(50, redacted.getResult().getObservedState().get("driver.humidity"));
     }
@@ -274,12 +285,17 @@ public final class AuditRedactorTest {
     }
 
     /**
-     * 非 memory / 非 navigation 的 capability(vehicle.climate) 没有 AuditSchema,
-     * 走默认 secret mask + 截断,observedState 原值保留(车辆状态可读以利诊断)。
+     * 非 memory / 非 navigation 的 capability(vehicle.climate) 没有 AuditSchema。
+     *
+     * <p>第八轮 P1.2 修订:无 schema 时 message 走 {@code redactFreeText} (fail-closed),
+     * 不再保留原文——模型 / Provider 自由文本含业务 PII 时凭据正则识别不出。
+     * observedState 字段值仍保留 (无 schema 时默认 redactMapRecursive,数值字段不变)。
      */
     @Test
     public void capabilityWithoutAuditSchemaKeepsDefaultRedaction() {
+        // V0.5.1 C 路线评审反馈 P2:测试 SHA-1 格式契约必须显式 opt-in(默认已是 UnavailableAuditDigest)。
         AuditRedactor redactor = new AuditRedactor(1000, CapabilityRegistry.createDemoRegistry());
+        redactor.setDigest(new Sha1AuditDigest());
         Map<String, Object> observed = new LinkedHashMap<>();
         observed.put("driver.temperature", 24);
         ToolResult result = new ToolResult(ToolResult.Status.SUCCESS,
@@ -291,7 +307,10 @@ public final class AuditRedactorTest {
 
         ToolObservation redacted = redactor.redact(observation);
 
-        assertEquals("空调温度已设置", redacted.getResult().getMessage());
+        assertTrue("第八轮 P1.2: 无 schema message 应走 redactFreeText, 实际="
+                + redacted.getResult().getMessage(),
+                redacted.getResult().getMessage().matches(
+                        "^\\[redacted:chars=\\d+,sha=[0-9a-f]{8}\\]$"));
         assertEquals(24, redacted.getResult().getObservedState().get("driver.temperature"));
     }
 

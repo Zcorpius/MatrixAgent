@@ -1,4 +1,6 @@
 package com.matrix.agent.core.capability;
+import com.matrix.agent.core.capability.schema.CanonicalSchema;
+import com.matrix.agent.core.capability.schema.SchemaType;
 import com.matrix.agent.core.identity.*;
 
 
@@ -19,10 +21,28 @@ public final class CapabilityDefinition {
     private final boolean idempotent;
     private final long timeoutMillis;
     private final int maxRetries;
+    /**
+     * V0.4.0 兼容字段——已 {@code @Deprecated},内部桥接到 {@link #verifyMethod}。
+     * 通过 {@link #isVerificationRequired()} 暴露,语义为 {@code verifyMethod != NONE}。
+     */
     private final boolean verificationRequired;
+    /** V0.4.2 Stage E 主字段——区分 4 种 verify 策略(NONE / READBACK_FIELD / READBACK_GET / 预留)。 */
+    private final VerifyMethod verifyMethod;
     private final boolean targetZoneRequired;
     private final Set<VehicleZone> allowedTargetZones;
+    /**
+     * V0.4.2 Stage D:capability 前置车辆状态约束(AND 语义,空集表示无约束)。
+     * PolicyEngine 在 schema 校验之前判定,不满足归 CAPABILITY 拒绝(不可上诉)。
+     */
+    private final Set<VehicleStatePredicate> requiredVehicleStates;
     private final CapabilityValidator validator;
+    /**
+     * V0.4.2 主字段——{@link CanonicalSchema} 完整 JSON Schema 2020-12 子集。
+     * <p>{@link #toolParameters} 是兼容字段,由 capability registry 走 deprecated
+     * {@code parameter()} 入口填入;{@code ModelApiClient} 走 schema 投影后该字段
+     * 不再被 production 代码读,V0.5.0 删除。
+     */
+    private final CanonicalSchema parameterSchema;
     private final List<ToolParameterDefinition> toolParameters;
     // 第五轮 P1-2:Audit 视图投影规则。
     private final String auditMessageTemplate;
@@ -40,9 +60,12 @@ public final class CapabilityDefinition {
         timeoutMillis = builder.timeoutMillis;
         maxRetries = builder.maxRetries;
         verificationRequired = builder.verificationRequired;
+        verifyMethod = builder.verifyMethod;
         targetZoneRequired = builder.targetZoneRequired;
         allowedTargetZones = Collections.unmodifiableSet(EnumSet.copyOf(builder.allowedTargetZones));
+        requiredVehicleStates = Collections.unmodifiableSet(EnumSet.copyOf(builder.requiredVehicleStates));
         validator = builder.validator;
+        parameterSchema = builder.parameterSchema;
         toolParameters = Collections.unmodifiableList(new ArrayList<>(builder.toolParameters));
         auditMessageTemplate = builder.auditMessageTemplate;
         sensitiveObservedFields = Collections.unmodifiableMap(new LinkedHashMap<>(builder.sensitiveObservedFields));
@@ -57,10 +80,134 @@ public final class CapabilityDefinition {
     public boolean isIdempotent() { return idempotent; }
     public long getTimeoutMillis() { return timeoutMillis; }
     public int getMaxRetries() { return maxRetries; }
-    public boolean isVerificationRequired() { return verificationRequired; }
+    /**
+     * V0.4.0 兼容入口——内部映射 {@code verifyMethod != NONE}。
+     * <p>V0.4.2 Stage E 起,调用方应直接用 {@link #getVerifyMethod()} 区分具体策略。
+     */
+    public boolean isVerificationRequired() { return verifyMethod != VerifyMethod.NONE; }
+    /** V0.4.2 Stage E 主入口——区分 NONE / READBACK_FIELD / READBACK_GET 等。 */
+    public VerifyMethod getVerifyMethod() { return verifyMethod; }
     public boolean isTargetZoneRequired() { return targetZoneRequired; }
     public Set<VehicleZone> getAllowedTargetZones() { return allowedTargetZones; }
-    public List<ToolParameterDefinition> getToolParameters() { return toolParameters; }
+    /** V0.4.2 Stage D:capability 前置车辆状态约束(AND 语义)。 */
+    public Set<VehicleStatePredicate> getRequiredVehicleStates() { return requiredVehicleStates; }
+
+    /**
+     * V0.4.2 主入口——返回完整 JSON Schema 2020-12 子集 OBJECT。
+     *
+     * <p>若 Builder 直接配了 {@code parameterSchema()} 用之;若仍走 V0.4.0
+     * {@code parameter()} 入口,由 {@link #projectSchemaFromToolParameters} 投影
+     * 出 OBJECT 节点(损失 nested 信息,但保 V0.4.0 行为兼容)。
+     */
+    public CanonicalSchema getParameterSchema() {
+        if (parameterSchema != null) return parameterSchema;
+        if (toolParameters.isEmpty()) {
+            // 无参数 capability,返回 empty OBJECT(additionalProperties=false,无 properties)
+            return CanonicalSchema.object().additionalProperties(false).build();
+        }
+        return projectSchemaFromToolParameters();
+    }
+
+    /**
+     * V0.4.0 兼容入口——仅 scalar 4 种 type(STRING/INTEGER/NUMBER/BOOLEAN)。
+     * <p>若 Builder 直接配了 {@code parameterSchema()},由 schema 反向投影出
+     * ToolParameterDefinition;否则返回 Builder 显式配的 toolParameters。
+     */
+    public List<ToolParameterDefinition> getToolParameters() {
+        if (!toolParameters.isEmpty()) return toolParameters;
+        if (parameterSchema == null) return Collections.emptyList();
+        return projectToolParametersFromSchema();
+    }
+
+    /**
+     * Schema → ToolParameterDefinition 投影——仅供 ModelApiClient V0.4.0 路径兼容。
+     * Stage C 重写 ModelApiClient 用 SchemaJsonWriter 后此方法删除。
+     */
+    private List<ToolParameterDefinition> projectToolParametersFromSchema() {
+        List<ToolParameterDefinition> list = new ArrayList<>();
+        for (Map.Entry<String, CanonicalSchema> entry : parameterSchema.getProperties().entrySet()) {
+            String name = entry.getKey();
+            CanonicalSchema node = entry.getValue();
+            ToolParameterDefinition.Type mapped = mapSchemaType(node.getType());
+            if (mapped == null) continue;  // ARRAY/OBJECT 节点无法投影到 V0.4.0 Type,跳过
+            ToolParameterDefinition.Builder b = ToolParameterDefinition.builder(name, mapped)
+                    .description(node.getDescription())
+                    .required(parameterSchema.getRequired().contains(name));
+            if (!node.getEnumValues().isEmpty()) {
+                List<String> enums = new ArrayList<>();
+                for (Object v : node.getEnumValues()) enums.add(String.valueOf(v));
+                b.enumValues(enums);
+            }
+            if (node.getMinimum() != null) {
+                if (node.getMaximum() != null) {
+                    b.range(node.getMinimum(), node.getMaximum());
+                } else {
+                    b.range(node.getMinimum(), Double.MAX_VALUE);
+                }
+            } else if (node.getMaximum() != null) {
+                b.range(-Double.MAX_VALUE, node.getMaximum());
+            }
+            if (node.isSensitive()) {
+                b.sensitive(true).sensitivePlaceholder(node.getSensitivePlaceholder());
+            }
+            list.add(b.build());
+        }
+        return list;
+    }
+
+    private static ToolParameterDefinition.Type mapSchemaType(SchemaType type) {
+        switch (type) {
+            case STRING: return ToolParameterDefinition.Type.STRING;
+            case INTEGER: return ToolParameterDefinition.Type.INTEGER;
+            case NUMBER: return ToolParameterDefinition.Type.NUMBER;
+            case BOOLEAN: return ToolParameterDefinition.Type.BOOLEAN;
+            default: return null;
+        }
+    }
+
+    /**
+     * ToolParameterDefinition → Schema 投影——兼容入口 {@link Builder#parameter} 的桥接。
+     */
+    private CanonicalSchema projectSchemaFromToolParameters() {
+        CanonicalSchema.Builder b = CanonicalSchema.object().additionalProperties(false);
+        for (ToolParameterDefinition p : toolParameters) {
+            SchemaType t;
+            switch (p.getType()) {
+                case STRING: t = SchemaType.STRING; break;
+                case INTEGER: t = SchemaType.INTEGER; break;
+                case NUMBER: t = SchemaType.NUMBER; break;
+                case BOOLEAN: t = SchemaType.BOOLEAN; break;
+                default: throw new IllegalStateException("未知 type:" + p.getType());
+            }
+            b.property(p.getName(), toSchemaNode(p, t));
+            if (p.isRequired()) b.required(p.getName());
+        }
+        return b.build();
+    }
+
+    /** ToolParameterDefinition → CanonicalSchema scalar 节点(STRING/INTEGER/NUMBER/BOOLEAN)。 */
+    private static CanonicalSchema toSchemaNode(ToolParameterDefinition p, SchemaType t) {
+        CanonicalSchema.Builder prop;
+        switch (t) {
+            case STRING: prop = CanonicalSchema.string(); break;
+            case INTEGER: prop = CanonicalSchema.integer(); break;
+            case NUMBER: prop = CanonicalSchema.number(); break;
+            case BOOLEAN: prop = CanonicalSchema.booleanType(); break;
+            default: throw new IllegalStateException("未知 type:" + t);
+        }
+        prop.description(p.getDescription());
+        if (!p.getEnumValues().isEmpty()) {
+            List<Object> enums = new ArrayList<>();
+            for (String v : p.getEnumValues()) enums.add(v);
+            prop.enumValues(enums);
+        }
+        if (p.getMinimum() != null) prop.minimum(p.getMinimum());
+        if (p.getMaximum() != null) prop.maximum(p.getMaximum());
+        if (p.isSensitive()) {
+            prop.sensitive(true).sensitivePlaceholder(p.getSensitivePlaceholder());
+        }
+        return prop.build();
+    }
 
     /**
      * 第五轮 P1-2:Audit 视图中 ToolResult.message 的固定模板。
@@ -119,9 +266,18 @@ public final class CapabilityDefinition {
         private long timeoutMillis = 3_000L;
         private int maxRetries;
         private boolean verificationRequired;
+        private VerifyMethod verifyMethod = VerifyMethod.NONE;
         private boolean targetZoneRequired;
         private Set<VehicleZone> allowedTargetZones = EnumSet.allOf(VehicleZone.class);
+        private Set<VehicleStatePredicate> requiredVehicleStates = EnumSet.noneOf(VehicleStatePredicate.class);
         private CapabilityValidator validator;
+        /**
+         * V0.4.2 主字段——完整 JSON Schema 2020-12 子集 OBJECT。
+         * 调用方应优先使用 {@link #parameterSchema(CanonicalSchema)} 入口;
+         * {@link #parameter(ToolParameterDefinition)} 入口仍可用(@Deprecated),
+         * 由 {@link CapabilityDefinition#getParameterSchema()} 投影出 schema。
+         */
+        private CanonicalSchema parameterSchema;
         private final List<ToolParameterDefinition> toolParameters = new ArrayList<>();
         private String auditMessageTemplate;
         private final Map<String, String> sensitiveObservedFields = new LinkedHashMap<>();
@@ -140,24 +296,59 @@ public final class CapabilityDefinition {
         public Builder idempotent(boolean value) { idempotent = value; return this; }
         public Builder timeoutMillis(long value) { timeoutMillis = value; return this; }
         public Builder maxRetries(int value) { maxRetries = value; return this; }
-        public Builder verificationRequired(boolean value) { verificationRequired = value; return this; }
+
+        /** V0.4.2 Stage E 主入口——配置 verify 策略(NONE / READBACK_FIELD / READBACK_GET 等)。 */
+        public Builder verifyMethod(VerifyMethod value) {
+            if (value == null) throw new IllegalArgumentException("verifyMethod 不能为空");
+            verifyMethod = value;
+            // 同步旧字段,V0.4.0 调用方仍能读 isVerificationRequired()
+            verificationRequired = value != VerifyMethod.NONE;
+            return this;
+        }
+
+        /**
+         * V0.4.0 入口——二值 verify。
+         *
+         * @deprecated V0.4.2 起改用 {@link #verifyMethod(VerifyMethod)}。{@code true}
+         * 桥接到 {@link VerifyMethod#READBACK_FIELD}(V0.4.0 mock 默认行为),
+         * {@code false} 设为 {@link VerifyMethod#NONE}。
+         */
+        @Deprecated
+        public Builder verificationRequired(boolean value) {
+            verificationRequired = value;
+            verifyMethod = value ? VerifyMethod.READBACK_FIELD : VerifyMethod.NONE;
+            return this;
+        }
         public Builder targetZoneRequired(boolean value) { targetZoneRequired = value; return this; }
         public Builder allowedTargetZones(Set<VehicleZone> value) {
             allowedTargetZones = value == null || value.isEmpty()
                     ? EnumSet.noneOf(VehicleZone.class) : EnumSet.copyOf(value);
             return this;
         }
-        public Builder validator(CapabilityValidator value) { validator = value; return this; }
-        public Builder parameter(ToolParameterDefinition value) {
-            if (value == null) throw new IllegalArgumentException("Tool 参数不能为空");
-            for (ToolParameterDefinition existing : toolParameters) {
-                if (existing.getName().equals(value.getName())) {
-                    throw new IllegalArgumentException("重复 Tool 参数：" + value.getName());
+        /** V0.4.2 Stage D:声明前置车辆状态约束(AND 语义,POLICYENGINE schema 校验之前判定)。 */
+        public Builder requiredVehicleStates(VehicleStatePredicate... predicates) {
+            Set<VehicleStatePredicate> set = EnumSet.noneOf(VehicleStatePredicate.class);
+            if (predicates != null) {
+                for (VehicleStatePredicate p : predicates) {
+                    if (p != null) set.add(p);
                 }
             }
-            toolParameters.add(value);
+            requiredVehicleStates = set;
             return this;
         }
+        public Builder validator(CapabilityValidator value) { validator = value; return this; }
+
+        /** V0.4.2 主入口——配置完整 JSON Schema 2020-12 OBJECT 参数 schema。 */
+        public Builder parameterSchema(CanonicalSchema value) {
+            if (value == null) throw new IllegalArgumentException("parameterSchema 不能为空");
+            if (value.getType() != SchemaType.OBJECT) {
+                throw new IllegalArgumentException("parameterSchema 必须是 OBJECT 类型,实际:"
+                        + value.getType());
+            }
+            parameterSchema = value;
+            return this;
+        }
+
         /** 第五轮 P1-2:设置 Audit 视图中 ToolResult.message 的固定模板。 */
         public Builder auditMessageTemplate(String value) {
             auditMessageTemplate = value == null || value.isEmpty() ? null : value;

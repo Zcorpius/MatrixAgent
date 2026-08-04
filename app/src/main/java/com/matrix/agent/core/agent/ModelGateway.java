@@ -15,4 +15,28 @@ package com.matrix.agent.core.agent;
  */
 public interface ModelGateway {
     ModelTurn decide(ModelTurnRequest request);
+
+    /**
+     * V0.4.1 Stage B:返回可取消的 ModelCall 包装。
+     *
+     * <p>默认实现不挂真传输层 abort——call() 直接调 {@link #decide},abort() 仅记录 intent。
+     * 真正生效需要实现方覆盖本方法,返回带 abort 能力的 {@link CancellableModelCall}
+     * (如 LlmModelGateway 在 V0.6.0 接 OkHttp 时挂 Call.cancel)。
+     *
+     * <p>{@link ModelCallExecutor#decide} 优先调本方法,把 CancellableModelCall.abort 注册到
+     * CancellationToken 的 abort hook,让 cancel 触发时立即调用传输层 abort。
+     */
+    default CancellableModelCall prepare(ModelTurnRequest request) {
+        return new CancellableModelCall() {
+            @Override
+            public ModelTurn call() {
+                return decide(request);
+            }
+
+            @Override
+            public void abort() {
+                // 默认无传输层 abort——V0.6.0 接 OkHttp 时由 LlmModelGateway 覆盖
+            }
+        };
+    }
 }

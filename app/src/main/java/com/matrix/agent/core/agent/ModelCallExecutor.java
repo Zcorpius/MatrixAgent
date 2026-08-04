@@ -3,26 +3,64 @@ package com.matrix.agent.core.agent;
 import android.util.Log;
 
 import com.matrix.agent.core.identity.AgentRequest;
+import com.matrix.agent.core.identity.CancellationToken;
 
+import java.util.concurrent.Callable;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 
-/** 用请求 deadline 和 cancel 令牌包裹 ModelGateway 调用,沿用 polling 模式。 */
+/**
+ * 用请求 deadline + cancel 令牌包裹 ModelGateway 调用。
+ *
+ * <p>V0.4.1 Stage B 改造:取消 50ms polling,改成 {@code future.get(budget, MILLISECONDS)} 阻塞等。
+ * cancel 触发时,通过 {@link CancellationToken#registerAbortHook(Runnable)} 同步触发
+ * {@code future.cancel(true)} + {@link CancellableModelCall#abort()},让传输层 abort
+ * 与 cancel 令牌在同一时间点生效——延迟从 50ms 降到接近 0。
+ *
+ * <p>abort 链:
+ * <ol>
+ *   <li>外部线程调 {@code token.cancel()};</li>
+ *   <li>CancellationToken 同步触发所有 abort hook;</li>
+ *   <li>本类注册的 abort hook 执行 {@code future.cancel(true)}(让 worker thread 收到 interrupt)
+ *       + {@code call.abort()}(由 gateway 实现传输层 abort,V0.6.0 接 OkHttp 时挂 Call.cancel);</li>
+ *   <li>{@code future.get(...)} 抛 CancellationException → 本方法返回 {@code Result.terminal(CANCELLED)}。</li>
+ * </ol>
+ *
+ * <p>deadline 路径:{@code future.get(budget, MILLISECONDS)} 抛 TimeoutException →
+ * 本方法主动调 {@code token.cancel()} 触发上述 abort 链 → 返回 {@code Result.terminal(TIMEOUT)}。
+ */
 public final class ModelCallExecutor {
     private static final String TAG = "MatrixAgent";
-    private static final long CANCELLATION_POLL_MILLIS = 50L;
     private final ExecutorService workers;
 
     public ModelCallExecutor(int parallelism) {
+        this(parallelism, null);
+    }
+
+    /**
+     * V0.5.2 Stage 11:接 {@link DynamicThreadPool}——共享池版本。
+     *
+     * <p>{@code sharedPool} 非空时忽略 {@code parallelism} 参数。本类无 shutdown() 方法,
+     * 池生命周期由外部 DynamicThreadPool 持有者管理。
+     */
+    public ModelCallExecutor(int parallelism, DynamicThreadPool sharedPool) {
         if (parallelism <= 0) throw new IllegalArgumentException("parallelism 必须大于 0");
-        workers = Executors.newFixedThreadPool(parallelism, new ModelThreadFactory());
-        Log.i(TAG, "[ModelCall] init parallelism=" + parallelism);
+        if (sharedPool != null) {
+            this.workers = sharedPool.asExecutorService();
+            Log.i(TAG, "[ModelCall] init parallelism=" + parallelism
+                    + " sharedPool=" + sharedPool.getClass().getSimpleName());
+        } else {
+            this.workers = Executors.newFixedThreadPool(parallelism, new ModelThreadFactory());
+            Log.i(TAG, "[ModelCall] init parallelism=" + parallelism);
+        }
     }
 
     public Result decide(ModelGateway gateway, ModelTurnRequest request) {
@@ -36,40 +74,68 @@ public final class ModelCallExecutor {
         long callStarted = System.nanoTime();
         Log.d(TAG, "[ModelCall] submit gateway=" + gateway.getClass().getSimpleName()
                 + " budgetMs=" + budgetMillis
-                + " req=" + agentRequest.getRequestId());
-        Future<ModelTurn> future = workers.submit(() -> gateway.decide(request));
-        long deadlineNanos = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(budgetMillis);
+                + " req=" + agentRequest.getRequestId()
+                + " mode=prepare+abort-hook");
+
+        CancellableModelCall call = gateway.prepare(request);
+        CancellationToken token = agentRequest.getCancellationToken();
+
+        Future<ModelTurn> future;
         try {
-            while (true) {
-                if (agentRequest.isCancelled()) {
-                    future.cancel(true);
-                    Log.w(TAG, "[ModelCall] cancellation observed, terminal=CANCELLED costMs="
-                            + elapsedMillis(callStarted));
-                    return Result.terminal(StopReason.CANCELLED, "模型调用已取消");
+            future = workers.submit(new Callable<ModelTurn>() {
+                @Override
+                public ModelTurn call() {
+                    return call.call();
                 }
-                long remainingNanos = deadlineNanos - System.nanoTime();
-                if (remainingNanos <= 0) {
-                    future.cancel(true);
-                    Log.w(TAG, "[ModelCall] deadline reached, terminal=TIMEOUT costMs="
-                            + elapsedMillis(callStarted));
-                    return Result.terminal(StopReason.TIMEOUT, "模型调用超过请求截止时间");
-                }
-                long waitNanos = Math.min(remainingNanos,
-                        TimeUnit.MILLISECONDS.toNanos(CANCELLATION_POLL_MILLIS));
-                try {
-                    ModelTurn turn = future.get(waitNanos, TimeUnit.NANOSECONDS);
-                    Log.d(TAG, "[ModelCall] gateway returned turn hasToolCalls=" + turn.hasToolCalls()
-                            + " toolCalls=" + (turn.hasToolCalls() ? turn.getToolCalls().size() : 0)
-                            + " costMs=" + elapsedMillis(callStarted));
-                    return Result.success(turn);
-                } catch (TimeoutException ignored) {
-                    // Poll cancellation until gateway returns or deadline reached.
-                }
-            }
-        } catch (InterruptedException interrupted) {
+            });
+        } catch (RejectedExecutionException rejected) {
+            // V0.5.2 评审 P1-1:ioPool 队列满 / Executor 关闭——直接 POLICY_HALT,
+            // AgentEngine 收到 POLICY_HALT 后立刻退出 Loop,不重试。
+            Log.w(TAG, "[ModelCall] submit REJECTED req=" + agentRequest.getRequestId()
+                    + " (ioPool 队列满 / executor 关闭)");
+            return Result.terminal(StopReason.POLICY_HALT, "模型调用被拒绝(ioPool 队列满)");
+        }
+
+        // abort hook:cancel 触发时同步执行 future.cancel(true) + call.abort()
+        // future.cancel(true) 让 worker thread 收到 interrupt;call.abort() 由 gateway 实现(V0.6.0 真 abort)
+        Runnable abortHook = () -> {
+            Log.d(TAG, "[ModelCall] abort hook fired, calling future.cancel(true) + call.abort()");
             future.cancel(true);
+            try {
+                call.abort();
+            } catch (Throwable error) {
+                Log.w(TAG, "[ModelCall] call.abort() threw " + error.getClass().getSimpleName()
+                        + ": " + (error.getMessage() == null ? "" : error.getMessage()));
+            }
+        };
+        if (token != null) {
+            token.registerAbortHook(abortHook);
+        }
+
+        try {
+            ModelTurn turn = future.get(budgetMillis, TimeUnit.MILLISECONDS);
+            Log.d(TAG, "[ModelCall] gateway returned turn hasToolCalls=" + turn.hasToolCalls()
+                    + " toolCalls=" + (turn.hasToolCalls() ? turn.getToolCalls().size() : 0)
+                    + " costMs=" + elapsedMillis(callStarted));
+            return Result.success(turn);
+        } catch (TimeoutException timeout) {
+            // deadline 到——主动触发 abort 链(等同于外部 cancel)
+            Log.w(TAG, "[ModelCall] deadline reached, terminal=TIMEOUT costMs="
+                    + elapsedMillis(callStarted));
+            if (token != null) {
+                token.cancel();
+            } else {
+                abortHook.run();
+            }
+            return Result.terminal(StopReason.TIMEOUT, "模型调用超过请求截止时间");
+        } catch (CancellationException cancelled) {
+            // abort hook 触发了 future.cancel(true) → 这里说明外部 token.cancel() 已发生
+            Log.w(TAG, "[ModelCall] future cancelled by abort hook, terminal=CANCELLED costMs="
+                    + elapsedMillis(callStarted));
+            return Result.terminal(StopReason.CANCELLED, "模型调用已取消");
+        } catch (InterruptedException interrupted) {
+            Log.w(TAG, "[ModelCall] executor thread interrupted, terminal=CANCELLED");
             Thread.currentThread().interrupt();
-            Log.w(TAG, "[ModelCall] worker thread interrupted, terminal=CANCELLED");
             return Result.terminal(StopReason.CANCELLED, "模型调用线程已中断");
         } catch (ExecutionException execution) {
             Throwable cause = execution.getCause() == null ? execution : execution.getCause();
@@ -78,6 +144,10 @@ public final class ModelCallExecutor {
                     + elapsedMillis(callStarted), execution);
             return Result.terminal(StopReason.POLICY_HALT,
                     "模型调用异常:" + safeMessage(cause));
+        } finally {
+            if (token != null) {
+                token.removeAbortHook(abortHook);
+            }
         }
     }
 

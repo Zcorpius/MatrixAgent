@@ -4,8 +4,12 @@ import android.util.Log;
 
 import com.matrix.agent.core.identity.AgentRequest;
 import com.matrix.agent.core.identity.Actor;
+import com.matrix.agent.core.identity.VehicleZone;
 import com.matrix.agent.core.capability.CapabilityRegistry;
-import com.matrix.agent.core.agent.Planner;
+import com.matrix.agent.core.memory.MemoryLayer;
+import com.matrix.agent.core.memory.MemoryRecaller;
+import com.matrix.agent.core.memory.MemoryScope;
+import com.matrix.agent.core.memory.MemorySnippet;
 import com.matrix.agent.core.memory.MemoryStore;
 import com.matrix.agent.core.session.SessionContext;
 import com.matrix.agent.core.agent.TaskPlan;
@@ -23,18 +27,30 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 
-public final class LlmPlanner implements Planner {
+/**
+ * V0.5.2 Stage 11:V0.4.0 兼容路径——结构化 JSON 单轮规划(V0.5.2 起 LlmModelGateway 优先
+ * 走 NATIVE_TOOL_CALLING 直连路径,LlmPlanner 仅作 STRUCTURED_JSON_COMPATIBILITY fallback)。
+ *
+ * <p>V0.5.2 Stage 11 删除 V0.4.x {@code Planner} 接口——LlmPlanner 自带 {@link #plan}
+ * 方法,接口仅在 {@code LlmModelGateway.legacy} 字段以具体类型持有。
+ */
+public final class LlmPlanner {
     private static final String TAG = "MatrixAgent";
     private static final String PROMPT_PREFIX =
             "你是车机任务规划器。只输出一个 JSON 对象，不要 Markdown。"
             + "格式：{\"summary\":\"...\",\"steps\":[{\"capability\":\"...\",\"arguments\":{}}]}。"
             + "只能使用下面注册的能力，不允许创造能力名。最多8步。\n";
 
-    private final ModelApiClient client;
+    private final LlmClient client;
     private final ModelConfig config;
     private final String systemPrompt;
-    private final List<ToolDefinition> toolDefinitions;
+    private final CapabilityRegistry registry;
     private final MemoryStore memoryStore;
+    /**
+     * V0.5.0 Stage 3:可选 Memory 召回——null 时维持 V0.4.3 行为(289 测试兼容)。
+     * 注入后,savedKeysFor 附加 working/episodic/semantic snippet.key 到 prompt。
+     */
+    private MemoryRecaller memoryRecaller;
 
     public LlmPlanner(ModelApiClient client, ModelConfig config, CapabilityRegistry registry) {
         this(client, config, registry, null);
@@ -42,22 +58,39 @@ public final class LlmPlanner implements Planner {
 
     public LlmPlanner(ModelApiClient client, ModelConfig config, CapabilityRegistry registry,
             MemoryStore memoryStore) {
+        this((LlmClient) client, config, registry, memoryStore);
+    }
+
+    /**
+     * V0.5.0 Stage 3:接受 {@link LlmClient} 接口的测试用构造器。
+     *
+     * <p>生产路径继续走 {@link ModelApiClient} 构造器(签名不变,向后兼容 V0.4.3)。
+     * 测试用此构造器注入 fake LlmClient,无需起 HttpServer 验证 prompt 装配。
+     */
+    public LlmPlanner(LlmClient client, ModelConfig config, CapabilityRegistry registry,
+            MemoryStore memoryStore) {
         this.client = client;
         this.config = config;
         this.systemPrompt = PROMPT_PREFIX + registry.toPlannerInstructions();
-        this.toolDefinitions = registry.toToolDefinitions();
+        this.registry = registry;
         this.memoryStore = memoryStore;
     }
 
-    @Override
+    /** V0.5.0 Stage 3:可选注入 Memory 召回器。 */
+    public void setMemoryRecaller(MemoryRecaller recaller) {
+        this.memoryRecaller = recaller;
+    }
+
     public TaskPlan plan(AgentRequest request, SessionContext context) {
         try {
+            // V0.4.3 Stage C:per-request zone 投影——主驾/副驾看到不同 tool 列表。
+            List<ToolDefinition> tools = registry.toToolDefinitions(request.getOccupantZone());
             String userPrompt = "发起者=" + request.getActor()
                     + "\n最近上下文=" + context.getRecentTurns()
                     + "\n已保存的偏好 key 列表=" + savedKeysFor(userId(request))
                     + "\n用户请求=" + request.getText();
             if (config.plannerMode == PlannerMode.NATIVE_TOOL_CALLING) {
-                return client.planWithTools(config, systemPrompt, userPrompt, toolDefinitions);
+                return client.planWithTools(config, systemPrompt, userPrompt, tools);
             }
             String raw = client.complete(config, systemPrompt, userPrompt);
             JSONObject root = new JSONObject(cleanJson(raw));
@@ -95,8 +128,33 @@ public final class LlmPlanner implements Planner {
     /**
      * 列出该用户已保存的所有偏好 key(只 key,不含 value——避免敏感数据进 prompt)。
      * 注入到 prompt 后,模型查询 memory.preference.get 时直接用现有 key,不再脑补命名。
+     *
+     * <p>V0.5.0 Stage 3:memoryRecaller != null 时,附加 working/episodic/semantic 层 snippet.key
+     * 到末尾(不附加 PREFERENCE——已通过 MemoryStore.getAllPreferences 取)。
      */
     private String savedKeysFor(String userId) {
+        String preferenceBlock = preferenceKeysFor(userId);
+        if (memoryRecaller == null) return preferenceBlock;
+        try {
+            MemoryScope scope = MemoryScope.ofLegacy(userId);
+            List<MemorySnippet> recalled = memoryRecaller.recall(scope, null, "", 8);
+            if (recalled == null || recalled.isEmpty()) return preferenceBlock;
+            StringBuilder extra = new StringBuilder();
+            for (MemorySnippet snippet : recalled) {
+                if (snippet.getLayer() == MemoryLayer.PREFERENCE) continue;
+                extra.append("\n- [").append(snippet.getLayer().wireValue()).append("] ")
+                        .append(snippet.getKey());
+            }
+            if (extra.length() == 0) return preferenceBlock;
+            return preferenceBlock + "\n其他已召回的 Memory:" + extra;
+        } catch (Exception error) {
+            Log.w(TAG, "[LlmPlanner] memoryRecaller lookup failed: " + error.getMessage());
+            return preferenceBlock;
+        }
+    }
+
+    /** V0.5.0 Stage 3:抽出 V0.4.3 偏好 key 列表逻辑,保持向后兼容。 */
+    private String preferenceKeysFor(String userId) {
         if (memoryStore == null) return "（MemoryStore 未注入,无历史 key）";
         try {
             Map<String, String> all = memoryStore.getAllPreferences(userId);

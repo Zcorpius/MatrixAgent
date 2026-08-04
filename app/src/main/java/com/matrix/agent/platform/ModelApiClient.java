@@ -9,6 +9,10 @@ import com.matrix.agent.core.agent.TaskPlan;
 import com.matrix.agent.core.tool.ToolCall;
 import com.matrix.agent.core.capability.ToolDefinition;
 import com.matrix.agent.core.capability.ToolParameterDefinition;
+import com.matrix.agent.core.capability.schema.CanonicalSchema;
+import com.matrix.agent.core.capability.schema.SchemaJsonWriter;
+import com.matrix.agent.core.capability.schema.SchemaProjectionConfig;
+import com.matrix.agent.core.identity.CancellationToken;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -25,29 +29,79 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-public final class ModelApiClient {
+public final class ModelApiClient implements LlmClient {
     private static final String TAG = "MatrixAgent";
     private static final int CONNECT_TIMEOUT_MS = 10_000;
     private static final int READ_TIMEOUT_MS = 90_000;
 
+    /**
+     * V0.5.2 Stage 10:重试策略——对 RateLimitException(429)/ ServerException(5xx)
+     * 指数退避重试 3 次;ClientException(4xx)/ NetworkException / TimeoutException 不重试。
+     *
+     * <p>主路径 complete / callAnthropicWithTools / callOpenAiWithTools / callGemini
+     * 通过 {@link #invokeWithRetry(RetryPolicy.CallableWithRetry)} 包装。
+     */
+    private final RetryPolicy retryPolicy = new RetryPolicy();
+
+    /** V0.5.2 Stage 10:测试可见——暴露当前 RetryPolicy(只读,不替换)。 */
+    RetryPolicy getRetryPolicy() {
+        return retryPolicy;
+    }
+
+    /**
+     * V0.5.2 Stage 10:统一重试入口——业务调用包装在 lambda 中,RetryPolicy 自动重试。
+     *
+     * <p>V0.5.2-rev 评审 P2-1:旧重载转发到新 cancel+deadline 重载,默认 token=null + 不限 deadline。
+     */
+    private <T> T invokeWithRetry(RetryPolicy.CallableWithRetry<T> action) throws Exception {
+        return invokeWithRetry(action, null, Long.MAX_VALUE);
+    }
+
+    /**
+     * V0.5.2-rev 评审 P2-1:cancel + deadline 感知的重试入口——直接转发给 RetryPolicy 新重载。
+     */
+    private <T> T invokeWithRetry(RetryPolicy.CallableWithRetry<T> action, CancellationToken token,
+            long deadlineAtMillis) throws Exception {
+        return retryPolicy.invokeWithRetry(action, token, deadlineAtMillis);
+    }
+
+    @Override
     public String complete(ModelConfig config, String systemPrompt, String userPrompt) throws Exception {
+        return complete(config, systemPrompt, userPrompt, null, Long.MAX_VALUE);
+    }
+
+    /**
+     * V0.5.2-rev 评审 P2-1:cancel + deadline 感知的 complete 重载。
+     *
+     * <p>LlmModelGateway 从 AgentRequest 取 token+deadline 透传过来;LlmIntentClassifier 用 3s 短 deadline;
+     * LlmSummaryProvider 用 min(10s, request.remainingMillis())。
+     */
+    @Override
+    public String complete(ModelConfig config, String systemPrompt, String userPrompt,
+            CancellationToken token, long deadlineAtMillis) throws Exception {
         config.validate();
         Log.d(TAG, "[Http] complete protocol=" + config.protocol
                 + " model=" + config.model + " systemChars=" + systemPrompt.length()
-                + " userChars=" + userPrompt.length());
-        switch (config.protocol) {
-            case ANTHROPIC_MESSAGES:
-                return callAnthropic(config, systemPrompt, userPrompt);
-            case GEMINI_GENERATE_CONTENT:
-                return callGemini(config, systemPrompt, userPrompt);
-            case OLLAMA_CHAT:
-                return callOllama(config, systemPrompt, userPrompt);
-            case OPENAI_CHAT:
-            default:
-                return callOpenAiCompatible(config, systemPrompt, userPrompt);
-        }
+                + " userChars=" + userPrompt.length()
+                + " abortable=" + (token != null)
+                + " deadlineMs=" + (deadlineAtMillis == Long.MAX_VALUE ? "none" : deadlineAtMillis));
+        // V0.5.2-rev 评审 P2-1:走 RetryPolicy 新重载——退避期间感知 cancel + 按剩余 deadline 截断 delay。
+        return invokeWithRetry(() -> {
+            switch (config.protocol) {
+                case ANTHROPIC_MESSAGES:
+                    return callAnthropic(config, systemPrompt, userPrompt);
+                case GEMINI_GENERATE_CONTENT:
+                    return callGemini(config, systemPrompt, userPrompt);
+                case OLLAMA_CHAT:
+                    return callOllama(config, systemPrompt, userPrompt);
+                case OPENAI_CHAT:
+                default:
+                    return callOpenAiCompatible(config, systemPrompt, userPrompt);
+            }
+        }, token, deadlineAtMillis);
     }
 
+    @Override
     public TaskPlan planWithTools(ModelConfig config, String systemPrompt, String userPrompt,
             List<ToolDefinition> tools) throws Exception {
         config.validate();
@@ -132,20 +186,46 @@ public final class ModelApiClient {
     public ModelTurn callAnthropicWithTools(ModelConfig config, String system,
             java.util.List<AgentMessage> conversation, java.util.List<ToolDefinition> tools)
             throws Exception {
+        return callAnthropicWithTools(config, system, conversation, tools, null);
+    }
+
+    /**
+     * V0.4.3 Stage E:接 {@link CancellationToken}——cancel() 时通过 abortHook 触发
+     * connection.disconnect(),无需等待 read timeout(90s)。
+     */
+    public ModelTurn callAnthropicWithTools(ModelConfig config, String system,
+            java.util.List<AgentMessage> conversation, java.util.List<ToolDefinition> tools,
+            com.matrix.agent.core.identity.CancellationToken token) throws Exception {
+        return callAnthropicWithTools(config, system, conversation, tools, token, Long.MAX_VALUE);
+    }
+
+    /**
+     * V0.5.2-rev 评审 P2-1:cancel + deadline 感知的 Anthropic 原生 Tool Calling。
+     *
+     * <p>从 AgentRequest.deadlineAtMillis 透传——RetryPolicy 退避期间按剩余 deadline 截断 delay。
+     */
+    public ModelTurn callAnthropicWithTools(ModelConfig config, String system,
+            java.util.List<AgentMessage> conversation, java.util.List<ToolDefinition> tools,
+            com.matrix.agent.core.identity.CancellationToken token, long deadlineAtMillis) throws Exception {
         config.validate();
         if (config.protocol != ApiProtocol.ANTHROPIC_MESSAGES) {
             throw new IllegalArgumentException("Anthropic Native Tool Calling 仅支持 ANTHROPIC_MESSAGES 协议");
         }
         Log.i(TAG, "[Http] callAnthropicWithTools model=" + config.model
                 + " conversationMsgs=" + conversation.size()
-                + " tools=" + tools.size() + " systemChars=" + system.length());
-        JSONObject request = buildAnthropicToolRequest(config, system, conversation, tools);
-        JSONObject response = post(config.endpoint, request, "x-api-key", config.apiKey,
-                "anthropic-version", "2023-06-01");
-        ModelTurn turn = parseAnthropicToolResponse(response, tools);
-        Log.d(TAG, "[Http] anthropic turn hasToolCalls=" + turn.hasToolCalls()
-                + " toolCalls=" + (turn.hasToolCalls() ? turn.getToolCalls().size() : 0));
-        return turn;
+                + " tools=" + tools.size() + " systemChars=" + system.length()
+                + " abortable=" + (token != null)
+                + " deadlineMs=" + (deadlineAtMillis == Long.MAX_VALUE ? "none" : deadlineAtMillis));
+        // V0.5.2-rev 评审 P2-1:走 RetryPolicy 新重载——退避期间感知 cancel + 按剩余 deadline 截断 delay。
+        return invokeWithRetry(() -> {
+            JSONObject request = buildAnthropicToolRequest(config, system, conversation, tools);
+            JSONObject response = post(config.endpoint, request, "x-api-key", config.apiKey,
+                    "anthropic-version", "2023-06-01", token);
+            ModelTurn turn = parseAnthropicToolResponse(response, tools);
+            Log.d(TAG, "[Http] anthropic turn hasToolCalls=" + turn.hasToolCalls()
+                    + " toolCalls=" + (turn.hasToolCalls() ? turn.getToolCalls().size() : 0));
+            return turn;
+        }, token, deadlineAtMillis);
     }
 
     /**
@@ -166,6 +246,25 @@ public final class ModelApiClient {
     public ModelTurn callOpenAiWithTools(ModelConfig config, String system,
             java.util.List<AgentMessage> conversation, java.util.List<ToolDefinition> tools)
             throws Exception {
+        return callOpenAiWithTools(config, system, conversation, tools, null);
+    }
+
+    /**
+     * V0.4.3 Stage E:接 {@link CancellationToken}——cancel() 时通过 abortHook 触发
+     * connection.disconnect(),无需等待 read timeout(90s)。
+     */
+    public ModelTurn callOpenAiWithTools(ModelConfig config, String system,
+            java.util.List<AgentMessage> conversation, java.util.List<ToolDefinition> tools,
+            com.matrix.agent.core.identity.CancellationToken token) throws Exception {
+        return callOpenAiWithTools(config, system, conversation, tools, token, Long.MAX_VALUE);
+    }
+
+    /**
+     * V0.5.2-rev 评审 P2-1:cancel + deadline 感知的 OpenAI-Compatible 原生 Tool Calling。
+     */
+    public ModelTurn callOpenAiWithTools(ModelConfig config, String system,
+            java.util.List<AgentMessage> conversation, java.util.List<ToolDefinition> tools,
+            com.matrix.agent.core.identity.CancellationToken token, long deadlineAtMillis) throws Exception {
         config.validate();
         if (config.protocol != ApiProtocol.OPENAI_CHAT) {
             throw new IllegalArgumentException(
@@ -173,14 +272,77 @@ public final class ModelApiClient {
         }
         Log.i(TAG, "[Http] callOpenAiWithTools model=" + config.model
                 + " conversationMsgs=" + conversation.size()
-                + " tools=" + tools.size() + " systemChars=" + system.length());
-        JSONObject request = buildOpenAiToolRequest(config, system, conversation, tools);
-        JSONObject response = post(config.endpoint, request, "Authorization",
-                config.apiKey.isEmpty() ? null : "Bearer " + config.apiKey, null, null);
-        ModelTurn turn = parseOpenAiToolResponse(response, tools);
-        Log.d(TAG, "[Http] openai-native turn hasToolCalls=" + turn.hasToolCalls()
-                + " toolCalls=" + (turn.hasToolCalls() ? turn.getToolCalls().size() : 0));
-        return turn;
+                + " tools=" + tools.size() + " systemChars=" + system.length()
+                + " abortable=" + (token != null)
+                + " deadlineMs=" + (deadlineAtMillis == Long.MAX_VALUE ? "none" : deadlineAtMillis));
+        // V0.5.2-rev 评审 P2-1:走 RetryPolicy 新重载——退避期间感知 cancel + 按剩余 deadline 截断 delay。
+        return invokeWithRetry(() -> {
+            JSONObject request = buildOpenAiToolRequest(config, system, conversation, tools);
+            JSONObject response = post(config.endpoint, request, "Authorization",
+                    config.apiKey.isEmpty() ? null : "Bearer " + config.apiKey, null, null, token);
+            ModelTurn turn = parseOpenAiToolResponse(response, tools);
+            Log.d(TAG, "[Http] openai-native turn hasToolCalls=" + turn.hasToolCalls()
+                    + " toolCalls=" + (turn.hasToolCalls() ? turn.getToolCalls().size() : 0));
+            return turn;
+        }, token, deadlineAtMillis);
+    }
+
+    /**
+     * V0.5.2 Stage 10:Gemini 原生 Tool Calling。每轮把完整 conversation(含上轮 functionCall /
+     * functionResponse)一次性发出,Gemini 自行决定本轮还要不要再调 tool。
+     *
+     * <p>Gemini 协议与 Anthropic / OpenAI 的关键差异:
+     * <ul>
+     *   <li>role 用 "user" / "model"(无 "assistant" / "tool");</li>
+     *   <li>tool 调用:{@code parts:[{functionCall:{name, args}}]},不带 id 字段;</li>
+     *   <li>tool 结果:{@code parts:[{functionResponse:{name, response}}]},用 name 关联
+     *       (不是 id);Runtime 因此在合成 ToolCall.stepId 时按 turn 内 index 生成
+     *       {@code gemini-<index>},仅作内部 ASSISTANT ↔ TOOL 消息关联用。</li>
+     * </ul>
+     */
+    public ModelTurn callGeminiWithTools(ModelConfig config, String system,
+            java.util.List<AgentMessage> conversation, java.util.List<ToolDefinition> tools)
+            throws Exception {
+        return callGeminiWithTools(config, system, conversation, tools, null);
+    }
+
+    /**
+     * V0.5.2 Stage 10:接 {@link CancellationToken}——cancel() 时通过 abortHook 触发
+     * connection.disconnect(),无需等待 read timeout(90s)。
+     */
+    public ModelTurn callGeminiWithTools(ModelConfig config, String system,
+            java.util.List<AgentMessage> conversation, java.util.List<ToolDefinition> tools,
+            com.matrix.agent.core.identity.CancellationToken token) throws Exception {
+        return callGeminiWithTools(config, system, conversation, tools, token, Long.MAX_VALUE);
+    }
+
+    /**
+     * V0.5.2-rev 评审 P2-1:cancel + deadline 感知的 Gemini 原生 Tool Calling。
+     */
+    public ModelTurn callGeminiWithTools(ModelConfig config, String system,
+            java.util.List<AgentMessage> conversation, java.util.List<ToolDefinition> tools,
+            com.matrix.agent.core.identity.CancellationToken token, long deadlineAtMillis) throws Exception {
+        config.validate();
+        if (config.protocol != ApiProtocol.GEMINI_GENERATE_CONTENT) {
+            throw new IllegalArgumentException(
+                    "Gemini Native Tool Calling 仅支持 GEMINI_GENERATE_CONTENT 协议");
+        }
+        Log.i(TAG, "[Http] callGeminiWithTools model=" + config.model
+                + " conversationMsgs=" + conversation.size()
+                + " tools=" + tools.size() + " systemChars=" + system.length()
+                + " abortable=" + (token != null)
+                + " deadlineMs=" + (deadlineAtMillis == Long.MAX_VALUE ? "none" : deadlineAtMillis));
+        // V0.5.2-rev 评审 P2-1:走 RetryPolicy 新重载——退避期间感知 cancel + 按剩余 deadline 截断 delay。
+        return invokeWithRetry(() -> {
+            JSONObject request = buildGeminiToolRequest(config, system, conversation, tools);
+            String endpoint = config.endpoint.replace("{model}", config.model);
+            JSONObject response = post(endpoint, request, "x-goog-api-key", config.apiKey,
+                    null, null, token);
+            ModelTurn turn = parseGeminiToolResponse(response, tools);
+            Log.d(TAG, "[Http] gemini-native turn hasToolCalls=" + turn.hasToolCalls()
+                    + " toolCalls=" + (turn.hasToolCalls() ? turn.getToolCalls().size() : 0));
+            return turn;
+        }, token, deadlineAtMillis);
     }
 
     /**
@@ -363,6 +525,227 @@ public final class ModelApiClient {
         return messages;
     }
 
+    /**
+     * V0.5.2 Stage 10:Gemini 多轮 Tool Calling 请求体。
+     *
+     * <p>结构与 OpenAI / Anthropic 的差异:
+     * <ul>
+     *   <li>system 走 top-level {@code systemInstruction.parts[{text}]};</li>
+     *   <li>conversation 走 {@code contents[{role, parts[*]}]},role ∈ {user, model};</li>
+     *   <li>tools 走 {@code tools[{functionDeclarations:[...]}]}(双层嵌套,与 OpenAI 平铺不同);</li>
+     *   <li>temperature 在 {@code generationConfig} 内(不能与 OpenAI 一样直接放顶层)。</li>
+     * </ul>
+     */
+    static JSONObject buildGeminiToolRequest(ModelConfig config, String system,
+            java.util.List<AgentMessage> conversation, java.util.List<ToolDefinition> tools)
+            throws Exception {
+        if (tools == null || tools.isEmpty()) throw new IllegalArgumentException("ToolDefinition 不能为空");
+        JSONArray functionDeclarations = new JSONArray();
+        java.util.Map<String, String> capabilityToModelName = new LinkedHashMap<>();
+        for (ToolDefinition tool : tools) {
+            functionDeclarations.put(toGeminiFunctionDeclaration(tool));
+            capabilityToModelName.put(tool.getCapabilityName(), tool.getModelName());
+        }
+        return new JSONObject()
+                .put("systemInstruction", new JSONObject()
+                        .put("parts", new JSONArray().put(new JSONObject().put("text", system))))
+                .put("contents", toGeminiContents(conversation, capabilityToModelName))
+                .put("tools", new JSONArray().put(new JSONObject()
+                        .put("functionDeclarations", functionDeclarations)))
+                .put("generationConfig", new JSONObject().put("temperature", 0.1));
+    }
+
+    /**
+     * V0.5.2 Stage 10:解析 Gemini 多轮 Tool Calling 响应。
+     *
+     * <p>Gemini 响应结构:
+     * <ul>
+     *   <li>{@code candidates[0].content.parts[i]} 可能是 {@code {text}} 或 {@code {functionCall:{name, args}}};</li>
+     *   <li>{@code candidates[0].finishReason} ∈ STOP / MAX_TOKENS / SAFETY / RECITATION / OTHER
+     *       (无 "TOOL_CALLS"——有 functionCall 时 finishReason 仍可能是 STOP);</li>
+     *   <li>出现 functionCall 即视为 TOOL_CALLS,与 finishReason 解耦。</li>
+     * </ul>
+     *
+     * <p>Gemini functionCall 不带 id——Runtime 按 turn 内 index 合成 {@code gemini-<index>} 作 stepId,
+     * 让 Loop 内 AgentMessage.TOOL 与 ASSISTANT 关联。下一轮发请求时按 capability name 反查 model name
+     * 写到 functionResponse.name,Runtime 合成 id 不进 wire。
+     */
+    static ModelTurn parseGeminiToolResponse(JSONObject response,
+            java.util.List<ToolDefinition> tools) throws Exception {
+        JSONArray candidates = response.optJSONArray("candidates");
+        if (candidates == null || candidates.length() == 0) {
+            Log.w(TAG, "[Http] gemini-native no candidates in response");
+            return ModelTurn.of("", FinishReason.NONE);
+        }
+        JSONObject candidate = candidates.getJSONObject(0);
+        String rawFinishReason = candidate.optString("finishReason", "");
+        // 先取 parts(可能为 null——finishReason=SAFETY/RECITATION 时 content 可能为空)
+        JSONObject content = candidate.optJSONObject("content");
+        JSONArray parts = content != null ? content.optJSONArray("parts") : null;
+        StringBuilder text = new StringBuilder();
+        java.util.List<ToolCall> calls = new java.util.ArrayList<>();
+        java.util.Map<String, ToolDefinition> byModelName = new java.util.LinkedHashMap<>();
+        for (ToolDefinition tool : tools) byModelName.put(tool.getModelName(), tool);
+
+        if (parts != null) {
+            for (int i = 0; i < parts.length(); i++) {
+                JSONObject part = parts.getJSONObject(i);
+                String partText = part.optString("text", "");
+                if (!partText.isEmpty()) {
+                    text.append(partText);
+                    continue;
+                }
+                JSONObject functionCall = part.optJSONObject("functionCall");
+                if (functionCall != null) {
+                    String modelName = functionCall.optString("name", "");
+                    ToolDefinition definition = byModelName.get(modelName);
+                    if (definition == null) {
+                        throw new IllegalStateException("Gemini 返回未注册 Tool:" + modelName);
+                    }
+                    Object rawArgs = functionCall.opt("args");
+                    java.util.Map<String, Object> args = rawArgs instanceof JSONObject
+                            ? toMap((JSONObject) rawArgs)
+                            : new java.util.LinkedHashMap<>();
+                    // Gemini 无 id,合成 gemini-<index> 仅作 Runtime 内部关联
+                    calls.add(ToolCall.withId("gemini-" + i, definition.getCapabilityName(), args));
+                }
+            }
+        }
+        Log.d(TAG, "[Http] gemini-native parse parts=" + (parts == null ? 0 : parts.length())
+                + " textChars=" + text.length() + " functionCalls=" + calls.size()
+                + " finishReason=" + rawFinishReason);
+
+        // LENGTH 必须在判定 toolCalls 之前——MAX_TOKENS 截断可能产生半截 args JSON。
+        if (mapGeminiFinishReason(rawFinishReason) == FinishReason.LENGTH) {
+            Log.w(TAG, "[Http] gemini-native LENGTH short-circuit finishReason=" + rawFinishReason
+                    + " functionCalls=" + calls.size()
+                    + " textChars=" + text.length()
+                    + " — 拒绝执行可能被截断的 functionCall");
+            return ModelTurn.of(text.toString(), FinishReason.LENGTH);
+        }
+        if (calls.isEmpty()) {
+            FinishReason mapped = mapGeminiFinishReason(rawFinishReason);
+            String textStr = text.toString();
+            if (mapped == FinishReason.STOP && textStr.trim().isEmpty()) {
+                Log.w(TAG, "[Http] gemini-native finishReason=STOP but content empty -> NONE");
+                mapped = FinishReason.NONE;
+            }
+            return ModelTurn.of(textStr, mapped);
+        }
+        // 有 functionCall 即视为 TOOL_CALLS,finishReason 略过(Gemini 协议不区分)。
+        return ModelTurn.ofToolCalls(calls, text.toString());
+    }
+
+    /**
+     * V0.5.2 Stage 10:把 Agent Loop conversation 序列化为 Gemini contents 数组。
+     *
+     * <p>规则:
+     * <ul>
+     *   <li>SYSTEM 跳过(已写到 systemInstruction);</li>
+     *   <li>USER → {@code {role:"user", parts:[{text}]}};</li>
+     *   <li>ASSISTANT → {@code {role:"model", parts:[{text?}, {functionCall:name+args}?]}};</li>
+     *   <li>TOOL → 合并到下一条 USER message 的 {@code parts[{functionResponse:{name, response}}]}
+     *       (Gemini 用 user role 承载 functionResponse,与 OpenAI 的 role=tool 不同)。</li>
+     * </ul>
+     */
+    private static JSONArray toGeminiContents(java.util.List<AgentMessage> conversation,
+            java.util.Map<String, String> capabilityToModelName) throws Exception {
+        JSONArray contents = new JSONArray();
+        JSONObject pendingFunctionResponses = null;
+        for (AgentMessage msg : conversation) {
+            switch (msg.getRole()) {
+                case SYSTEM:
+                    continue;
+                case USER:
+                    if (pendingFunctionResponses != null) {
+                        contents.put(pendingFunctionResponses);
+                        pendingFunctionResponses = null;
+                    }
+                    contents.put(new JSONObject()
+                            .put("role", "user")
+                            .put("parts", new JSONArray().put(new JSONObject()
+                                    .put("text", msg.getContent()))));
+                    break;
+                case ASSISTANT: {
+                    if (pendingFunctionResponses != null) {
+                        contents.put(pendingFunctionResponses);
+                        pendingFunctionResponses = null;
+                    }
+                    JSONArray parts = new JSONArray();
+                    if (msg.getContent() != null && !msg.getContent().isEmpty()) {
+                        parts.put(new JSONObject().put("text", msg.getContent()));
+                    }
+                    for (ToolCall call : msg.getToolCalls()) {
+                        String modelName = capabilityToModelName.get(call.getCapabilityName());
+                        if (modelName == null) modelName = toModelToolName(call.getCapabilityName());
+                        parts.put(new JSONObject().put("functionCall", new JSONObject()
+                                .put("name", modelName)
+                                .put("args", toJson(call.getArguments()))));
+                    }
+                    if (parts.length() == 0) {
+                        parts.put(new JSONObject().put("text", ""));
+                    }
+                    contents.put(new JSONObject().put("role", "model").put("parts", parts));
+                    break;
+                }
+                case TOOL: {
+                    if (pendingFunctionResponses == null) {
+                        pendingFunctionResponses = new JSONObject().put("role", "user");
+                        pendingFunctionResponses.put("parts", new JSONArray());
+                    }
+                    JSONArray parts = pendingFunctionResponses.getJSONArray("parts");
+                    String modelName = capabilityToModelName.get(msg.getToolName());
+                    if (modelName == null) modelName = toModelToolName(msg.getToolName());
+                    parts.put(new JSONObject().put("functionResponse", new JSONObject()
+                            .put("name", modelName)
+                            .put("response", new JSONObject()
+                                    .put("content", msg.getContent()))));
+                    break;
+                }
+            }
+        }
+        if (pendingFunctionResponses != null) contents.put(pendingFunctionResponses);
+        return contents;
+    }
+
+    /** V0.5.2 Stage 10:把 ToolDefinition 转 Gemini functionDeclaration。
+     *
+     * <p>Gemini functionDeclaration 结构:{@code {name, description, parameters}}。
+     * 参数 schema 用 OPENAI_STRICT 投影(Gemini 支持的 schema 子集与 OpenAI strict 高度重合)。
+     */
+    private static JSONObject toGeminiFunctionDeclaration(ToolDefinition tool) throws Exception {
+        JSONObject parameters;
+        CanonicalSchema schema = tool.getParametersSchema();
+        if (schema != null) {
+            parameters = SchemaJsonWriter.INSTANCE.write(schema, SchemaProjectionConfig.OPENAI_STRICT);
+        } else {
+            parameters = legacyOpenAiParameters(tool);
+        }
+        return new JSONObject()
+                .put("name", tool.getModelName())
+                .put("description", tool.getDescription())
+                .put("parameters", parameters);
+    }
+
+    /**
+     * V0.5.2 Stage 10:把 Gemini finishReason 字符串映射为 {@link FinishReason}。
+     *
+     * <p>Gemini 的 finishReason 取值:STOP / MAX_TOKENS / SAFETY / RECITATION / LANGUAGE / OTHER
+     * 等。STOP / OTHER 视为正常完成;MAX_TOKENS → LENGTH(截断);SAFETY / RECITATION / LANGUAGE 等
+     * 安全/语言过滤按 NONE(Provider 协议不一致的兜底,AgentEngine 据此走 PROTOCOL_ERROR)。
+     */
+    private static FinishReason mapGeminiFinishReason(String raw) {
+        if (raw == null || raw.isEmpty()) return FinishReason.NONE;
+        switch (raw) {
+            case "STOP":
+                return FinishReason.STOP;
+            case "MAX_TOKENS":
+                return FinishReason.LENGTH;
+            default:
+                return FinishReason.NONE;
+        }
+    }
+
     static JSONObject buildAnthropicToolRequest(ModelConfig config, String system,
             java.util.List<AgentMessage> conversation, java.util.List<ToolDefinition> tools)
             throws Exception {
@@ -521,6 +904,25 @@ public final class ModelApiClient {
     }
 
     private static JSONObject toAnthropicTool(ToolDefinition tool) throws Exception {
+        JSONObject inputSchema;
+        CanonicalSchema schema = tool.getParametersSchema();
+        if (schema != null) {
+            inputSchema = SchemaJsonWriter.INSTANCE.write(schema, SchemaProjectionConfig.ANTHROPIC_FULL);
+        } else {
+            inputSchema = legacyAnthropicInputSchema(tool);
+        }
+        return new JSONObject()
+                .put("name", tool.getModelName())
+                .put("description", tool.getDescription())
+                .put("input_schema", inputSchema);
+    }
+
+    /**
+     * V0.4.0 兼容路径——ToolDefinition 未带 parametersSchema 时手写 input_schema。
+     * Stage C 重写后,V0.4.2 全部 capability 已带 parametersSchema,此方法仅作 fallback。
+     */
+    private static JSONObject legacyAnthropicInputSchema(ToolDefinition tool)
+            throws org.json.JSONException {
         JSONObject properties = new JSONObject();
         JSONArray required = new JSONArray();
         for (ToolParameterDefinition parameter : tool.getParameters()) {
@@ -537,15 +939,11 @@ public final class ModelApiClient {
             properties.put(parameter.getName(), schema);
             if (parameter.isRequired()) required.put(parameter.getName());
         }
-        JSONObject inputSchema = new JSONObject()
+        return new JSONObject()
                 .put("type", "object")
                 .put("properties", properties)
                 .put("required", required)
                 .put("additionalProperties", false);
-        return new JSONObject()
-                .put("name", tool.getModelName())
-                .put("description", tool.getDescription())
-                .put("input_schema", inputSchema);
     }
 
     private static String toModelToolName(String capabilityName) {
@@ -562,6 +960,26 @@ public final class ModelApiClient {
     }
 
     private static JSONObject toOpenAiTool(ToolDefinition tool) throws Exception {
+        JSONObject parameters;
+        CanonicalSchema schema = tool.getParametersSchema();
+        if (schema != null) {
+            parameters = SchemaJsonWriter.INSTANCE.write(schema, SchemaProjectionConfig.OPENAI_STRICT);
+        } else {
+            parameters = legacyOpenAiParameters(tool);
+        }
+        return new JSONObject().put("type", "function")
+                .put("function", new JSONObject()
+                        .put("name", tool.getModelName())
+                        .put("description", tool.getDescription())
+                        .put("parameters", parameters));
+    }
+
+    /**
+     * V0.4.0 兼容路径——ToolDefinition 未带 parametersSchema 时手写 parameters。
+     * Stage C 重写后,V0.4.2 全部 capability 已带 parametersSchema,此方法仅作 fallback。
+     */
+    private static JSONObject legacyOpenAiParameters(ToolDefinition tool)
+            throws org.json.JSONException {
         JSONObject properties = new JSONObject();
         JSONArray required = new JSONArray();
         for (ToolParameterDefinition parameter : tool.getParameters()) {
@@ -578,16 +996,11 @@ public final class ModelApiClient {
             properties.put(parameter.getName(), schema);
             if (parameter.isRequired()) required.put(parameter.getName());
         }
-        JSONObject parameters = new JSONObject()
+        return new JSONObject()
                 .put("type", "object")
                 .put("properties", properties)
                 .put("required", required)
                 .put("additionalProperties", false);
-        return new JSONObject().put("type", "function")
-                .put("function", new JSONObject()
-                        .put("name", tool.getModelName())
-                        .put("description", tool.getDescription())
-                        .put("parameters", parameters));
     }
 
     private static String jsonType(ToolParameterDefinition.Type type) {
@@ -668,14 +1081,37 @@ public final class ModelApiClient {
 
     private static JSONObject post(String endpoint, JSONObject body,
             String header1, String value1, String header2, String value2) throws Exception {
+        return post(endpoint, body, header1, value1, header2, value2, null);
+    }
+
+    /**
+     * V0.4.3 Stage E:HTTP 入口接 {@link CancellationToken}。
+     *
+     * <p>V0.4.1 旧实现只检查 {@code Thread.currentThread().isInterrupted()},取消只走逻辑中断,
+     * HTTP 连接在 read 阻塞时无法被强制 abort——LLM 长响应取消后 socket 仍占用 read timeout(90s)。
+     * 现在把 connection.disconnect 注册到 token.abortHook,token.cancel() 触发后立即断开 socket,
+     * read 抛 IOException 提前出 finally。
+     */
+    static JSONObject post(String endpoint, JSONObject body,
+            String header1, String value1, String header2, String value2,
+            com.matrix.agent.core.identity.CancellationToken token) throws Exception {
         long started = System.nanoTime();
         byte[] payload = body.toString().getBytes(StandardCharsets.UTF_8);
         boolean hasAuth = (header1 != null && value1 != null && !value1.isEmpty())
                 || (header2 != null && value2 != null && !value2.isEmpty());
         Log.d(TAG, "[Http] POST " + maskEndpoint(endpoint)
                 + " payloadBytes=" + payload.length
-                + " auth=" + (hasAuth ? "yes" : "no"));
+                + " auth=" + (hasAuth ? "yes" : "no")
+                + " abortable=" + (token != null));
         HttpURLConnection connection = (HttpURLConnection) new URL(endpoint).openConnection();
+        // V0.4.3 Round 2:必须把 abortHook 提取为局部变量,让 register/remove 用同一个 Runnable 实例。
+        // 旧实现两次 connection::disconnect 求值会产生两个不同 Runnable 对象
+        // (绑定实例方法引用每次评估都新建实例),CopyOnWriteArrayList.remove() 用 equals 比对,
+        // 移除失败 → 已结束请求的 hook 永远累积在 token.abortHooks 中,长期运行内存泄漏。
+        Runnable abortHook = token == null ? null : connection::disconnect;
+        if (abortHook != null) {
+            token.registerAbortHook(abortHook);
+        }
         try {
             connection.setRequestMethod("POST");
             connection.setConnectTimeout(CONNECT_TIMEOUT_MS);
@@ -687,7 +1123,8 @@ public final class ModelApiClient {
             try (OutputStream output = connection.getOutputStream()) {
                 output.write(payload);
             }
-            if (Thread.currentThread().isInterrupted()) {
+            if (Thread.currentThread().isInterrupted()
+                    || (token != null && token.isCancelled())) {
                 Log.w(TAG, "[Http] worker thread interrupted before response");
                 throw new InterruptedException("模型请求已取消");
             }
@@ -703,11 +1140,27 @@ public final class ModelApiClient {
                 // 或含厂商网关诊断信息。整段用占位符包裹,绝不原文进 logcat / exception message。
                 com.matrix.agent.core.agent.SafeLog.wProviderRaw(TAG, "[Http] HTTP error ",
                         code, truncate(response, 500));
-                throw new IllegalStateException("HTTP " + code
+                // V0.5.2 Stage 10:错误分类——按 HTTP 状态码抛 ModelApiException 子类,
+                // 让 RetryPolicy 决策重试。endpoint 已 mask(去 query string)。
+                String masked = maskEndpoint(endpoint);
+                RuntimeException ex = new IllegalStateException("HTTP " + code
                         + ": body=" + com.matrix.agent.core.agent.SafeLog.PROVIDER_RAW_PLACEHOLDER);
+                if (code == 429) {
+                    throw new ModelApiException.RateLimitException(masked, ex);
+                }
+                if (code >= 500) {
+                    throw new ModelApiException.ServerException(code, masked, ex);
+                }
+                if (code >= 400) {
+                    throw new ModelApiException.ClientException(code, masked, ex);
+                }
+                throw ex;
             }
             return new JSONObject(response);
         } finally {
+            if (abortHook != null) {
+                token.removeAbortHook(abortHook);
+            }
             connection.disconnect();
         }
     }
