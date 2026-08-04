@@ -10,7 +10,7 @@ package com.matrix.agent.core.identity;
  * <p>V0.4.3 实现两个:
  * <ul>
  *   <li>{@link MockVehicleStateSource} —— 可配置 gear/speed/charging,供 demo 和测试切换</li>
- *   <li>{@link DefaultVehicleStateSource} —— V0.6.0 接 {@code CarPropertyManager} 的占位</li>
+ *   <li>{@link DefaultVehicleStateSource} —— 后续版本接 {@code CarPropertyManager} 的占位</li>
  * </ul>
  */
 public interface VehicleStateSource {

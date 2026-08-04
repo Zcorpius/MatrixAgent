@@ -11,7 +11,7 @@ package com.matrix.agent.core.tool;
  * 已返回"已取消"后继续设置车辆状态,导致 Agent Trajectory 与真实车辆状态不一致。
  *
  * <p>V0.5.0 协议定义 + 默认行为退化({@link CapabilityProvider#queryCommandState} 默认 UNKNOWN);
- * V0.5.1 / V0.6.0 接真实 Provider 时按 capability 实现查询,Runtime 在 EXECUTION_UNKNOWN
+ * V0.5.1 / 后续版本接真实 Provider 时按 capability 实现查询,Runtime 在 EXECUTION_UNKNOWN
  * 终态后异步 readback 更新为 SUCCESS / VERIFICATION_FAILED / UNKNOWN。
  *
  * <ul>

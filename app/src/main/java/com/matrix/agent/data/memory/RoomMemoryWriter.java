@@ -44,7 +44,7 @@ import com.matrix.agent.data.db.SessionHistoryEntity;
  * 的 {@code userId / zone} 参数由调用方传入,本类不做"调用方身份与参数一致"校验。当前唯一调用方
  * {@code MockCapabilityProvider.MemorySemanticSaveHandler} 用 {@code ActorUsers.userIdOf(request)}
  * + {@code request.getOccupantZone().wireValue()} 推导,无实际越权路径。但未来真实 AAOS Provider
- * 或第三方插件若误传其他用户 / zone 的值,可能写入错误访问域。V0.6.0 引入 {@code CallerContext}
+ * 或第三方插件若误传其他用户 / zone 的值,可能写入错误访问域。后续版本引入 {@code CallerContext}
  * (PolicyEngine 已持有的 request.userId / zone 透传到 Writer 入口)做 enforcement;本轮仅在
  * 此标注契约——调用方必须传"当前 request 的 userId / zone"。
  */
@@ -59,7 +59,7 @@ public final class RoomMemoryWriter implements MemoryWriter {
      * <p>V0.5.6 P2-D:{@code SEMANTIC_VALUE_MAX_LEN = 2048} 是 Java char(UTF-16 code unit)数,
      * <b>不是</b> UTF-8 字节数。中文 / emoji 等 UTF-8 实际字节数最多 ~4 倍(最坏 8KB/行,
      * SQLite TEXT 无压力)。文档/UI 描述必须用"最多 2048 字符",不要用"≤ 2KB"——后者误导。
-     * UTF-8 字节上限留 V0.6.0 视真实 PII 容量需求评估。
+     * UTF-8 字节上限留后续版本视真实 PII 容量需求评估。
      */
     private static final Pattern SEMANTIC_KEY_PATTERN =
             Pattern.compile("^(family|allergy|work|fact)\\.[A-Za-z0-9_.]+$");
@@ -159,7 +159,7 @@ public final class RoomMemoryWriter implements MemoryWriter {
     /**
      * V0.5.6 P2-F 契约:调用方必须传"当前 request 的 userId / zone"——本方法不做"调用方身份
      * 与参数一致"校验。MockCapabilityProvider.MemorySemanticSaveHandler 推导正确无越权路径;
-     * 第三方 Provider 误传可串数据(V0.6.0 加 CallerContext enforcement)。
+     * 第三方 Provider 误传可串数据(后续版本加 CallerContext enforcement)。
      */
     @Override
     public boolean writeSemantic(String userId, String zone, String key, String value,

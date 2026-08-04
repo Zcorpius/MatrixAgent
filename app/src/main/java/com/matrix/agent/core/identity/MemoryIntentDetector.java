@@ -14,7 +14,7 @@ package com.matrix.agent.core.identity;
  * 直接 POLICY_REJECTED,模型重试无效——硬 gate,prompt 约定的双重防线。
  *
  * <p>V0.5.4 提供默认实现 {@link KeywordMemoryIntentDetector}——中文关键词匹配。
- * V0.6.0 可替换为 LLM-based detector(同义词 / 否定 / 多语言),接口签名不变。
+ * 后续版本可替换为 LLM-based detector(同义词 / 否定 / 多语言),接口签名不变。
  *
  * <p>与 {@link IntentClassifier} 的差异:IntentClassifier 输出 readOnly(查询 vs 写)用于
  * TaskScheduler 抢占判定;MemoryIntentDetector 输出 explicitMemorySave(显式长期记忆意图)

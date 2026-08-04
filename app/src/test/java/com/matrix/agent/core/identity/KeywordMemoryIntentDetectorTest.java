@@ -26,7 +26,7 @@ import org.junit.Test;
  *   <li>大小写不敏感</li>
  * </ul>
  *
- * <p>已知限制(V0.5.5 仍接受,V0.6.0 升 LLM-based):
+ * <p>已知限制(V0.5.5 仍接受,后续版本升 LLM-based):
  * 同义词("给我存下来"/"记牢")、英文 / 方言 / 多语言未覆盖。
  */
 public final class KeywordMemoryIntentDetectorTest {

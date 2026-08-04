@@ -168,7 +168,7 @@ public final class ToolExecutor {
      *       等于未发生,V0.4.x 行为不变。</li>
      *   <li>写操作(writeOperation=true):Java {@code future.cancel(true)} 中断线程
      *       <b>不保证</b>撤销已发出的 IPC 命令,Runtime 不能宣称"已取消",一律返回
-     *       {@link ToolResult.Status#EXECUTION_UNKNOWN};V0.5.1 / V0.6.0 由 readback
+     *       {@link ToolResult.Status#EXECUTION_UNKNOWN};V0.5.1 / 后续版本由 readback
      *       / queryCommandState 异步更新为 SUCCESS / VERIFICATION_FAILED / UNKNOWN。</li>
      * </ul>
      */

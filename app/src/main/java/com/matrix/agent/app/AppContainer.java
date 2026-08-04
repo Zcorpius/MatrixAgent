@@ -150,7 +150,7 @@ public final class AppContainer {
         steerMailbox = new SteerMailbox();
         // V0.4.3 Stage B + Round 2:车辆运动状态源——保留为字段,通过 getVehicleStateSource()
         // 暴露给 demo / debug UI,让"切 gear=D 触发 PARKED_ONLY 拒绝"在 APK 中可手动验证。
-        // V0.6.0 接 CarPropertyManager 时本字段类型变为真实实现类,getVehicleStateSource() 不变。
+        // 后续版本接 CarPropertyManager 时本字段类型变为真实实现类,getVehicleStateSource() 不变。
         vehicleStateSource = new DefaultVehicleStateSource();
         // V0.5.2 Stage 2:MatrixDatabase 提前装配——audit + memory 共用同一 SQLCipher 实例
         // (getInstance 单例,keyProvider 失败 → database=null → audit/memory 双双退化)。

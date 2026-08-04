@@ -21,7 +21,7 @@ public interface ModelGateway {
      *
      * <p>默认实现不挂真传输层 abort——call() 直接调 {@link #decide},abort() 仅记录 intent。
      * 真正生效需要实现方覆盖本方法,返回带 abort 能力的 {@link CancellableModelCall}
-     * (如 LlmModelGateway 在 V0.6.0 接 OkHttp 时挂 Call.cancel)。
+     * (如 LlmModelGateway 在后续版本接 OkHttp 时挂 Call.cancel)。
      *
      * <p>{@link ModelCallExecutor#decide} 优先调本方法,把 CancellableModelCall.abort 注册到
      * CancellationToken 的 abort hook,让 cancel 触发时立即调用传输层 abort。
@@ -35,7 +35,7 @@ public interface ModelGateway {
 
             @Override
             public void abort() {
-                // 默认无传输层 abort——V0.6.0 接 OkHttp 时由 LlmModelGateway 覆盖
+                // 默认无传输层 abort——后续版本接 OkHttp 时由 LlmModelGateway 覆盖
             }
         };
     }

@@ -107,7 +107,7 @@ public final class AgentRuntimeRepositoryMemorySaveFlagTest {
     public void customDetectorDecisionPropagatedToRequest() {
         AtomicReference<AgentRequest> captured = new AtomicReference<>();
         AgentRuntimeRepository repo = buildRepository(capturingGateway(captured));
-        // 自定义 detector:command 以"X"开头时返回 true(模拟 LLM-based detector,V0.6.0 升级路径)
+        // 自定义 detector:command 以"X"开头时返回 true(模拟 LLM-based detector,后续版本升级路径)
         repo.setMemoryIntentDetector(command -> command != null && command.startsWith("X"));
 
         repo.execute("X-save-this", Actor.DRIVER, new CancellationToken());

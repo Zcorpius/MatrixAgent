@@ -234,7 +234,7 @@ public final class CapabilityRegistry {
                                         // V0.5.5 P2-B / V0.5.6 P2-D:maxLength 是 JSON Schema 标准语义
                                         // (Java String.length() = UTF-16 code unit 数),不是 UTF-8 字节数。
                                         // 文档/UI 必须说"最多 2048 字符",不要说"≤ 2KB"——后者误导。
-                                        // UTF-8 字节上限留 V0.6.0 视真实 PII 容量需求评估(最坏 8KB/行,
+                                        // UTF-8 字节上限留后续版本视真实 PII 容量需求评估(最坏 8KB/行,
                                         // SQLite TEXT 无压力,不阻塞当前版本)。
                                         // 空字符串已被 SchemaValidator 的 trim().isEmpty() → EMPTY_STRING 拦截。
                                         .maxLength(2048)

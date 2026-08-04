@@ -28,7 +28,7 @@ import org.junit.Test;
  * </ol>
  *
  * <p>不测真实 HTTP——本测试只验证 ModelCallExecutor 与 CancellableModelCall / CancellationToken
- * 的协议契约。HTTP 层 abort 行为由 V0.6.0 接 OkHttp 时补集成测试。
+ * 的协议契约。HTTP 层 abort 行为由 后续版本接 OkHttp 时补集成测试。
  */
 public final class ModelCallExecutorTest {
 

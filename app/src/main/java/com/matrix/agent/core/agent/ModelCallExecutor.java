@@ -30,7 +30,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  *   <li>外部线程调 {@code token.cancel()};</li>
  *   <li>CancellationToken 同步触发所有 abort hook;</li>
  *   <li>本类注册的 abort hook 执行 {@code future.cancel(true)}(让 worker thread 收到 interrupt)
- *       + {@code call.abort()}(由 gateway 实现传输层 abort,V0.6.0 接 OkHttp 时挂 Call.cancel);</li>
+ *       + {@code call.abort()}(由 gateway 实现传输层 abort,后续版本接 OkHttp 时挂 Call.cancel);</li>
  *   <li>{@code future.get(...)} 抛 CancellationException → 本方法返回 {@code Result.terminal(CANCELLED)}。</li>
  * </ol>
  *
@@ -97,7 +97,7 @@ public final class ModelCallExecutor {
         }
 
         // abort hook:cancel 触发时同步执行 future.cancel(true) + call.abort()
-        // future.cancel(true) 让 worker thread 收到 interrupt;call.abort() 由 gateway 实现(V0.6.0 真 abort)
+        // future.cancel(true) 让 worker thread 收到 interrupt;call.abort() 由 gateway 实现(后续版本真 abort)
         Runnable abortHook = () -> {
             Log.d(TAG, "[ModelCall] abort hook fired, calling future.cancel(true) + call.abort()");
             future.cancel(true);

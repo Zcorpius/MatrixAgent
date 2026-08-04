@@ -19,7 +19,7 @@ import java.util.Set;
  * <p><b>denylist 而非 allowlist</b>:V0.5.3 没法穷举所有合法 preference key(用户/车型/地区差异),
  * allowlist 会逼业务方申请审批——denylist 默认放行,已知 PII key 列入。
  *
- * <p><b>V0.6.0 切 capability schema isSensitive() 后本类可移除</b>:届时 PII 由
+ * <p><b>后续版本切 capability schema isSensitive() 后本类可移除</b>:届时 PII 由
  * schema 元数据自动判定,不再依赖静态 key 列表。
  */
 public final class SensitiveKeys {

@@ -8,7 +8,7 @@ package com.matrix.agent.core.identity;
  * {@code requiredVehicleStates} 前置条件(归 CAPABILITY 拒绝,不可上诉)。
  *
  * <p>V0.4.2 mock 数据——Stage E MockCapabilityProvider.snapshotVehicleState
- * 直接构造同款 state 注入 AgentRequest。V0.6.0 接真实 Car API 后由
+ * 直接构造同款 state 注入 AgentRequest。后续版本接真实 Car API 后由
  * VehiclePropertyService 实时读取。
  *
  * <p>默认 mock state {@link #satisfyAllPredicates()}:{@code gear=P, speedKmh=0,

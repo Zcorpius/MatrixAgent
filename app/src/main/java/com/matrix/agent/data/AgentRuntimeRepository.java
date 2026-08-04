@@ -124,7 +124,7 @@ public final class AgentRuntimeRepository {
      *
      * <p>默认 {@link MemoryIntentDetector#NOOP}(始终返回 false)——保守起点,AppContainer
      * 装配 {@link KeywordMemoryIntentDetector#INSTANCE} 后才放行命中关键词的请求。与
-     * {@link #intentClassifier} 同 volatile + setter 模式,V0.6.0 可替换为 LLM-based detector。
+     * {@link #intentClassifier} 同 volatile + setter 模式,后续版本可替换为 LLM-based detector。
      */
     private volatile MemoryIntentDetector memoryIntentDetector = MemoryIntentDetector.NOOP;
     /**

@@ -9,7 +9,7 @@ import android.util.Log;
  * 字面量;V0.5.0 Audit / Memory 引用同一字面量,确保 Room TrajectoryEntity.userId 列
  * 与 SharedPreferences MemoryStore 主键兼容(V0.5.1 一次性迁移)。
  *
- * <p>V0.6.0 接 OccupantZone / Android User 时,这里改读 CarOccupantZoneManager。
+ * <p>后续版本接 OccupantZone / Android User 时,这里改读 CarOccupantZoneManager。
  */
 public final class ActorUsers {
     private static final String TAG = "MatrixAgent";

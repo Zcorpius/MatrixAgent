@@ -21,7 +21,7 @@ package com.matrix.agent.core.agent;
  * <p>默认实现(见 {@link ModelGateway#prepare}):不挂真传输层 abort,abort() 仅记录 intent。
  * 真正生效需要 ModelGateway 实现方覆盖 prepare(),返回带 abort 能力的 CancellableModelCall。
  *
- * <p>V0.6.0 接真实 HTTP 网关(OkHttp)时,abort() 会触发 OkHttp Call.cancel(),
+ * <p>后续版本接真实 HTTP 网关(OkHttp)时,abort() 会触发 OkHttp Call.cancel(),
  * 让 socket read 立即抛 IOException 而不是等 read timeout。V0.4.1 阶段 LlmModelGateway
  * 走 HttpURLConnection,abort() 暂时仅触发 future.cancel(true) + thread interrupt。
  */

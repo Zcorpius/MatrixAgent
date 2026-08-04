@@ -37,7 +37,7 @@ public final class AgentTestViewModel extends ViewModel {
     /**
      * V0.4.3 Round 3 P2:车辆运动状态源——demo UI 切换 gear 时调 setGear,
      * 让 PolicyEngine 的 PARKED_ONLY 等前置约束在 APK 中可手动验证。
-     * V0.6.0 接真车后,此字段移除或保留为只读(真实 state 由 CarPropertyManager 推)。
+     * 后续版本接真车后,此字段移除或保留为只读(真实 state 由 CarPropertyManager 推)。
      */
     private final VehicleStateSource vehicleStateSource;
     private final ExecutorService executor = Executors.newFixedThreadPool(2);
@@ -71,7 +71,7 @@ public final class AgentTestViewModel extends ViewModel {
 
     /**
      * V0.4.3 Round 3 P2:demo UI 切换车辆档位,gear=D 时 PARKED_ONLY 车控写被 PolicyEngine 拒绝。
-     * 只在 DefaultVehicleStateSource(以及 MockVehicleStateSource)支持——真实车 V0.6.0 由
+     * 只在 DefaultVehicleStateSource(以及 MockVehicleStateSource)支持——真实车 后续版本由
      * CarPropertyManager 推送,demo 不再可手动切换。
      */
     public void setGear(VehicleState.Gear gear) {

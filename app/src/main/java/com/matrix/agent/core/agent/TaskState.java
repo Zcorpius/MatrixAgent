@@ -26,7 +26,7 @@ public enum TaskState {
      * 生成 EXECUTION_UNKNOWN),而用户输入被 IntentClassifier 判定为写操作(intentReadOnly=false)。
      *
      * <p>语义:不能等同于 {@link #FAILED}(命令可能成功) / {@link #CANCELLED}(命令可能已执行) /
-     * {@link #TIMED_OUT}(命令可能已下发);UI 必须按"未知终态"展示,V0.5.1 / V0.6.0 由
+     * {@link #TIMED_OUT}(命令可能已下发);UI 必须按"未知终态"展示,V0.5.1 / 后续版本由
      * readback / queryCommandState 异步更新为 SUCCEEDED / FAILED。
      */
     EXECUTION_UNKNOWN,

@@ -7,7 +7,7 @@ package com.matrix.agent.core.identity;
  * {@link MockVehicleStateSource} 的默认 state({@link VehicleState#satisfyAllPredicates()}),
  * 确保所有 capability 在 mock 环境下放行。
  *
- * <p>V0.6.0 计划:
+ * <p>后续版本计划:
  * <ul>
  *   <li>接入 {@code android.car.hardware.CarPropertyManager}</li>
  *   <li>实时读取 gear / speed / charging / batteryPercent</li>
@@ -23,7 +23,7 @@ public final class DefaultVehicleStateSource implements VehicleStateSource {
 
     @Override
     public VehicleState snapshot() {
-        // TODO V0.6.0:接 CarPropertyManager,读 gear / speed / charging / batteryPercent。
+        // TODO 后续版本:接 CarPropertyManager,读 gear / speed / charging / batteryPercent。
         // 当前直接返回 mock state,与 V0.4.2 satisfyAllPredicates 默认一致。
         return delegate.snapshot();
     }

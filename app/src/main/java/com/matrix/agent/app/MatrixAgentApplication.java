@@ -22,7 +22,7 @@ public final class MatrixAgentApplication extends Application {
      * Repository / schedulerPool / ioPool / auditEventRecorder。
      *
      * <p>注意:Android 真机不保证调用 onTerminate,该方法仅给模拟器 / 集成测试使用。
-     * 真机依赖进程级回收(daemon Thread + 进程死即释放)。V0.6.0 接 Car 生命周期后,
+     * 真机依赖进程级回收(daemon Thread + 进程死即释放)。后续版本接 Car 生命周期后,
      * 通过 CarLifecycleListener 在 Car 析构时显式释放(不依赖 onTerminate)。
      */
     @Override

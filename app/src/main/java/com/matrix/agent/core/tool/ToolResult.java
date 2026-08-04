@@ -17,7 +17,7 @@ public final class ToolResult {
          * Java {@code Future.cancel(true)} 中断线程不保证撤销已发出的 AIDL / Binder /
          * Intent / 厂商 SDK 命令,Provider 可能继续设置车辆状态。返回 EXECUTION_UNKNOWN
          * 表示"命令已下发但执行结果未知",Agent Trajectory 与 UI 必须按未知态展示,
-         * V0.5.1 / V0.6.0 接真实 Provider 后由 readback / queryCommandState 异步更新为
+         * V0.5.1 / 后续版本接真实 Provider 后由 readback / queryCommandState 异步更新为
          * SUCCESS / VERIFICATION_FAILED / UNKNOWN。
          *
          * <p>读操作不会进入此状态——读操作被中断等于未发生,继续返回 CANCELLED / TIMED_OUT。
