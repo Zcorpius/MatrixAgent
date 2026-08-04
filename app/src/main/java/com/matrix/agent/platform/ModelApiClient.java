@@ -29,6 +29,15 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * 多 Provider LLM HTTP 客户端——OpenAI / Anthropic / Gemini / Ollama 四协议的原生 Tool Calling
+ * 适配器(请求构造 + 响应解析 + 消息映射),底层用 HttpURLConnection(阻塞式单次请求,无 SSE 流式)。
+ *
+ * <p><b>已知技术债(暂缓)</b>:本类承担 4 协议 × {请求/响应/消息映射} + HTTP 传输 + 重试包装,
+ * 已达 1200+ 行。待接真实 LLM、有端到端测试覆盖各 provider 路径后,按 provider 拆分为
+ * OpenAiProtocol / AnthropicProtocol / GeminiProtocol + 独立 HttpTransport(当前为纯结构重构、
+ * 无功能收益,且无测试验证拆分正确性,风险 > 收益,故暂不拆)。
+ */
 public final class ModelApiClient implements LlmClient {
     private static final String TAG = "MatrixAgent";
     private static final int CONNECT_TIMEOUT_MS = 10_000;
@@ -1157,6 +1166,16 @@ public final class ModelApiClient implements LlmClient {
                 throw ex;
             }
             return new JSONObject(response);
+        } catch (java.net.SocketTimeoutException timeout) {
+            // 连接 / 读取超时——包装成 ModelApiException.TimeoutException(原 NetworkException /
+            // TimeoutException 子类从未被实例化,属死代码),RetryPolicy 不重试(isRetryable=false),
+            // ModelCallExecutor 据此映射为 TIMEOUT 终态(写操作网络超时 → EXECUTION_UNKNOWN)。
+            throw new ModelApiException.TimeoutException(maskEndpoint(endpoint), timeout);
+        } catch (java.io.IOException io) {
+            // socket 层异常(UnknownHost / Connect / SSL / read 被 disconnect 中断)——包装成
+            // NetworkException,不再作为裸 Exception 上抛;否则 RetryPolicy 的 catch(Exception) 放行后,
+            // 在 LlmModelGateway 被包成 IllegalStateException,终态误归类为 POLICY_HALT。
+            throw new ModelApiException.NetworkException(maskEndpoint(endpoint), io);
         } finally {
             if (abortHook != null) {
                 token.removeAbortHook(abortHook);

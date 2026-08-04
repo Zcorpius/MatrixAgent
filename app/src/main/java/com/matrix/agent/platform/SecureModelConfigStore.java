@@ -101,10 +101,14 @@ public final class SecureModelConfigStore {
             return ((KeyStore.SecretKeyEntry) keyStore.getEntry(KEY_ALIAS, null)).getSecretKey();
         }
         KeyGenerator generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore");
+        // 显式 256-bit AES,与 AndroidKeyStoreMasterKeyProvider 一致(旧实现依赖 AndroidKeyStore
+        // 默认的 128-bit)。向后兼容:上面 containsAlias 为 true 时已提前 return 复用旧 key,
+        // 已存配置仍按旧 key 解密,不破坏数据;仅首次生成(全新安装)走 256-bit。
         generator.init(new KeyGenParameterSpec.Builder(KEY_ALIAS,
                 KeyProperties.PURPOSE_ENCRYPT | KeyProperties.PURPOSE_DECRYPT)
                 .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
                 .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+                .setKeySize(256)
                 .build());
         return generator.generateKey();
     }

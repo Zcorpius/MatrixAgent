@@ -116,11 +116,6 @@ public final class AgentEngine {
      * LLM 摘要 + heuristic 降级双路径。
      */
     private ConversationCompressor conversationCompressor;
-    /**
-     * V0.5.2 Stage 8:当前 AgentRequest——ConversationCompressor.compress 需要
-     * request 作为 SummaryProvider 参数。execute 入口写入,执行完置 null 防止泄漏。
-     */
-    private AgentRequest currentRequest;
 
     public AgentEngine(ModelGateway modelGateway, ModelCallExecutor modelCallExecutor,
             PolicyEngine policyEngine, CapabilityRegistry registry, CapabilityProvider provider,
@@ -285,9 +280,6 @@ public final class AgentEngine {
 
     public AgentOutcome execute(AgentRequest request) {
         long started = System.nanoTime();
-        // V0.5.2 Stage 8:记录当前 request 给 ConversationCompressor 用(appendMessageWithBudget
-        // 调 compressor.compress 时需要 request 作为 SummaryProvider 参数)。
-        this.currentRequest = request;
         // 第七轮 P2-4:BEGIN 行只暴露元数据,用户输入原文用 SafeLog 占位符包裹。
         // 旧实现把 truncate(text, 80) 直接写 logcat——前 80 字符可能含目的地 / 联系人 / 偏好值。
         Log.i(TAG, "[Engine] BEGIN req=" + request.getRequestId()
@@ -428,7 +420,7 @@ public final class AgentEngine {
                     + elapsedMillis(iterationStarted) + "ms");
 
             // 第七轮 P2-2:assistant message 加入前同样过预算检查(单条截断 + 条数/字符上限)
-            if (!appendMessageWithBudget(conversation, turn.getAssistantMessage())) {
+            if (!appendMessageWithBudget(conversation, turn.getAssistantMessage(), request)) {
                 stopReason = StopReason.BUDGET_EXHAUSTED;
                 stopMessage = "加入 assistant 消息后超过字符或条数预算";
                 Log.w(TAG, "[Engine] iter " + iteration + " budget exhausted on assistant append"
@@ -643,7 +635,7 @@ public final class AgentEngine {
             for (ToolObservation observation : observations) {
                 ToolObservation sanitized = modelSanitizer.sanitize(observation);
                 AgentMessage toolMsg = sanitized.toToolMessage();
-                if (!appendMessageWithBudget(conversation, toolMsg)) {
+                if (!appendMessageWithBudget(conversation, toolMsg, request)) {
                     Log.w(TAG, "[Engine] iter " + iteration + " budget exhausted on tool message"
                             + " cap=" + observation.getCapabilityName()
                             + " convChars=" + estimateConversationChars(conversation)
@@ -972,7 +964,8 @@ public final class AgentEngine {
      *   <li>conversation 累计字符上限 {@code totalInputChars}(超 → 拒绝加入)。</li>
      * </ol>
      */
-    private boolean appendMessageWithBudget(List<AgentMessage> conversation, AgentMessage message) {
+    private boolean appendMessageWithBudget(List<AgentMessage> conversation, AgentMessage message,
+            AgentRequest request) {
         AgentMessage truncated = enforceMessageBudget(message);
         if (conversation.size() + 1 > budget.getMaxMessageCount()) {
             Log.w(TAG, "[Engine] maxMessageCount exceeded currentCount=" + conversation.size()
@@ -985,7 +978,7 @@ public final class AgentEngine {
             // 压缩成功后重试 append;仍超才返回 false(BUDGET_EXHAUSTED)。
             if (conversationCompressor != null && !conversation.isEmpty()) {
                 List<AgentMessage> compressed = conversationCompressor.compress(
-                        conversation, budget, currentRequest);
+                        conversation, budget, request);
                 if (compressed != conversation && compressed.size() < conversation.size()) {
                     // 原地替换 conversation 内容(保持 list 引用不变,Loop 内可见)
                     conversation.clear();
@@ -1099,7 +1092,7 @@ public final class AgentEngine {
             }
             switch (steer.getType()) {
                 case REPROMPT:
-                    if (!appendMessageWithBudget(conversation, AgentMessage.user(steer.getPayload()))) {
+                    if (!appendMessageWithBudget(conversation, AgentMessage.user(steer.getPayload()), request)) {
                         Log.w(TAG, "[Engine] iter " + iteration
                                 + " REPROMPT 加入失败(预算耗尽),忽略");
                     } else {

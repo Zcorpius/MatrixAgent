@@ -510,6 +510,77 @@ public final class AgentEngineTest {
     }
 
     /**
+     * #1 回归:并发执行时,每个任务的对话压缩必须使用各自的 AgentRequest,不串用。
+     *
+     * <p>#1 修复前 appendMessageWithBudget 读实例字段 currentRequest——同一 AgentEngine 并发跑
+     * 不同 session 时,任务 A 的压缩可能读到任务 B 的 request(SummaryProvider 收到错的 request)。
+     * 修复后 request 作为参数透传。本测试用记录型 SummaryProvider 捕获 compress 收到的 request,
+     * 并发跑 driver/passenger,断言各 session 压缩记录到的 text 全属于本 session。
+     */
+    @Test
+    public void concurrentCompressionDoesNotCrossUseRequest() throws Exception {
+        java.util.concurrent.ConcurrentHashMap<String, java.util.List<String>> seen =
+                new java.util.concurrent.ConcurrentHashMap<>();
+        SummaryProvider recorder = (turns, request) -> {
+            seen.computeIfAbsent(request.getSessionId(),
+                    k -> new java.util.concurrent.CopyOnWriteArrayList<>())
+                    .add(request.getText());
+            return "压缩摘要";
+        };
+        ConversationCompressor compressor = new ConversationCompressor(recorder);
+
+        // 每轮 1 个 knowledge.answer tool_call + 400 chars content,让 conversation 稳定增长;
+        // totalInputChars=3000(80%=2400) 远大于 system prompt,确保前几轮既不触发压缩也不
+        // BUDGET_EXHAUSTED;第 4~5 轮 conversation 超 2400 触发压缩,此时 transaction 数 ≥ 4 →
+        // toSummarize 非空 → summarize 被调 → 记录本次 compress 用的 request。
+        ModelGateway gateway = req -> ModelTurn.ofToolCalls(
+                Collections.singletonList(new ToolCall("knowledge.answer", args("question", "q"))),
+                repeatX(400));
+        AgentEngine concurrentEngine = new AgentEngine(gateway, modelCallExecutor,
+                new PolicyEngine(registry), registry, provider, sessionManager,
+                new DefaultContextUpdater(), sessionLockManager, toolExecutor,
+                new AgentBudget(10, 10, 60_000L, 8_000, 3_000));
+        concurrentEngine.setConversationCompressor(compressor);
+
+        java.util.concurrent.ExecutorService workers =
+                java.util.concurrent.Executors.newFixedThreadPool(2);
+        try {
+            java.util.concurrent.Future<AgentOutcome> driver = workers.submit(() -> concurrentEngine.execute(
+                    AgentRequest.builder("driver-text", Actor.DRIVER)
+                            .sessionId("driver-session").build()));
+            java.util.concurrent.Future<AgentOutcome> passenger = workers.submit(() -> concurrentEngine.execute(
+                    AgentRequest.builder("passenger-text", Actor.PASSENGER)
+                            .sessionId("passenger-session").build()));
+            driver.get();
+            passenger.get();
+        } finally {
+            workers.shutdownNow();
+        }
+
+        assertFalse("压缩应被触发(summarize 应至少被调用一次)", seen.isEmpty());
+        assertCompressionRequestBelongsToSession("driver-session", "driver-text", seen);
+        assertCompressionRequestBelongsToSession("passenger-session", "passenger-text", seen);
+    }
+
+    private static void assertCompressionRequestBelongsToSession(String sessionId, String expectedText,
+            java.util.Map<String, java.util.List<String>> seen) {
+        // 必须断言该 session 真的进入了压缩路径(有记录)——之前 null 时 early-return 会让
+        // "某 session 没触发压缩"静默通过,无法保证双会话都被实际验证。
+        java.util.List<String> texts = seen.get(sessionId);
+        assertNotNull("session " + sessionId + " 未触发压缩,测试未覆盖该会话", texts);
+        for (String text : texts) {
+            assertEquals("session " + sessionId + " 的对话压缩串用了别的 request 的 text",
+                    expectedText, text);
+        }
+    }
+
+    private static String repeatX(int n) {
+        char[] arr = new char[n];
+        java.util.Arrays.fill(arr, 'x');
+        return new String(arr);
+    }
+
+    /**
      * 第七轮 P2-2:maxMessageChars 限制单条消息长度——超长 system prompt 会撑爆总字符预算。
      * 旧实现只把 maxMessageChars 喂给 ModelSanitizer/AuditRedactor,system/user 消息原样进 conversation。
      */

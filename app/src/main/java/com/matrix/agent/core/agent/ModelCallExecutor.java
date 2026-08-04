@@ -5,6 +5,8 @@ import android.util.Log;
 import com.matrix.agent.core.identity.AgentRequest;
 import com.matrix.agent.core.identity.CancellationToken;
 
+import com.matrix.agent.platform.ModelApiException;
+
 import java.util.concurrent.Callable;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
@@ -139,6 +141,22 @@ public final class ModelCallExecutor {
             return Result.terminal(StopReason.CANCELLED, "模型调用线程已中断");
         } catch (ExecutionException execution) {
             Throwable cause = execution.getCause() == null ? execution : execution.getCause();
+            // 网络层 / 超时异常映射为 TIMEOUT 终态(而非 POLICY_HALT):本层是模型决策阶段(调 LLM
+            // 决定下一步,尚未进入工具执行),网络/超时属时间类临时故障,归 TIMEOUT 语义最准确;
+            // POLICY_HALT 留给协议/模型不可恢复错误(RateLimit/Server 重试耗尽、4xx、JSON 解析错)。
+            // (注:写操作 EXECUTION_UNKNOWN 是 AgentRuntimeRepository 在整体 future 超时、且工具
+            // 可能已下发时收敛的,与本层模型决策超时无关。)
+            // 沿 cause 链查找——ModelApiException 从 post() 抛出后可能被中间层(LlmModelGateway
+            // 的 catch(Exception)→IllegalStateException、或未来 CancellableModelCall)包装,顶层
+            // instanceof 会漏判被包装的情况。findNetworkOrTimeout 对所有包装层级都健壮。
+            ModelApiException networkOrTimeout = findNetworkOrTimeout(cause);
+            if (networkOrTimeout != null) {
+                Log.w(TAG, "[ModelCall] gateway network/timeout " + networkOrTimeout.getClass().getSimpleName()
+                        + " (unwrapped from " + cause.getClass().getSimpleName() + ")"
+                        + " -> terminal=TIMEOUT costMs=" + elapsedMillis(callStarted), execution);
+                return Result.terminal(StopReason.TIMEOUT,
+                        "模型调用网络异常或超时:" + safeMessage(networkOrTimeout));
+            }
             Log.e(TAG, "[ModelCall] gateway threw " + cause.getClass().getSimpleName()
                     + ": " + safeMessage(cause) + " -> terminal=POLICY_HALT costMs="
                     + elapsedMillis(callStarted), execution);
@@ -153,6 +171,29 @@ public final class ModelCallExecutor {
 
     private static String safeMessage(Throwable error) {
         return error.getMessage() == null ? error.getClass().getSimpleName() : error.getMessage();
+    }
+
+    /**
+     * 沿 cause 链向下查找 {@link ModelApiException.NetworkException} /
+     * {@link ModelApiException.TimeoutException}。
+     *
+     * <p>网络/超时异常从 {@code ModelApiClient.post()} 抛出后,可能被中间层包装成外层异常
+     * (如 LlmModelGateway 把非 RuntimeException 包成 IllegalStateException)。直接 instanceof
+     * 只匹配顶层 cause,会漏判被包装的情况,导致模型决策阶段的网络/超时(时间类临时故障)误归类
+     * 为 POLICY_HALT(应归 TIMEOUT)。沿链查找让映射对所有包装层级都健壮。深度上限 16 防自引用环。
+     *
+     * @return 链中第一个 NetworkException / TimeoutException;链中无则 null
+     */
+    private static ModelApiException findNetworkOrTimeout(Throwable cause) {
+        Throwable current = cause;
+        for (int depth = 0; current != null && depth < 16; depth++) {
+            if (current instanceof ModelApiException.NetworkException
+                    || current instanceof ModelApiException.TimeoutException) {
+                return (ModelApiException) current;
+            }
+            current = current.getCause();
+        }
+        return null;
     }
 
     private static long elapsedMillis(long startedNanos) {

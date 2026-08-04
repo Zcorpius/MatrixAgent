@@ -9,6 +9,8 @@ import com.matrix.agent.core.identity.AgentRequest;
 import com.matrix.agent.core.identity.CancellationToken;
 import com.matrix.agent.core.session.SessionContext;
 
+import com.matrix.agent.platform.ModelApiException;
+
 import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -162,5 +164,77 @@ public final class ModelCallExecutorTest {
                 StopReason.TIMEOUT, result.getTerminalReason());
         assertTrue("timeout 必须主动触发 token.cancel()(由 abort hook 链)",
                 token.isCancelled());
+    }
+
+    /**
+     * 网络异常被中间层包成 IllegalStateException 时,ModelCallExecutor 必须沿 cause 链识别出
+     * NetworkException → TIMEOUT 终态(而非 POLICY_HALT)。
+     *
+     * <p>场景:ModelApiClient.post 抛 NetworkException,LlmModelGateway 或未来 CancellableModelCall
+     * 把它包成外层 IllegalStateException。顶层 instanceof 会漏判,沿链查找才能正确归类。
+     * 本层是模型决策阶段(调 LLM,尚未执行工具),网络/超时属时间类临时故障,归 TIMEOUT 语义最
+     * 准确(区别于 POLICY_HALT 表示协议/模型不可恢复错误);两者都会终止 loop,但 TIMEOUT 准确
+     * 反映"网络/超时"原因。(注:写操作 EXECUTION_UNKNOWN 是 Repository 在整体 future 超时收敛的,
+     * 与本层模型决策超时无关。)
+     */
+    @Test
+    public void networkExceptionWrappedInIllegalStateMapsToTimeout() {
+        ModelApiException.NetworkException root = new ModelApiException.NetworkException(
+                "https://api.example.com", new java.io.IOException("connection reset"));
+        ModelGateway gateway = request -> {
+            throw new IllegalStateException("LLM 模型决策失败", root);
+        };
+        AgentRequest agentRequest = AgentRequest.builder("test", Actor.DRIVER)
+                .sessionId("wrapped-network").timeoutMillis(10_000).build();
+        ModelTurnRequest turnRequest = new ModelTurnRequest(
+                agentRequest, Collections.<AgentMessage>emptyList(),
+                Collections.<com.matrix.agent.core.capability.ToolDefinition>emptyList(),
+                "system", new SessionContext());
+
+        ModelCallExecutor.Result result = new ModelCallExecutor(1).decide(gateway, turnRequest);
+
+        assertFalse("网络异常(被包装)后应非 success", result.isSuccess());
+        assertEquals("被包装的网络异常应沿 cause 链识别为 TIMEOUT", StopReason.TIMEOUT,
+                result.getTerminalReason());
+    }
+
+    /** 对照:网络异常直达(未被包装)时仍映射为 TIMEOUT——确保 cause 链查找不破坏原直达场景。 */
+    @Test
+    public void unwrappedNetworkExceptionStillMapsToTimeout() {
+        ModelGateway gateway = request -> {
+            throw new ModelApiException.NetworkException(
+                    "https://api.example.com", new java.io.IOException("unknown host"));
+        };
+        AgentRequest agentRequest = AgentRequest.builder("test", Actor.DRIVER)
+                .sessionId("direct-network").timeoutMillis(10_000).build();
+        ModelTurnRequest turnRequest = new ModelTurnRequest(
+                agentRequest, Collections.<AgentMessage>emptyList(),
+                Collections.<com.matrix.agent.core.capability.ToolDefinition>emptyList(),
+                "system", new SessionContext());
+
+        ModelCallExecutor.Result result = new ModelCallExecutor(1).decide(gateway, turnRequest);
+
+        assertFalse(result.isSuccess());
+        assertEquals("直达的网络异常应映射为 TIMEOUT", StopReason.TIMEOUT, result.getTerminalReason());
+    }
+
+    /** 对照:非网络异常(普通 IllegalStateException,cause 链无 Network/Timeout)仍 POLICY_HALT。 */
+    @Test
+    public void nonNetworkExceptionMapsToPolicyHalt() {
+        ModelGateway gateway = request -> {
+            throw new IllegalStateException("协议解析失败");
+        };
+        AgentRequest agentRequest = AgentRequest.builder("test", Actor.DRIVER)
+                .sessionId("protocol-error").timeoutMillis(10_000).build();
+        ModelTurnRequest turnRequest = new ModelTurnRequest(
+                agentRequest, Collections.<AgentMessage>emptyList(),
+                Collections.<com.matrix.agent.core.capability.ToolDefinition>emptyList(),
+                "system", new SessionContext());
+
+        ModelCallExecutor.Result result = new ModelCallExecutor(1).decide(gateway, turnRequest);
+
+        assertFalse(result.isSuccess());
+        assertEquals("非网络异常应映射为 POLICY_HALT", StopReason.POLICY_HALT,
+                result.getTerminalReason());
     }
 }
