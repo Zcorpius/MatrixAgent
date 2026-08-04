@@ -10,8 +10,22 @@ android {
         applicationId 'com.matrix.agent'
         minSdk 28
         targetSdk 36
-        versionCode 6
-        versionName '0.4.0'
+        versionCode 10
+        versionName '0.5.5'
+
+        // V0.5.1 Stage 5:启用 androidTest 仪器化测试入口。
+        testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
+
+        // V0.5.0 Stage 2:Room annotationProcessor 生成 _Impl.java + schema JSON 落盘
+        // (V0.5.1 引入 src/androidTest 时,迁移测试也会用此 schema)。
+        javaCompileOptions {
+            annotationProcessorOptions {
+                arguments += [
+                    "room.schemaLocation": "$projectDir/schemas".toString(),
+                    "room.incremental": "true"
+                ]
+            }
+        }
     }
 
     buildFeatures {
@@ -28,6 +42,20 @@ android {
             returnDefaultValues = true
         }
     }
+
+    // V0.5.1 Stage 5:启用 androidTest 源集(V0.5.0 占位升级)。
+    sourceSets {
+        androidTest {
+            java.srcDirs = ['src/androidTest/java']
+        }
+    }
+
+    // V0.5.0 Stage 2:jtokkit (Stage 5 加) / SQLCipher 含 kotlin stdlib,排除 META-INF 冲突。
+    packaging {
+        resources {
+            excludes += ['META-INF/*.kotlin_module']
+        }
+    }
 }
 
 dependencies {
@@ -36,6 +64,26 @@ dependencies {
     implementation 'androidx.lifecycle:lifecycle-viewmodel:2.11.0'
     implementation 'androidx.lifecycle:lifecycle-livedata:2.11.0'
     implementation 'androidx.drawerlayout:drawerlayout:1.2.0'
+
+    // V0.5.0 Stage 2:Room(pure Java annotationProcessor,不用 KSP/RxJava/Coroutines)
+    implementation 'androidx.room:room-runtime:2.7.0'
+    annotationProcessor 'androidx.room:room-compiler:2.7.0'
+
+    // V0.5.0 Stage 2:SQLCipher + androidx sqlite 兼容入口(SupportFactory)
+    implementation 'net.zetetic:android-database-sqlcipher:4.5.4'
+    implementation 'androidx.sqlite:sqlite-framework:2.4.0'
+
+    // V0.5.0 Stage 5:jtokkit BPE Tokenizer(V0.5.0 仅提供能力,V0.5.1 切主路径)
+    implementation 'com.knuddels:jtokkit:1.1.0'
+
     testImplementation 'junit:junit:4.13.2'
     testImplementation 'org.json:json:20240303'
+
+    // V0.5.1 Stage 5:androidTest 仪器化测试依赖(无 Espresso / Robolectric,纯 JVM 风格)。
+    androidTestImplementation 'androidx.test:runner:1.6.2'
+    androidTestImplementation 'androidx.test.ext:junit:1.2.1'
+    androidTestImplementation 'androidx.room:room-testing:2.7.0'
+    // room-testing 间接依赖 androidx.test:core,提供 ApplicationProvider。
+    // 显式拉一遍以确保 SmokeTest 入口可见。
+    androidTestImplementation 'androidx.test:core:1.6.1'
 }

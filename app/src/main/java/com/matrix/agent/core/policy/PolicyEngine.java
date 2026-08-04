@@ -3,12 +3,26 @@ package com.matrix.agent.core.policy;
 import android.util.Log;
 
 import com.matrix.agent.core.capability.*;
+import com.matrix.agent.core.capability.schema.CanonicalSchema;
+import com.matrix.agent.core.capability.schema.SchemaError;
+import com.matrix.agent.core.capability.schema.SchemaErrorCode;
+import com.matrix.agent.core.capability.schema.SchemaValidator;
+import com.matrix.agent.core.capability.schema.ValidationResult;
 import com.matrix.agent.core.identity.*;
 import com.matrix.agent.core.tool.*;
 
 
 public final class PolicyEngine {
     private static final String TAG = "MatrixAgent";
+
+    /**
+     * V0.5.5 P1-A:用户硬约束——"长期记忆仅由用户决定"。PolicyEngine 是受信任执行边界,
+     * 在所有 CapabilityProvider 之前强制 memory.semantic.save 必须 request.isMemorySaveAllowed()=true。
+     * MockCapabilityProvider.MemorySemanticSaveHandler 内的同款 gate 保留作 defence-in-depth
+     * (若未来 Provider 不经过 PolicyEngine 直接调 handler,这层仍守住)。
+     */
+    private static final String MEMORY_SEMANTIC_SAVE = "memory.semantic.save";
+
     private final CapabilityRegistry registry;
 
     public PolicyEngine(CapabilityRegistry registry) {
@@ -34,6 +48,13 @@ public final class PolicyEngine {
             return PolicyDecision.denyCapability("R3 禁止能力：不允许由 Agent 控制");
         }
 
+        // V0.5.5 P1-A:capability-specific 显式许可 gate。
+        // 必须在 schema / parameter 校验之前——memorySaveAllowed=false 是 capability-level
+        // 不可上诉(模型只能放弃或换 capability),不应让模型通过修参数绕过。
+        // 同语义:R3 / vehicleState / readOnlyHint + writeOperation 都是 capability-level fail-closed。
+        PolicyDecision memorySaveGate = checkMemorySaveExplicitGate(request, cap);
+        if (memorySaveGate != null) return memorySaveGate;
+
         // 第七轮 P1-1:写操作 + MULTI_TARGET/CONFLICT 用户意图 → fail-closed。
         // 必须在参数校验之前——多目标 / 否定冲突的 ToolCall 不允许执行,与参数是否合法无关。
         if (definition.isWriteOperation()) {
@@ -41,10 +62,34 @@ public final class PolicyEngine {
             if (blocked != null) return blocked;
         }
 
+        // V0.4.3 Round 4 P1:任务级 readOnlyHint 强制约束。
+        // IntentClassifier 把"查电量"等查询命令标 readOnlyHint=true 让 TaskScheduler 抢占可触达,
+        // 但模型输出不可信——若 LLM 错误或被 prompt injection 后返回 climate.set_temperature 等写
+        // capability,旧实现仍 ALLOW,导致"被抢占的查询任务"实际跑了写操作,半路被 cancel 时
+        // 违反"写操作不可半路中断"的安全契约。这里在 PolicyEngine 受信任边界强制:readOnlyHint=true
+        // 时,所有 writeOperation=true 的 capability 一律 CAPABILITY 拒绝(不可上诉)。模型换参数
+        // 解决不了,Agent Loop 把对应 capability 加入禁用集合,模型必须改走读 capability 或返回
+        // directAnswer 终止。误判的代价最多是"查询任务失败",不会放出或中断写车控。
+        if (request.isReadOnlyHint() && definition.isWriteOperation()) {
+            Log.w(TAG, "[Policy]   DENY (capability) cap=" + cap
+                    + " 任务级 readOnlyHint=true 禁止执行写操作"
+                    + "(IntentClassifier 已标只读,模型不应返回 write capability)");
+            return PolicyDecision.denyCapability(
+                    "任务被标记为只读(readOnlyHint=true),禁止执行写操作");
+        }
+
+        // V0.4.2 Stage D:capability 前置车辆状态约束(AND 语义)。
+        // 不满足时归 CAPABILITY 拒绝(不可上诉)——vehicle state 是车辆物理事实,
+        // 模型换参数解决不了,等用户停车 / 启动引擎后重新下达。
+        PolicyDecision vehicleStateDecision = checkVehicleState(definition, request, cap);
+        if (vehicleStateDecision != null) return vehicleStateDecision;
+
         // 第七轮 P1-2:strict schema 校验——模型输出是不可信输入,即使 JSON Schema 设了
         // additionalProperties=false 也不能依赖。在 PolicyEngine(受信任执行边界)拒绝所有
         // 未声明字段;统一 required / range / enum / type 校验。
-        PolicyDecision schemaDecision = checkStrictSchema(definition, call, cap);
+        // V0.4.2 Stage B:委托 SchemaValidator 校验 CanonicalSchema(替换 V0.4.0
+        // checkStrictSchema + checkTypeAndRangeAndEnum 双方法)。
+        PolicyDecision schemaDecision = checkCanonicalSchema(definition, call, cap);
         if (schemaDecision != null) return schemaDecision;
 
         // 参数级:数值/格式/可补全参数(CapabilityValidator lambda,业务自定义)
@@ -107,106 +152,109 @@ public final class PolicyEngine {
     }
 
     /**
-     * 第七轮 P1-2:strict schema 校验——拒绝 schema 外字段、检查 required/type/range/enum。
+     * V0.5.5 P1-A:memory.semantic.save capability-level 显式许可 gate。
      *
-     * <p>模型 JSON Schema 设了 {@code additionalProperties=false},但模型输出是不可信输入。
-     * 必须在受信任执行边界统一拒绝未声明字段,生成可信参数视图供后续 Provider 使用。
+     * <p>返回 null 表示放行(交回主流程);返回非 null 表示已得出决策。
+     * 触发条件:capability == memory.semantic.save 且 request.isMemorySaveAllowed()==false。
+     * 决策类型:denyCapability(CAPABILITY_REJECTED,不可上诉)——与 R3 / vehicleState /
+     * readOnlyHint+writeOperation 同模式。模型不应通过换参数绕过用户许可要求。
      *
-     * <p>校验通过返回 null(允许进入下一步);失败返回 PARAMETER 拒绝(模型可换参数重试)。
-     * capability 业务级 validator 仍由 {@link CapabilityDefinition#validateArguments} 处理。
+     * <p>MockCapabilityProvider.MemorySemanticSaveHandler 内的同款 gate 保留作 defence-in-depth。
      */
-    private static PolicyDecision checkStrictSchema(CapabilityDefinition definition,
-            ToolCall call, String cap) {
-        java.util.Set<String> declared = new java.util.HashSet<>();
-        for (ToolParameterDefinition param : definition.getToolParameters()) {
-            declared.add(param.getName());
-        }
-        // 1. 拒绝未声明字段(additionalProperties=false)
-        for (String key : call.getArguments().keySet()) {
-            if (!declared.contains(key)) {
-                Log.i(TAG, "[Policy]   DENY (parameter) cap=" + cap
-                        + " 未声明参数: " + key + " (strict schema)");
-                return PolicyDecision.denyParameter(
-                        "未声明参数:" + key + "(strict schema 不允许 additionalProperties)");
-            }
-        }
-        // 2. required / type / range / enum
-        for (ToolParameterDefinition param : definition.getToolParameters()) {
-            if (!call.getArguments().containsKey(param.getName())) {
-                if (param.isRequired()) {
-                    Log.i(TAG, "[Policy]   DENY (parameter) cap=" + cap
-                            + " 缺少必需参数: " + param.getName());
-                    return PolicyDecision.denyParameter("缺少必需参数:" + param.getName());
-                }
-                continue;
-            }
-            Object value = call.getArguments().get(param.getName());
-            String typed = checkTypeAndRangeAndEnum(param, value);
-            if (typed != null) {
-                Log.i(TAG, "[Policy]   DENY (parameter) cap=" + cap
-                        + " 参数 " + param.getName() + " " + typed);
-                return PolicyDecision.denyParameter(
-                        "参数 " + param.getName() + " " + typed);
+    private static PolicyDecision checkMemorySaveExplicitGate(AgentRequest request, String cap) {
+        if (!MEMORY_SEMANTIC_SAVE.equals(cap)) return null;
+        if (request.isMemorySaveAllowed()) return null;
+        Log.w(TAG, "[Policy]   DENY (capability) cap=" + cap
+                + " 用户未显式要求长期记忆(memorySaveAllowed=false)");
+        return PolicyDecision.denyCapability(
+                "memory.semantic.save 需要用户显式长期记忆意图(如\"记住X\"/\"别忘了X\")");
+    }
+
+    /**
+     * V0.4.2 Stage D:capability 前置车辆状态约束判定(AND 语义)。
+     *
+     * <p>插在 {@link #checkExplicitIntentBlocked} 之后、{@link #checkCanonicalSchema} 之前——
+     * vehicle state 是车辆物理事实,与参数无关,先于 schema 校验判定。
+     * 不满足任一 predicate → CAPABILITY 拒绝(不可上诉)。
+     */
+    private static PolicyDecision checkVehicleState(CapabilityDefinition definition,
+            AgentRequest request, String cap) {
+        if (definition.getRequiredVehicleStates().isEmpty()) return null;
+        VehicleState state = request.getCurrentVehicleState();
+        for (VehicleStatePredicate predicate : definition.getRequiredVehicleStates()) {
+            if (!predicate.matches(state)) {
+                String reason = "vehicle state 不满足:" + predicate
+                        + "(当前 gear=" + state.getGear() + " speedKmh=" + state.getSpeedKmh()
+                        + " engineRunning=" + state.isEngineRunning()
+                        + " charging=" + state.isCharging() + ")";
+                Log.w(TAG, "[Policy]   DENY (capability) cap=" + cap + " " + reason);
+                return PolicyDecision.denyCapability(reason);
             }
         }
         return null;
     }
 
-    /** type / range / enum 校验,失败返回描述,通过返回 null。 */
-    private static String checkTypeAndRangeAndEnum(ToolParameterDefinition param, Object value) {
-        if (value == null) return "不能为 null";
-        switch (param.getType()) {
-            case INTEGER:
-                if (!(value instanceof Number)) return "必须是整数";
-                double iv = ((Number) value).doubleValue();
-                if (!Double.isFinite(iv) || iv != Math.rint(iv)) return "必须是整数";
-                if (param.getMinimum() != null && iv < param.getMinimum()) {
-                    return "不能小于 " + param.getMinimum();
-                }
-                if (param.getMaximum() != null && iv > param.getMaximum()) {
-                    return "不能大于 " + param.getMaximum();
-                }
-                if (!param.getEnumValues().isEmpty()) {
-                    String repr = String.valueOf((int) iv);
-                    if (!param.getEnumValues().contains(repr)) {
-                        return "枚举值不在允许集合内";
-                    }
-                }
-                break;
-            case NUMBER:
-                if (!(value instanceof Number)) return "必须是数字";
-                double nv = ((Number) value).doubleValue();
-                if (param.getMinimum() != null && nv < param.getMinimum()) {
-                    return "不能小于 " + param.getMinimum();
-                }
-                if (param.getMaximum() != null && nv > param.getMaximum()) {
-                    return "不能大于 " + param.getMaximum();
-                }
-                break;
-            case BOOLEAN:
-                if (!(value instanceof Boolean)) return "必须是布尔值";
-                break;
-            case STRING:
-                if (!(value instanceof String)) return "必须是字符串";
-                String sv = (String) value;
-                if (sv.trim().isEmpty()) return "不能为空字符串";
-                if (!param.getEnumValues().isEmpty()) {
-                    boolean matched = false;
-                    for (String allowed : param.getEnumValues()) {
-                        if (allowed.equalsIgnoreCase(sv)) {
-                            matched = true;
-                            break;
-                        }
-                    }
-                    if (!matched) {
-                        return "枚举值不在允许集合内:" + param.getEnumValues();
-                    }
-                }
-                break;
+    /**
+     * 第七轮 P1-2 / V0.4.2 Stage B:strict schema 校验——拒绝 schema 外字段、检查
+     * required/type/range/enum/const/pattern/composition。
+     *
+     * <p>委托 {@link SchemaValidator#validateArguments(CanonicalSchema, java.util.Map)}
+     * 递归校验 V0.4.2 {@link CanonicalSchema}(JSON Schema 2020-12 子集)。V0.4.0
+     * checkStrictSchema + checkTypeAndRangeAndEnum 双方法已删除——V0.4.0 quirks
+     * (enum 大小写不敏感、integer enum String.valueOf 比对、空白字符串拒绝)在
+     * SchemaValidator 内部保留。
+     *
+     * <p>校验通过返回 null(允许进入下一步);失败返回 PARAMETER 拒绝(模型可换参数重试)。
+     * capability 业务级 validator 仍由 {@link CapabilityDefinition#validateArguments} 处理。
+     */
+    private static PolicyDecision checkCanonicalSchema(CapabilityDefinition definition,
+            ToolCall call, String cap) {
+        CanonicalSchema schema = definition.getParameterSchema();
+        ValidationResult result = SchemaValidator.INSTANCE.validateArguments(
+                schema, call.getArguments());
+        if (result.isOk()) return null;
+        SchemaError first = result.getErrors().get(0);
+        String reason = buildReasonFromError(first);
+        Log.i(TAG, "[Policy]   DENY (parameter) cap=" + cap
+                + " schemaErrorCode=" + first.getCode()
+                + " path=" + first.getPath()
+                + " reason=" + reason);
+        return PolicyDecision.denyParameter(reason);
+    }
+
+    /**
+     * 把 SchemaError 转成模型可读的 deny reason——保留 V0.4.0 文案兼容
+     * (PolicyEngineTest 测试 reason.contains("temperature") / contains("priority") 等)。
+     */
+    private static String buildReasonFromError(SchemaError error) {
+        switch (error.getCode()) {
+            case MISSING_REQUIRED:
+                return error.getMessage();  // "缺少必需参数:xxx"
+            case ADDITIONAL_PROPERTY:
+                return error.getMessage();  // "未声明参数:xxx(strict schema 不允许 additionalProperties)"
+            case TYPE_MISMATCH:
+                return "参数 " + error.getPath() + " " + error.getMessage();
+            case NOT_INTEGER:
+                return "参数 " + error.getPath() + " 必须是整数";
+            case OUT_OF_RANGE:
+            case EXCLUSIVE_RANGE_VIOLATION:
+                return "参数 " + error.getPath() + " " + error.getMessage();
+            case ENUM_VIOLATION:
+                return error.getMessage();
+            case CONST_MISMATCH:
+                return "参数 " + error.getPath() + " " + error.getMessage();
+            case LENGTH_VIOLATION:
+            case PATTERN_MISMATCH:
+                return "参数 " + error.getPath() + " " + error.getMessage();
+            case EMPTY_STRING:
+                return "参数 " + error.getPath() + " " + error.getMessage();
+            case COMPOSITION_FAILED:
+                return "参数 " + error.getPath() + " " + error.getMessage();
+            case NOT_NULL:
+                return "参数 " + error.getPath() + " " + error.getMessage();
             default:
-                return "未知参数类型";
+                return error.getMessage();
         }
-        return null;
     }
 
     /**
