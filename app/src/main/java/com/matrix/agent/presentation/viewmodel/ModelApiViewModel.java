@@ -111,8 +111,11 @@ public final class ModelApiViewModel extends ViewModel {
         long operationId = beginOperation("正在加密保存配置…");
         activeFuture = executor.submit(() -> {
             try {
+                // P1: 先验证 gateway 可创建（端侧会 load 模型），成功后再落盘——避免"存了但加载失败"的分裂
+                com.matrix.agent.core.agent.ModelGateway gateway =
+                        modelRepository.createModelGateway(config);
                 modelRepository.save(config);
-                runtimeRepository.setModelGateway(modelRepository.createModelGateway(config),
+                runtimeRepository.setModelGateway(gateway,
                         modelRepository.displayName(config));
                 // V0.5.2-rev 评审 P2-2:Gateway 与 IntentClassifier 同步切换——
                 // 旧实现只更 Gateway,IntentClassifier 维持启动时配置,意图分类仍用旧 Provider / Keyword。

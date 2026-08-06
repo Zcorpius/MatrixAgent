@@ -1,0 +1,3 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- :ondevice library — namespace 由 build.gradle 提供，无需 package 属性。端侧推理不走网络。 -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" />

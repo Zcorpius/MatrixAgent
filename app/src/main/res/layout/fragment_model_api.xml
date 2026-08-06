@@ -49,7 +49,7 @@
             style="@style/MatrixField"
             android:layout_height="52dp" />
 
-        <TextView style="@style/MatrixFieldLabel" android:text="Endpoint" />
+        <TextView android:id="@+id/endpoint_label" style="@style/MatrixFieldLabel" android:text="Endpoint" />
         <EditText
             android:id="@+id/endpoint_input"
             style="@style/MatrixField"
@@ -65,8 +65,9 @@
             android:importantForAutofill="no"
             android:inputType="text" />
 
-        <TextView style="@style/MatrixFieldLabel" android:text="API Key" />
+        <TextView android:id="@+id/api_key_label" style="@style/MatrixFieldLabel" android:text="API Key" />
         <LinearLayout
+            android:id="@+id/key_row"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
@@ -99,6 +100,7 @@
         </LinearLayout>
 
         <LinearLayout
+            android:id="@+id/test_row"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="14dp"

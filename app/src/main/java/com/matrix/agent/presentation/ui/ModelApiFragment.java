@@ -22,6 +22,7 @@ import androidx.lifecycle.ViewModelProvider;
 import com.matrix.agent.R;
 import com.matrix.agent.app.MatrixAgentApplication;
 import com.matrix.agent.app.AppContainer;
+import com.matrix.agent.platform.ApiProtocol;
 import com.matrix.agent.platform.ModelConfig;
 import com.matrix.agent.platform.ModelProviderPreset;
 import com.matrix.agent.platform.PlannerMode;
@@ -45,6 +46,9 @@ public final class ModelApiFragment extends Fragment {
     private Button offlineButton;
     private TextView apiStatus;
     private String displayedProviderId;
+    /** API Key 是否明文显示。用独立字段跟踪，避免 inputType bit 判断歧义
+     *（VISIBLE_PASSWORD 0x90 & PASSWORD 0x80 == 0x80，显示后会被误判为仍隐藏）。 */
+    private boolean keyVisible = false;
 
     @Nullable
     @Override
@@ -57,7 +61,10 @@ public final class ModelApiFragment extends Fragment {
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         AppContainer container = ((MatrixAgentApplication) requireActivity()
                 .getApplication()).getContainer();
-        viewModel = new ViewModelProvider(this, new MatrixViewModelFactory(container))
+        // Activity scope：MainActivity.showPage 用 replace+new Fragment 切换页面，若 ViewModel 绑 Fragment
+        // 会在 replace 时 onCleared→executor.shutdownNow，中断正在跑的 save/load，且 drafts 草稿丢失。
+        // 绑 Activity 后，Fragment 重建不影响 ViewModel——saveAndApply 跑完、provider 切换草稿保留。
+        viewModel = new ViewModelProvider(requireActivity(), new MatrixViewModelFactory(container))
                 .get(ModelApiViewModel.class);
 
         providerSpinner = view.findViewById(R.id.provider_spinner);
@@ -141,6 +148,7 @@ public final class ModelApiFragment extends Fragment {
         endpointInput.setText(saved.endpoint);
         modelInput.setText(saved.model);
         keyInput.setText(saved.apiKey);
+        applyOnDeviceMode(findPresetById(saved.providerId));
     }
 
     private void fillPreset(ModelProviderPreset preset, String apiKey) {
@@ -150,6 +158,32 @@ public final class ModelApiFragment extends Fragment {
         keyInput.setText(apiKey);
         apiStatus.setText(getString(preset.apiKeyRequired
                 ? R.string.protocol_key_required : R.string.protocol_key_optional, preset.protocol));
+        applyOnDeviceMode(preset);
+    }
+
+    /**
+     * 端侧模式（ON_DEVICE）：隐藏云端字段（endpoint/key/test），model 输入框提示填模型目录路径；
+     * plannerMode 固定 STRUCTURED_JSON_COMPATIBILITY。云端模式恢复字段可见。
+     */
+    private void applyOnDeviceMode(ModelProviderPreset preset) {
+        boolean onDevice = preset.protocol == ApiProtocol.ON_DEVICE;
+        int cloudVis = onDevice ? View.GONE : View.VISIBLE;
+        View root = getView();
+        if (root == null) return;
+        endpointInput.setVisibility(cloudVis);
+        root.findViewById(R.id.endpoint_label).setVisibility(cloudVis);
+        root.findViewById(R.id.api_key_label).setVisibility(cloudVis);
+        root.findViewById(R.id.key_row).setVisibility(cloudVis);   // 含 key_input + 可见性 toggle
+        // testButton 始终可见：云端="测试连接"(HTTP)，端侧="测试加载"(load+推理验证)
+        testButton.setVisibility(View.VISIBLE);
+        testButton.setText(onDevice ? "测试加载" : "测试连接");
+        if (onDevice) {
+            modelInput.setHint("模型目录名（filesDir/models/mnn/<name>）");
+            plannerModeSpinner.setSelection(PlannerMode.STRUCTURED_JSON_COMPATIBILITY.ordinal());
+            plannerModeSpinner.setEnabled(false); // P2-20: 端侧固定 Structured，不允许改 NATIVE
+        } else {
+            plannerModeSpinner.setEnabled(true); // 还原
+        }
     }
 
     /**
@@ -158,10 +192,9 @@ public final class ModelApiFragment extends Fragment {
      * 切换后保留光标位置,避免跑到末尾。
      */
     private void toggleKeyVisibility() {
-        boolean hidden = (keyInput.getInputType() & InputType.TYPE_TEXT_VARIATION_PASSWORD)
-                == InputType.TYPE_TEXT_VARIATION_PASSWORD;
+        keyVisible = !keyVisible;
         int selection = keyInput.getSelectionEnd();
-        if (hidden) {
+        if (keyVisible) {
             keyInput.setInputType(InputType.TYPE_CLASS_TEXT
                     | InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD);
             keyVisibilityToggle.setImageResource(R.drawable.ic_eye_visible);
@@ -174,7 +207,7 @@ public final class ModelApiFragment extends Fragment {
         if (selection >= 0 && selection <= keyInput.getText().length()) {
             keyInput.setSelection(selection);
         }
-        Log.d(TAG, "[ModelApi] key visibility toggled -> " + (hidden ? "visible" : "hidden"));
+        Log.d(TAG, "[ModelApi] key visibility -> " + (keyVisible ? "visible" : "hidden"));
     }
 
     private ModelConfig readConfig() {
@@ -212,6 +245,7 @@ public final class ModelApiFragment extends Fragment {
         plannerModeSpinner.setSelection(draft.plannerMode.ordinal());
         apiStatus.setText(getString(preset.apiKeyRequired
                 ? R.string.protocol_key_required : R.string.protocol_key_optional, preset.protocol));
+        applyOnDeviceMode(preset);
     }
 
     private ModelProviderPreset findPresetById(String id) {

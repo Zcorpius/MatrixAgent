@@ -141,6 +141,13 @@ public final class ModelCallExecutor {
             return Result.terminal(StopReason.CANCELLED, "模型调用线程已中断");
         } catch (ExecutionException execution) {
             Throwable cause = execution.getCause() == null ? execution : execution.getCause();
+            // P0-C: gateway 抛 CancellationException（端侧 cancel/retire 在途）→ CANCELLED terminal，
+            // 不走 POLICY_HALT（取消不是协议错误）
+            if (cause instanceof CancellationException) {
+                Log.w(TAG, "[ModelCall] gateway cancelled (CancellationException), terminal=CANCELLED costMs="
+                        + elapsedMillis(callStarted));
+                return Result.terminal(StopReason.CANCELLED, "模型调用已取消(端侧)");
+            }
             // 网络层 / 超时异常映射为 TIMEOUT 终态(而非 POLICY_HALT):本层是模型决策阶段(调 LLM
             // 决定下一步,尚未进入工具执行),网络/超时属时间类临时故障,归 TIMEOUT 语义最准确;
             // POLICY_HALT 留给协议/模型不可恢复错误(RateLimit/Server 重试耗尽、4xx、JSON 解析错)。

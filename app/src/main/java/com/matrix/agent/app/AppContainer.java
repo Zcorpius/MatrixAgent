@@ -44,6 +44,7 @@ import com.matrix.agent.core.tool.MockCapabilityProvider;
 import com.matrix.agent.core.tool.ToolExecutor;
 import com.matrix.agent.core.memory.MemoryStore;
 import com.matrix.agent.data.AgentRuntimeRepository;
+import com.matrix.agent.data.GatewayLifecycleManager;
 import com.matrix.agent.data.ModelGatewayRepository;
 import com.matrix.agent.data.audit.AuditEventRecorder;
 import com.matrix.agent.data.audit.AuditRepository;
@@ -62,6 +63,10 @@ import com.matrix.agent.platform.ModelApiClient;
 import com.matrix.agent.platform.ModelConfig;
 import com.matrix.agent.platform.SecureModelConfigStore;
 import com.matrix.agent.platform.SharedPreferencesMemoryStore;
+import com.matrix.agent.platform.ApiProtocol;
+import com.matrix.agent.platform.OnDeviceModelGateway;
+import com.matrix.agent.ondevice.mnn.MnnOnDeviceLlmFactory;
+import com.matrix.agent.core.agent.SummaryProvider;
 
 /** Explicit composition root for replaceable runtime and platform dependencies. */
 public final class AppContainer {
@@ -197,7 +202,7 @@ public final class AppContainer {
 
         // V0.5.0 Stage 3:5 参构造器——把 memoryRecaller 透传给 LlmPlanner。
         modelGatewayRepository = new ModelGatewayRepository(configStore, modelClient, registry,
-                memoryStore, memoryRecaller);
+                memoryStore, memoryRecaller, appContext, new MnnOnDeviceLlmFactory());
 
         // V0.5.2 评审 P1-5:装配 FallbackIntentClassifier(LlmIntentClassifier, Keyword)。
         // saved config 存在 → LLM 主路径,失败 / 低置信度退 Keyword;
@@ -206,7 +211,10 @@ public final class AppContainer {
         // LLM 用旧 config 失败时 Fallback 自动退 Keyword,语义安全(V0.5.3 增强)。
         IntentClassifier appClassifier = KeywordIntentClassifier.INSTANCE;
         ModelConfig savedForClassifier = configStore.load();
-        if (savedForClassifier != null) {
+        if (savedForClassifier != null && savedForClassifier.protocol == ApiProtocol.ON_DEVICE) {
+            // P0-7：端侧离线，启动即走 Keyword，不建 LlmIntentClassifier（避免打云端）
+            Log.i(TAG, "[App] IntentClassifier = Keyword (on-device offline)");
+        } else if (savedForClassifier != null) {
             try {
                 LlmIntentClassifier llm = new LlmIntentClassifier(modelClient, savedForClassifier);
                 appClassifier = new FallbackIntentClassifier(llm, KeywordIntentClassifier.INSTANCE);
@@ -284,8 +292,10 @@ public final class AppContainer {
             // V0.5.2 评审 P1-4:装 LlmSummaryProvider——基于 Provider 的对话摘要,
             // 替换旧 heuristic(直接丢老 turns)。Provider 失败 / configStore 为 null 时
             // 自动降级 heuristic(ConversationCompressor.summarizeWithFallback catch 全部异常)。
-            engine.setConversationCompressor(new ConversationCompressor(
-                    new LlmSummaryProvider(modelClient, configStore)));
+            // P0-7：端侧 gateway → null SummaryProvider（ConversationCompressor heuristic 降级，离线不打云端）
+            SummaryProvider summaryProvider = (gateway instanceof OnDeviceModelGateway)
+                    ? null : new LlmSummaryProvider(modelClient, configStore);
+            engine.setConversationCompressor(new ConversationCompressor(summaryProvider));
             // V0.5.3 评审 P1-1:注入 MemoryWriter——主路径 L678 + terminalOutcome L783 写入
             // session_history 表;memory.semantic.save capability 写 memory_record 表。
             engine.setMemoryWriter(memoryWriter);
@@ -298,6 +308,8 @@ public final class AppContainer {
         // 第七轮 P1.3:Repository 清理用户数据时同步清空 SteerMailbox(陈旧 FORCE_TOOL/REPROMPT/DEFER)。
         // mailbox 与 AgentEngine 共享同一实例,不重复创建。
         agentRuntimeRepository.setSteerMailbox(steerMailbox);
+        // P0-2：注入端侧 gateway 生命周期管理器——切模型时异步退役旧端侧 gateway（lease 等 JNI 返回后 close）
+        agentRuntimeRepository.setGatewayLifecycleManager(new GatewayLifecycleManager(ioPool));
         // V0.5.2 评审 P1-3:注入增量 audit_event recorder,clearUserDataDetailed 时
         // 调 advanceEpoch + dropByUserZone,杜绝"clearByUserZone 后异步 flush 把旧事件写回"。
         agentRuntimeRepository.setAuditEventRecorder(auditEventRecorder);
@@ -308,10 +320,35 @@ public final class AppContainer {
 
         ModelConfig saved = modelGatewayRepository.load();
         if (saved != null) {
-            Log.i(TAG, "[App] saved model config found, applying gateway");
-            agentRuntimeRepository.setModelGateway(
-                    modelGatewayRepository.createModelGateway(saved),
-                    modelGatewayRepository.displayName(saved));
+            if (saved.protocol == ApiProtocol.ON_DEVICE) {
+                // 端侧模型加载耗时（GB 级），不阻塞启动：先保持默认 DemoModelGateway 占位，
+                // ioPool 异步 load 完成后热切换（setModelGateway 是 synchronized 安全）。
+                Log.i(TAG, "[App] saved on-device config, async loading model...");
+                final ModelConfig onDeviceConfig = saved;
+                ioPool.asExecutorService().execute(() -> {
+                    try {
+                        // P1: 防启动期 async load 与用户 saveAndApply 竞态——
+                        // 加载完成前若 saved config 已变（用户保存了新模型），丢弃本次（stale）加载
+                        ModelConfig current = modelGatewayRepository.load();
+                        if (current == null || !current.model.equals(onDeviceConfig.model)
+                                || current.protocol != onDeviceConfig.protocol) {
+                            Log.i(TAG, "[App] saved config changed during async load, skip stale on-device gateway");
+                            return;
+                        }
+                        agentRuntimeRepository.setModelGateway(
+                                modelGatewayRepository.createModelGateway(onDeviceConfig),
+                                modelGatewayRepository.displayName(onDeviceConfig));
+                        Log.i(TAG, "[App] on-device model loaded, hot-swapped gateway");
+                    } catch (Exception e) {
+                        Log.e(TAG, "[App] on-device model load FAILED cause=" + e.getMessage(), e);
+                    }
+                });
+            } else {
+                Log.i(TAG, "[App] saved model config found, applying gateway");
+                agentRuntimeRepository.setModelGateway(
+                        modelGatewayRepository.createModelGateway(saved),
+                        modelGatewayRepository.displayName(saved));
+            }
         } else {
             Log.i(TAG, "[App] no saved model config, defaulting to offline DemoModelGateway");
         }

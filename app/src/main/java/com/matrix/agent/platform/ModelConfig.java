@@ -31,6 +31,12 @@ public final class ModelConfig {
     }
 
     public void validate() {
+        if (protocol == ApiProtocol.ON_DEVICE) {
+            // 端侧不走 HTTP：跳过 endpoint/apiKey，只校验模型名/路径非空
+            if (model == null || model.trim().isEmpty())
+                throw new IllegalArgumentException("端侧模型名/路径不能为空");
+            return;
+        }
         if (endpoint == null || endpoint.trim().isEmpty()) throw new IllegalArgumentException("Endpoint 不能为空");
         if (model == null || model.trim().isEmpty()) throw new IllegalArgumentException("Model 不能为空");
         if (apiKeyRequired && apiKey.trim().isEmpty()) throw new IllegalArgumentException("该厂商需要 API Key");

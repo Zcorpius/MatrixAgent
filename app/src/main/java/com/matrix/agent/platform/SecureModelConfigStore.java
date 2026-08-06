@@ -41,7 +41,7 @@ public final class SecureModelConfigStore {
                 .putBoolean("keyRequired", config.apiKeyRequired)
                 .putString("plannerMode", config.plannerMode.name())
                 .putString("apiKey", encryptedApiKey)
-                .apply();
+                .commit();
         Log.d(TAG, "[ConfigStore] saved. apiKeyCipherChars=" + encryptedApiKey.length()
                 + " allKeys=" + preferences.getAll().keySet());
     }
