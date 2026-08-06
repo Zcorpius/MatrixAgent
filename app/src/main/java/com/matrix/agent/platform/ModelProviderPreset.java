@@ -48,6 +48,8 @@ public final class ModelProviderPreset {
                         "http://10.0.2.2:1234/v1/chat/completions", "local-model", false),
                 new ModelProviderPreset("vllm", "本地 vLLM", ApiProtocol.OPENAI_CHAT,
                         "http://10.0.2.2:8000/v1/chat/completions", "local-model", false),
+                new ModelProviderPreset("ondevice", "端侧 MNN（本地大模型）", ApiProtocol.ON_DEVICE,
+                        "", "", false),
                 new ModelProviderPreset("custom", "自定义 OpenAI-Compatible", ApiProtocol.OPENAI_CHAT,
                         "https://example.com/v1/chat/completions", "model-name", false)
         ));

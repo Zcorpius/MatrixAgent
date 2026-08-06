@@ -1,0 +1,67 @@
+// :ondevice — MNN 端侧 LLM 推理 library module（纯 Java，无 Kotlin）。
+// native 构建隔离在此模块；对外暴露不依赖 core.agent 的纯接口 OnDeviceLlm。
+// 注意：隔离的是代码边界与失败影响，不是构建成本——:app 依赖本模块仍会触发 native 构建。
+plugins {
+    id 'com.android.library'
+}
+
+android {
+    namespace 'com.matrix.agent.ondevice'
+    compileSdk 36
+
+    defaultConfig {
+        minSdk 28  // 与 :app 对齐（>Operit 的 26）
+        consumerProguardFiles 'consumer-rules.pro'
+
+        ndk {
+            // 端侧推理仅支持 arm64-v8a（MNN 模型体积/算力约束）
+            abiFilters 'arm64-v8a'
+        }
+
+        externalNativeBuild {
+            cmake {
+                cppFlags '-std=c++17', '-fno-emulated-tls'
+                arguments '-DANDROID_STL=c++_static',
+                          '-DANDROID_PLATFORM=android-28',
+                          '-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON',
+                          '-DMNN_BUILD_SHARED_LIBS=ON',
+                          '-DMNN_SEP_BUILD=OFF',
+                          '-DMNN_BUILD_TOOLS=OFF',
+                          '-DMNN_BUILD_DEMO=OFF',
+                          '-DMNN_BUILD_CONVERTER=OFF',
+                          '-DMNN_USE_LOGCAT=ON',
+                          '-DMNN_BUILD_TEST=OFF',
+                          '-DMNN_BUILD_BENCHMARK=OFF',
+                          '-DMNN_BUILD_QUANTOOLS=OFF',
+                          // CPU only 首发：与 CMakeLists 的 OFF FORCE 一致
+                          '-DMNN_OPENCL=OFF',
+                          '-DMNN_OPENGL=OFF',
+                          '-DMNN_VULKAN=OFF',
+                          // ARM82（v8.2 dotprod）在真机加速有效，但 arm64 模拟器 CPU 通常不支持
+                          // dotprod 指令 → MNN 用 Arm82Backend 会 SIGILL。验证用 OFF（纯 CPU backend）；
+                          // 真机部署若 CPU 支持 v8.2 可改 ON。
+                          '-DMNN_ARM82=OFF',
+                          '-DMNN_BUILD_LLM=ON',
+                          '-DMNN_SUPPORT_TRANSFORMER_FUSE=ON',
+                          '-DMNN_LOW_MEMORY=ON',
+                          '-DMNN_CPU_WEIGHT_DEQUANT_GEMM=ON'
+            }
+        }
+    }
+
+    externalNativeBuild {
+        cmake {
+            path 'src/main/cpp/CMakeLists.txt'
+            version '3.22.1'
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    // 不依赖 :app（否则成环：契约类在 :app 的 core.agent）；不依赖 kotlin。
+}

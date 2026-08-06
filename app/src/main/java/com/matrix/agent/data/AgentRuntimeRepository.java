@@ -28,6 +28,7 @@ import com.matrix.agent.data.audit.AuditEventRecorder;
 import com.matrix.agent.data.audit.AuditRepository;
 import com.matrix.agent.data.audit.ClearOutcome;
 import com.matrix.agent.data.audit.NoopAuditRepository;
+import com.matrix.agent.platform.RetirableModelGateway;
 
 import java.util.List;
 import java.util.Map;
@@ -127,6 +128,14 @@ public final class AgentRuntimeRepository {
      * {@link #intentClassifier} 同 volatile + setter 模式,后续版本可替换为 LLM-based detector。
      */
     private volatile MemoryIntentDetector memoryIntentDetector = MemoryIntentDetector.NOOP;
+    /**
+     * 端侧 gateway lease（P0-2）：当前持有的可退役 gateway；切模型时异步退役释放 GB 级 MNN session。
+     * null 表示当前 gateway 非端侧（云端，无需退役）。volatile——setModelGateway 在 synchronized 内写，
+     * GatewayLifecycleManager.retireAsync 在 ioPool 读。
+     */
+    private volatile RetirableModelGateway lastRetirableGateway;
+    /** 端侧 gateway 生命周期管理器；null（未装配端侧）时 setModelGateway 跳过退役。 */
+    private volatile GatewayLifecycleManager gatewayLifecycleManager;
     /**
      * V0.5.0 第三轮评审 P1:Repository 层兜底 Audit——保证所有终态(含 Repository
      * catch 分支构造的 TIMED_OUT / CANCELLED + Scheduler 内部生成的 TIMED_OUT / CANCELLED)
@@ -362,6 +371,25 @@ public final class AgentRuntimeRepository {
     public synchronized void setModelGateway(ModelGateway gateway, String displayName) {
         Log.i(TAG, "[Repo] switch gateway -> " + displayName
                 + " (" + gateway.getClass().getSimpleName() + ")");
+        boolean newIsRetirable = gateway instanceof RetirableModelGateway;
+        if (lastRetirableGateway != null) {
+            if (newIsRetirable) {
+                // P1-5: 端侧→端侧切换——先同步 retire+close 旧（防新+旧 GB 级峰值 OOM）
+                RetirableModelGateway old = lastRetirableGateway;
+                old.retire();
+                try {
+                    if (old.awaitDrained(5000)) {
+                        old.close();
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            } else if (gatewayLifecycleManager != null) {
+                // 端侧→云端——异步退役
+                gatewayLifecycleManager.retireAsync(lastRetirableGateway);
+            }
+        }
+        lastRetirableGateway = newIsRetirable ? (RetirableModelGateway) gateway : null;
         agentEngine = engineFactory.create(gateway);
         activeModelGateway = displayName;
     }
@@ -389,6 +417,11 @@ public final class AgentRuntimeRepository {
      */
     public void setIntentClassifier(IntentClassifier classifier) {
         this.intentClassifier = classifier == null ? KeywordIntentClassifier.INSTANCE : classifier;
+    }
+
+    /** 注入端侧 gateway 生命周期管理器（可选；null 时切模型不退役旧端侧 gateway）。 */
+    public void setGatewayLifecycleManager(GatewayLifecycleManager manager) {
+        this.gatewayLifecycleManager = manager;
     }
 
     /**
