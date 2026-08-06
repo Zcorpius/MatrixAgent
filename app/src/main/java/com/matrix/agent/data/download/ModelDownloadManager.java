@@ -268,6 +268,104 @@ public class ModelDownloadManager {
         return finalDir.exists() && validateModelDir(finalDir);
     }
 
+    /**
+     * 删除一个模型：递归删正式目录 + .tmp 目录 + DAO 记录。best-effort，不抛。
+     * 用于"已下载模型列表 → 删除"入口；对在途下载等同 cancel（先清 .tmp 再删 DAO）。
+     */
+    public void delete(@NonNull String modelName) {
+        File modelsDir = getModelsDir();
+        File finalDir = new File(modelsDir, modelName);
+        File tmpDir = new File(modelsDir, TMP_PREFIX + modelName);
+        // 清 cancel 标志（避免遗留）+ 删磁盘
+        cancelFlags.remove(modelName);
+        deleteRecursive(finalDir);
+        deleteRecursive(tmpDir);
+        try {
+            dao.deleteByName(modelName);
+            Log.i("ModelDownload", "[delete] removed " + modelName);
+        } catch (Exception e) {
+            Log.w("ModelDownload", "[delete] dao.deleteByName failed: " + modelName + " — " + e.getMessage());
+        }
+    }
+
+    /**
+     * 启动期同步 DAO 状态与文件系统——修正 kill/重装/外部清理导致的状态漂移。best-effort，不抛。
+     * <ul>
+     *   <li>COMPLETED 但正式目录缺失/损坏 → FAILED（文件丢了）；</li>
+     *   <li>DOWNLOADING 但正式目录已完整 → COMPLETED（上次 rename 完成但 DAO 没更新）；</li>
+     *   <li>DOWNLOADING 但 .tmp 与正式目录都不存在 → FAILED（无可恢复数据）；</li>
+     *   <li>DOWNLOADING 且 .tmp 存在、正式目录不存在 → 不改，由 {@link #resumeDownloadIfNeeded()} 转 PAUSED。</li>
+     * </ul>
+     */
+    public void syncDaoWithFileSystem() {
+        List<ModelDownloadEntity> all;
+        try {
+            all = dao.getAll();
+        } catch (Exception e) {
+            Log.w("ModelDownload", "[sync] dao.getAll failed: " + e.getMessage());
+            return;
+        }
+        File modelsDir = getModelsDir();
+        for (ModelDownloadEntity e : all) {
+            try {
+                File finalDir = new File(modelsDir, e.modelName);
+                File tmpDir = new File(modelsDir, TMP_PREFIX + e.modelName);
+                boolean finalValid = finalDir.exists() && validateModelDir(finalDir);
+                boolean tmpExists = tmpDir.exists();
+                String newStatus = null;
+                if (STATUS_COMPLETED.equals(e.status) && !finalValid) {
+                    newStatus = STATUS_FAILED;
+                } else if (STATUS_DOWNLOADING.equals(e.status)) {
+                    if (finalValid) {
+                        newStatus = STATUS_COMPLETED;
+                    } else if (!tmpExists) {
+                        newStatus = STATUS_FAILED;
+                    }
+                    // else (.tmp exists + 无正式目录): 留给 resumeDownloadIfNeeded 转 PAUSED
+                }
+                if (newStatus != null && !newStatus.equals(e.status)) {
+                    e.status = newStatus;
+                    e.updatedAt = System.currentTimeMillis();
+                    dao.update(e);
+                    Log.i("ModelDownload", "[sync] " + e.modelName + " → " + newStatus);
+                }
+            } catch (Exception ex) {
+                Log.w("ModelDownload", "[sync] entry " + e.modelName + " failed: " + ex.getMessage());
+            }
+        }
+    }
+
+    /**
+     * 启动期断点续传入口：DOWNLOADING + .tmp 存在 + 正式目录不存在 → 转 PAUSED，
+     * 让 UI 显示"继续"按钮（点击重新 {@link #download(ModelMarketClient.ModelEntry)}，
+     * downloadFileWithResume 基于 .tmp 已有字节断点续传）。best-effort，不抛。
+     */
+    public void resumeDownloadIfNeeded() {
+        List<ModelDownloadEntity> all;
+        try {
+            all = dao.getAll();
+        } catch (Exception e) {
+            Log.w("ModelDownload", "[resume] dao.getAll failed: " + e.getMessage());
+            return;
+        }
+        File modelsDir = getModelsDir();
+        for (ModelDownloadEntity e : all) {
+            try {
+                if (!STATUS_DOWNLOADING.equals(e.status)) continue;
+                File tmpDir = new File(modelsDir, TMP_PREFIX + e.modelName);
+                File finalDir = new File(modelsDir, e.modelName);
+                if (tmpDir.exists() && !finalDir.exists()) {
+                    e.status = STATUS_PAUSED;
+                    e.updatedAt = System.currentTimeMillis();
+                    dao.update(e);
+                    Log.i("ModelDownload", "[resume] " + e.modelName + " DOWNLOADING → PAUSED");
+                }
+            } catch (Exception ex) {
+                Log.w("ModelDownload", "[resume] entry " + e.modelName + " failed: " + ex.getMessage());
+            }
+        }
+    }
+
     // ===== 内部实现 =====
 
     /** 下载单个文件（断点续传 + 失败重试）。cumulative 累计所有文件已下载字节，用于进度。 */

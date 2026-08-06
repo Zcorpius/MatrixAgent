@@ -1,5 +1,8 @@
 package com.matrix.agent.presentation.ui;
 
+import android.content.ClipData;
+import android.content.ClipboardManager;
+import android.content.Context;
 import android.graphics.Typeface;
 import android.os.Bundle;
 import android.os.Handler;
@@ -166,6 +169,10 @@ public final class ModelDownloadFragment extends Fragment {
                 viewModel.cancelDownload(entry.modelName);
                 Toast.makeText(requireContext(), "已取消 " + entry.modelName, Toast.LENGTH_SHORT).show();
             });
+        } else if (entity != null && ModelDownloadManager.STATUS_PAUSED.equals(entity.status)) {
+            // 需求1：PAUSED（kill 后 .tmp 残留、未完成）显示"继续"，点击重新下载，downloadFileWithResume 基线断点续传。
+            btn.setText("继续 " + pct + "%");
+            btn.setOnClickListener(v -> viewModel.startDownload(entry));
         } else if (entity != null && ModelDownloadManager.STATUS_FAILED.equals(entity.status)) {
             btn.setText("重试");
             btn.setOnClickListener(v -> viewModel.startDownload(entry));
@@ -211,6 +218,14 @@ public final class ModelDownloadFragment extends Fragment {
         Button use = new Button(requireContext());
         use.setText("选用");
         use.setOnClickListener(v -> {
+            // 需求3：复制模型名到剪贴板，方便粘贴到 ModelApiFragment 的 model 字段。
+            ClipboardManager clipboard = (ClipboardManager) requireContext()
+                    .getSystemService(Context.CLIPBOARD_SERVICE);
+            if (clipboard != null) {
+                ClipData clip = ClipData.newPlainText("model_name", modelName);
+                clipboard.setPrimaryClip(clip);
+            }
+            Toast.makeText(requireContext(), "已复制: " + modelName, Toast.LENGTH_SHORT).show();
             // 跳到 ModelApiFragment 并设端侧 + model=目录名（通过 Fragment arguments 传递）。
             ModelApiFragment fragment = new ModelApiFragment();
             Bundle args = new Bundle();
@@ -218,8 +233,15 @@ public final class ModelDownloadFragment extends Fragment {
             fragment.setArguments(args);
             ((MainActivity) requireActivity()).showPage(fragment, "模型 API 接入");
         });
+
+        // 需求2：删除已下载模型（递归删目录 + DAO 记录）。
+        Button delete = new Button(requireContext());
+        delete.setText("删除");
+        delete.setOnClickListener(v -> viewModel.deleteModel(modelName));
+
         row.addView(name);
         row.addView(use);
+        row.addView(delete);
         return row;
     }
 

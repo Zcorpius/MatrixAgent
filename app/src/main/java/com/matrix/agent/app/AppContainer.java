@@ -189,6 +189,17 @@ public final class AppContainer {
         this.modelDownloadManager = downloadDao != null
                 ? new ModelDownloadManager(appContext, downloadDao)
                 : null;
+        // V0.5.6 需求1/4：启动期同步 DAO 与文件系统——修正 kill/重装/外部清理导致的状态漂移
+        // （DOWNLOADING+.tmp→PAUSED 让 UI 显示"继续"；COMPLETED 缺文件→FAILED；DOWNLOADING 已完成→COMPLETED）。
+        // best-effort，失败不阻塞启动。
+        if (this.modelDownloadManager != null) {
+            try {
+                this.modelDownloadManager.syncDaoWithFileSystem();
+                this.modelDownloadManager.resumeDownloadIfNeeded();
+            } catch (Exception ex) {
+                Log.w(TAG, "[App] model download state sync failed cause=" + ex.getMessage(), ex);
+            }
+        }
         // V0.5.3 评审 P1-3:createMemoryStoreSafely 3 参重载,失败时 set memoryDegraded=true
         // 并退到 InMemoryMemoryStore(非持久化),不再用 SharedPreferencesMemoryStore(明文 XML)。
         java.util.concurrent.atomic.AtomicBoolean degradedRef = new java.util.concurrent.atomic.AtomicBoolean(false);

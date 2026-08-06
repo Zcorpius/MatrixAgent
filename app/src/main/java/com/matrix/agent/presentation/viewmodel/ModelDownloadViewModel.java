@@ -145,6 +145,22 @@ public final class ModelDownloadViewModel extends ViewModel {
         });
     }
 
+    /** 删除已下载模型：递归删正式/.tmp 目录 + DAO 记录。io 线程执行，完事刷新列表。 */
+    public void deleteModel(String modelName) {
+        if (manager == null || modelName == null) return;
+        io.execute(() -> {
+            try {
+                manager.delete(modelName);
+                notice.postValue("已删除：" + modelName);
+            } catch (Exception e) {
+                Log.w(TAG, "[ModelDownload] delete failed: " + e.getMessage());
+                notice.postValue("删除失败：" + safeMsg(e));
+            } finally {
+                refreshDownloads();
+            }
+        });
+    }
+
     @Nullable
     private ExecutorService sharedIoPool() {
         try {
