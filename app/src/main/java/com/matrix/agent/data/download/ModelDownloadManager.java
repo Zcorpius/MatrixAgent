@@ -1,6 +1,7 @@
 package com.matrix.agent.data.download;
 
 import android.content.Context;
+import android.util.Log;
 
 import androidx.annotation.NonNull;
 
@@ -98,6 +99,7 @@ public class ModelDownloadManager {
 
         // 清理可能残留的旧 cancel 标志（上次 cancel 时无活动下载 → 标志遗留）
         cancelFlags.remove(modelName);
+        Log.i("ModelDownload", "[download] START modelName=" + modelName + " cancelFlags=" + cancelFlags);
 
         File modelsDir = getModelsDir();
         File tmpDir = new File(modelsDir, TMP_PREFIX + modelName);
@@ -216,6 +218,9 @@ public class ModelDownloadManager {
      * 若无对应 entity 记录，则仅清磁盘。
      */
     public void cancel(@NonNull String modelName) {
+        Log.w("ModelDownload", "[cancel] CALLED modelName=" + modelName
+                + " thread=" + Thread.currentThread().getName()
+                + "\n" + android.util.Log.getStackTraceString(new Throwable()));
         cancelFlags.put(modelName, Boolean.TRUE);
         try {
             File tmpDir = new File(getModelsDir(), TMP_PREFIX + modelName);
@@ -321,6 +326,9 @@ public class ModelDownloadManager {
                     long sinceUpdate = 0;
                     while ((read = is.read(buffer)) != -1) {
                         if (isCancelled(modelName)) {
+                            Log.e("ModelDownload", "[download] CANCELLED modelName=" + modelName
+                                    + " cancelFlags=" + cancelFlags
+                                    + " thread=" + Thread.currentThread().getName());
                             throw new IOException("cancelled: " + modelName);
                         }
                         fos.write(buffer, 0, read);

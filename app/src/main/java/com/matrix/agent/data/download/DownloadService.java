@@ -103,7 +103,11 @@ public final class DownloadService extends Service {
 
         currentModel = modelName;
         active = true;
-        startForegroundCompat(buildNotification(modelName, 0, "准备下载"));
+        try {
+            startForegroundCompat(buildNotification(modelName, 0, "准备下载"));
+        } catch (Exception fgError) {
+            // Android 15+ FGS dataSync 可能被系统限制——不 stopSelf，继续线程池下载
+        }
 
         workExec.execute(() -> pollProgress(modelName, dao));
         workExec.execute(() -> runDownload(entry, startId, manager));
@@ -162,19 +166,9 @@ public final class DownloadService extends Service {
     @Override
     public void onDestroy() {
         active = false;
-        // 服务销毁时清理活动下载（用户划掉通知 / 系统回收）——置取消标志，下载循环下个 chunk 抛 cancelled。
-        if (currentModel != null) {
-            try {
-                ModelDownloadManager manager = appContainer() != null
-                        ? appContainer().getModelDownloadManager() : null;
-                if (manager != null) manager.cancel(currentModel);
-            } catch (Exception ignored) {
-                // cancel 必须不抛
-            }
-        }
-        if (workExec != null) {
-            workExec.shutdownNow();
-        }
+        // Android 15+ FGS dataSync 被系统 stop 后 onDestroy 触发。
+        // 不 cancel + 不 shutdownNow——让下载线程跑完（workExec 独立线程池，Service destroy 后仍可运行直到 GC）。
+        // 生产应改 WorkManager 管理生命周期（进程被杀可恢复）。
         super.onDestroy();
     }
 
