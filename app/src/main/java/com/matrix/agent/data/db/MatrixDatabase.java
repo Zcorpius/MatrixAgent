@@ -48,9 +48,10 @@ import java.util.Arrays;
                 TrajectoryEntity.class,
                 SessionHistoryEntity.class,
                 MemoryRecordEntity.class,
-                AuditEventEntity.class
+                AuditEventEntity.class,
+                ModelDownloadEntity.class
         },
-        version = 3,
+        version = 4,
         exportSchema = true
 )
 public abstract class MatrixDatabase extends RoomDatabase {
@@ -62,6 +63,7 @@ public abstract class MatrixDatabase extends RoomDatabase {
     public abstract SessionHistoryDao sessionHistoryDao();
     public abstract MemoryRecordDao memoryRecordDao();
     public abstract AuditEventDao auditEventDao();
+    public abstract ModelDownloadDao modelDownloadDao();
 
     /**
      * V0.5.2 Stage 1:schema v1 → v2 迁移——audit_event 加 userId 列 + idx_audit_user_zone 索引。
@@ -101,6 +103,29 @@ public abstract class MatrixDatabase extends RoomDatabase {
     };
 
     /**
+     * Stage 3 端侧模型下载管理:schema v3 → v4 迁移——新建 model_download 表。
+     *
+     * <p>记录模型下载进度/状态/校验信息。modelName 既是主键也是
+     * {@code filesDir/models/mnn/<modelName>/} 的目录名。
+     */
+    public static final Migration MIGRATION_3_4 = new Migration(3, 4) {
+        @Override
+        public void migrate(@NonNull SupportSQLiteDatabase db) {
+            db.execSQL("CREATE TABLE IF NOT EXISTS `model_download` ("
+                    + "`modelName` TEXT NOT NULL PRIMARY KEY, "
+                    + "`displayName` TEXT, "
+                    + "`sourceRepo` TEXT, "
+                    + "`marketUrl` TEXT, "
+                    + "`totalBytes` INTEGER NOT NULL DEFAULT 0, "
+                    + "`downloadedBytes` INTEGER NOT NULL DEFAULT 0, "
+                    + "`status` TEXT, "
+                    + "`sha256` TEXT, "
+                    + "`createdAt` INTEGER NOT NULL DEFAULT 0, "
+                    + "`updatedAt` INTEGER NOT NULL DEFAULT 0)");
+        }
+    };
+
+    /**
      * V0.5.0 Stage 2:加密数据库单例获取。
      *
      * <p>P1.1 修复(评审 V0.5.0):以下任一条件必须抛 IllegalStateException:
@@ -136,12 +161,13 @@ public abstract class MatrixDatabase extends RoomDatabase {
             builder.openHelperFactory(new SupportFactory(passBytes));
             // V0.5.2 Stage 1:注册 v1→v2 Migration(audit_event userId)。
             // V0.5.2-rev 评审 P1-2:加 v2→v3 Migration(audit_event requestEpoch)。
-            builder.addMigrations(MIGRATION_1_2, MIGRATION_2_3);
+            // Stage 3:加 v3→v4 Migration(新建 model_download 表)。
+            builder.addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4);
             // V0.5.2 Stage 7:显式 WAL——锁定并发读写语义,避免 OEM ROM 关闭 SQLite WAL。
             builder.setJournalMode(RoomDatabase.JournalMode.WRITE_AHEAD_LOGGING);
             instance = builder.build();
             Log.i(TAG, "[MatrixDatabase] init encrypted=true alias=" + keyProvider.alias()
-                    + " version=3 entities=4 journalMode=WAL");
+                    + " version=4 entities=5 journalMode=WAL");
             return instance;
         } catch (Exception ex) {
             Log.e(TAG, "[MatrixDatabase] init FAILED cause="

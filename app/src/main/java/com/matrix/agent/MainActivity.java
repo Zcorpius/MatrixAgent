@@ -12,6 +12,7 @@ import androidx.fragment.app.Fragment;
 
 import com.matrix.agent.presentation.ui.AgentTestFragment;
 import com.matrix.agent.presentation.ui.ModelApiFragment;
+import com.matrix.agent.presentation.ui.ModelDownloadFragment;
 
 /** Application shell. Business logic lives in repositories and ViewModels. */
 public final class MainActivity extends AppCompatActivity {
@@ -31,6 +32,8 @@ public final class MainActivity extends AppCompatActivity {
                 view -> showPage(new AgentTestFragment(), "Agent 测试"));
         findViewById(R.id.nav_model).setOnClickListener(
                 view -> showPage(new ModelApiFragment(), "模型 API 接入"));
+        findViewById(R.id.nav_model_download).setOnClickListener(
+                view -> showPage(new ModelDownloadFragment(), "模型下载"));
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
             @Override
             public void handleOnBackPressed() {
@@ -48,7 +51,8 @@ public final class MainActivity extends AppCompatActivity {
         }
     }
 
-    private void showPage(Fragment fragment, String title) {
+    /** 切换主内容 Fragment。public：ModelDownloadFragment 的"选用"按钮跨页跳转时调用。 */
+    public void showPage(Fragment fragment, String title) {
         pageTitle.setText(title);
         getSupportFragmentManager().beginTransaction()
                 .replace(R.id.fragment_container, fragment)

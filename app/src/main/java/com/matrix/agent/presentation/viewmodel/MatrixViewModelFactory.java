@@ -23,6 +23,12 @@ public final class MatrixViewModelFactory implements ViewModelProvider.Factory {
         } else if (modelClass.isAssignableFrom(ModelApiViewModel.class)) {
             viewModel = new ModelApiViewModel(container.getAgentRuntimeRepository(),
                     container.getModelGatewayRepository(), container.isMemoryDegraded());
+        } else if (modelClass.isAssignableFrom(ModelDownloadViewModel.class)) {
+            // appContext 即 Application 实例（由 getApplicationContext() 返回），可安全强转。
+            viewModel = new ModelDownloadViewModel(
+                    (android.app.Application) container.getAppContext(),
+                    container.getModelDownloadManager(),
+                    container.getModelDownloadDao());
         } else {
             throw new IllegalArgumentException("Unknown ViewModel: " + modelClass.getName());
         }

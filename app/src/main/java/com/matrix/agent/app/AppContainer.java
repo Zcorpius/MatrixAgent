@@ -52,6 +52,8 @@ import com.matrix.agent.data.audit.NoopAuditRepository;
 import com.matrix.agent.data.audit.RoomAuditRepository;
 import com.matrix.agent.data.db.MatrixDatabase;
 import com.matrix.agent.data.db.MemoryRecordDao;
+import com.matrix.agent.data.db.ModelDownloadDao;
+import com.matrix.agent.data.download.ModelDownloadManager;
 import com.matrix.agent.data.memory.EpisodicMemorySourceImpl;
 import com.matrix.agent.data.memory.RoomMemoryMigrator;
 import com.matrix.agent.data.memory.RoomMemoryStore;
@@ -115,11 +117,27 @@ public final class AppContainer {
      * "不静默降级"硬约束;V0.5.3 改用 InMemoryMemoryStore(非持久化)+ 显式标志。
      */
     private volatile boolean memoryDegraded;
+    /**
+     * V0.5.6 端侧模型下载：Application Context（ModelDownloadViewModel 用作 cacheFile 根目录、
+     * 启动 DownloadService；DownloadService 用作系统 API 入口）。AppContainer 是 composition root，
+     * 持有 appContext 是标准做法（此前仅在构造器局部变量中流转）。
+     */
+    private final Context appContext;
+    /**
+     * V0.5.6 端侧模型下载：ModelDownloadManager + DAO。database=null（SQLCipher/KeyStore 不可用）
+     * 的降级路径下二者均为 null——下载功能依赖 DAO 落进度，降级时 ViewModel/Service 显式提示
+     * "数据库不可用"，不静默失败（与 memoryDegraded 同一原则）。
+     */
+    @androidx.annotation.Nullable
+    private final ModelDownloadManager modelDownloadManager;
+    @androidx.annotation.Nullable
+    private final ModelDownloadDao modelDownloadDao;
 
     public AppContainer(Context context) {
         long started = System.nanoTime();
         Log.i(TAG, "[App] AppContainer init start");
         Context appContext = context.getApplicationContext();
+        this.appContext = appContext;
         CapabilityRegistry registry = CapabilityRegistry.createDemoRegistry();
         PolicyEngine policyEngine = new PolicyEngine(registry);
         SessionManager sessionManager = new SessionManager();
@@ -160,6 +178,13 @@ public final class AppContainer {
         // V0.5.2 Stage 2:MatrixDatabase 提前装配——audit + memory 共用同一 SQLCipher 实例
         // (getInstance 单例,keyProvider 失败 → database=null → audit/memory 双双退化)。
         MatrixDatabase database = createDatabaseSafely(appContext);
+        // V0.5.6 端侧模型下载：从 database 取 ModelDownloadDao + 构造 ModelDownloadManager。
+        // database=null 时 dao/manager 均为 null（降级，UI/Service 显式提示，不静默失败）。
+        ModelDownloadDao downloadDao = database != null ? database.modelDownloadDao() : null;
+        this.modelDownloadDao = downloadDao;
+        this.modelDownloadManager = downloadDao != null
+                ? new ModelDownloadManager(appContext, downloadDao)
+                : null;
         // V0.5.3 评审 P1-3:createMemoryStoreSafely 3 参重载,失败时 set memoryDegraded=true
         // 并退到 InMemoryMemoryStore(非持久化),不再用 SharedPreferencesMemoryStore(明文 XML)。
         java.util.concurrent.atomic.AtomicBoolean degradedRef = new java.util.concurrent.atomic.AtomicBoolean(false);
@@ -372,6 +397,16 @@ public final class AppContainer {
      * UI 读取本标志显示"记忆已降级"banner,提醒用户重启后偏好丢失。
      */
     public boolean isMemoryDegraded() { return memoryDegraded; }
+    /** V0.5.6：Application Context（ViewModel/Service 入口）。 */
+    public Context getAppContext() { return appContext; }
+    /** V0.5.6：共享 ioPool（ModelDownloadViewModel 拉市场/状态用）。 */
+    public com.matrix.agent.core.agent.DynamicThreadPool getIoPool() { return ioPool; }
+    /** V0.5.6：端侧模型下载管理器（database=null 时为 null）。 */
+    @androidx.annotation.Nullable
+    public ModelDownloadManager getModelDownloadManager() { return modelDownloadManager; }
+    /** V0.5.6：模型下载 DAO（database=null 时为 null）。 */
+    @androidx.annotation.Nullable
+    public ModelDownloadDao getModelDownloadDao() { return modelDownloadDao; }
 
     /**
      * V0.5.2-rev 评审 P2-5:统一关闭——Repository(取消在途)→ schedulerPool → ioPool → auditEventRecorder。

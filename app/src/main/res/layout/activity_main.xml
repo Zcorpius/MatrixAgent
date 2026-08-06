@@ -121,6 +121,19 @@
             android:textSize="14sp"
             android:textStyle="bold" />
 
+        <Button
+            android:id="@+id/nav_model_download"
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:layout_marginTop="10dp"
+            android:background="@drawable/bg_nav"
+            android:gravity="center"
+            android:text="模型下载"
+            android:textAllCaps="false"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+
         <Space
             android:layout_width="1dp"
             android:layout_height="0dp"

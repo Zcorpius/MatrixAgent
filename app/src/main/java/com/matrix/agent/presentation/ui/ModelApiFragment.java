@@ -2,6 +2,7 @@ package com.matrix.agent.presentation.ui;
 
 import android.os.Bundle;
 import android.text.InputType;
+import android.text.TextUtils;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -22,6 +23,7 @@ import androidx.lifecycle.ViewModelProvider;
 import com.matrix.agent.R;
 import com.matrix.agent.app.MatrixAgentApplication;
 import com.matrix.agent.app.AppContainer;
+import com.matrix.agent.data.download.ModelDownloadManager;
 import com.matrix.agent.platform.ApiProtocol;
 import com.matrix.agent.platform.ModelConfig;
 import com.matrix.agent.platform.ModelProviderPreset;
@@ -33,7 +35,11 @@ import java.util.List;
 
 public final class ModelApiFragment extends Fragment {
     private static final String TAG = "MatrixAgent";
+    /** 跨页跳转参数：ModelDownloadFragment 的"选用"按钮传递端侧模型目录名，进入后自动切端侧 + 填 model。 */
+    public static final String ARG_ON_DEVICE_MODEL = "on_device_model";
     private ModelApiViewModel viewModel;
+    /** 端侧已下载模型枚举（用于 apiStatus 提示）。database=null 时为 null。 */
+    private ModelDownloadManager downloadManager;
     private List<ModelProviderPreset> presets;
     private Spinner providerSpinner;
     private Spinner plannerModeSpinner;
@@ -61,6 +67,7 @@ public final class ModelApiFragment extends Fragment {
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         AppContainer container = ((MatrixAgentApplication) requireActivity()
                 .getApplication()).getContainer();
+        downloadManager = container.getModelDownloadManager();
         // Activity scope：MainActivity.showPage 用 replace+new Fragment 切换页面，若 ViewModel 绑 Fragment
         // 会在 replace 时 onCleared→executor.shutdownNow，中断正在跑的 save/load，且 drafts 草稿丢失。
         // 绑 Activity 后，Fragment 重建不影响 ViewModel——saveAndApply 跑完、provider 切换草稿保留。
@@ -128,8 +135,13 @@ public final class ModelApiFragment extends Fragment {
             if (state.memoryDegraded) {
                 status = "⚠️ 记忆已降级到内存模式,重启后丢失\n\n" + status;
             }
+            // 端侧模式：status 末尾列出已下载模型，方便用户对照 modelInput 填目录名。
+            status = appendOnDeviceHint(status);
             apiStatus.setText(status);
         });
+
+        // 跨页跳转：ModelDownloadFragment "选用" 按钮通过 arguments 传模型目录名。
+        applyOnDeviceArgs();
     }
 
     private void restoreForm() {
@@ -181,9 +193,51 @@ public final class ModelApiFragment extends Fragment {
             modelInput.setHint("模型目录名（filesDir/models/mnn/<name>）");
             plannerModeSpinner.setSelection(PlannerMode.STRUCTURED_JSON_COMPATIBILITY.ordinal());
             plannerModeSpinner.setEnabled(false); // P2-20: 端侧固定 Structured，不允许改 NATIVE
+            // 端侧：apiStatus 直接显示已下载模型清单（切换 provider 时 uiState 不变，observer 不会刷新）。
+            apiStatus.setText(onDeviceHint());
         } else {
             plannerModeSpinner.setEnabled(true); // 还原
         }
+    }
+
+    /** 端侧已下载模型清单文案。downloadManager=null（DB 降级）时提示不可用。 */
+    private String onDeviceHint() {
+        if (downloadManager == null) return "已下载模型：（数据库不可用）";
+        List<String> models = downloadManager.listLocalModels();
+        if (models.isEmpty()) return "已下载模型：（暂无，去「模型下载」页面下载）";
+        return "已下载模型：" + TextUtils.join(", ", models);
+    }
+
+    /** uiState observer 用：当前 provider 为端侧时，把已下载清单追加到 status 末尾。 */
+    private String appendOnDeviceHint(String status) {
+        ModelProviderPreset cur = findPresetById(displayedProviderId);
+        if (cur != null && cur.protocol == ApiProtocol.ON_DEVICE) {
+            return status + "\n\n" + onDeviceHint();
+        }
+        return status;
+    }
+
+    /**
+     * 跨页跳转入口：ModelDownloadFragment 的"选用"按钮通过 Fragment arguments 传模型目录名。
+     * 进入后切到端侧 provider + 填 modelInput + applyOnDeviceMode。
+     */
+    private void applyOnDeviceArgs() {
+        Bundle args = getArguments();
+        if (args == null) return;
+        String model = args.getString(ARG_ON_DEVICE_MODEL);
+        if (model == null || model.isEmpty()) return;
+        // 找端侧 preset 的下标，切 spinner（触发 fillPreset → applyOnDeviceMode 隐藏云端字段）。
+        int onDeviceIndex = 0;
+        for (int i = 0; i < presets.size(); i++) {
+            if (presets.get(i).protocol == ApiProtocol.ON_DEVICE) {
+                onDeviceIndex = i;
+                break;
+            }
+        }
+        providerSpinner.setSelection(onDeviceIndex);
+        // onItemSelected 同步触发后会清空 modelInput（on-device preset 默认 model=""），这里覆盖。
+        modelInput.setText(model);
+        Log.d(TAG, "[ModelApi] applyOnDeviceArgs model=" + model);
     }
 
     /**
