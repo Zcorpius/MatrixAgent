@@ -185,8 +185,11 @@ public class ModelDownloadManager {
             dao.update(entity);
 
         } catch (Exception e) {
-            // 失败：删 tmp + 状态 FAILED
-            deleteRecursive(tmpDir);
+            // cancel: 保留 .tmp（断点续传），状态 PAUSED；其他失败: 删 .tmp，状态 FAILED
+            boolean isCancelled = e.getMessage() != null && e.getMessage().contains("cancelled");
+            if (!isCancelled) {
+                deleteRecursive(tmpDir);
+            }
             try {
                 if (entity == null) {
                     // 理论上不会走到（entity 在 try 顶部即创建），防御性处理
@@ -199,7 +202,7 @@ public class ModelDownloadManager {
                     entity.sourceRepo = repo;
                     entity.createdAt = System.currentTimeMillis();
                 }
-                entity.status = STATUS_FAILED;
+                entity.status = isCancelled ? STATUS_PAUSED : STATUS_FAILED;
                 entity.updatedAt = System.currentTimeMillis();
                 if (dao.getByName(modelName) != null) dao.update(entity);
                 else dao.upsert(entity);
