@@ -54,6 +54,7 @@ public final class ModelDownloadFragment extends Fragment {
     private ModelDownloadViewModel viewModel;
     @Nullable private ModelDownloadManager manager;
     private LinearLayout marketContainer;
+    private LinearLayout activeContainer;
     private LinearLayout downloadedContainer;
     private TextView noticeText;
     private final Handler handler = new Handler(Looper.getMainLooper());
@@ -80,6 +81,7 @@ public final class ModelDownloadFragment extends Fragment {
                 .get(ModelDownloadViewModel.class);
 
         marketContainer = view.findViewById(R.id.market_container);
+        activeContainer = view.findViewById(R.id.active_container);
         downloadedContainer = view.findViewById(R.id.downloaded_container);
         noticeText = view.findViewById(R.id.download_notice);
 
@@ -114,7 +116,73 @@ public final class ModelDownloadFragment extends Fragment {
     /** 任意数据源（marketModels / downloads）变化时全量重渲染两个容器。 */
     private void render() {
         renderMarket();
+        renderActive();
         renderDownloaded();
+    }
+
+    @SuppressWarnings("unchecked")
+    private void renderActive() {
+        activeContainer.removeAllViews();
+        List<ModelDownloadEntity> downloads = viewModel.getDownloads().getValue();
+        if (downloads == null) return;
+        for (ModelDownloadEntity e : downloads) {
+            if (ModelDownloadManager.STATUS_COMPLETED.equals(e.status)) continue;
+            activeContainer.addView(buildActiveRow(e));
+        }
+    }
+
+    private View buildActiveRow(ModelDownloadEntity entity) {
+        LinearLayout row = new LinearLayout(requireContext());
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        lp.bottomMargin = dp(8);
+        row.setLayoutParams(lp);
+
+        int pct = computePct(entity);
+        TextView info = new TextView(requireContext());
+        info.setLayoutParams(new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        info.setText(entity.modelName + "\n" + statusLabel(entity.status, pct));
+        info.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
+        info.setTextColor(ContextCompat.getColor(requireContext(), R.color.matrix_text));
+
+        // 继续按钮（DOWNLOADING 时显示"取消"，PAUSED/FAILED 时显示"继续"/"重试"）
+        Button actionBtn = new Button(requireContext());
+        if (ModelDownloadManager.STATUS_DOWNLOADING.equals(entity.status)) {
+            actionBtn.setText("取消");
+            actionBtn.setOnClickListener(v -> viewModel.cancelDownload(entity.modelName));
+        } else {
+            actionBtn.setText(ModelDownloadManager.STATUS_PAUSED.equals(entity.status) ? "继续" : "重试");
+            actionBtn.setOnClickListener(v -> {
+                // 从市场列表或 DAO 恢复 entry
+                ModelMarketClient.ModelEntry entry = findEntryByName(entity.modelName);
+                if (entry != null) viewModel.startDownload(entry);
+                else noticeText.setText("无法恢复下载：" + entity.modelName + "（缺少市场信息）");
+            });
+        }
+
+        // 删除按钮
+        Button deleteBtn = new Button(requireContext());
+        deleteBtn.setText("删除");
+        deleteBtn.setOnClickListener(v -> viewModel.deleteModel(entity.modelName));
+
+        row.addView(info);
+        row.addView(actionBtn);
+        row.addView(deleteBtn);
+        return row;
+    }
+
+    @Nullable
+    private ModelMarketClient.ModelEntry findEntryByName(String modelName) {
+        List<ModelMarketClient.ModelEntry> market = viewModel.getMarketModels().getValue();
+        if (market != null) {
+            for (ModelMarketClient.ModelEntry e : market) {
+                if (e.modelName.equals(modelName)) return e;
+            }
+        }
+        // 市场列表没有（可能没刷新）→ 从 DAO 构造一个最小 entry
+        return new ModelMarketClient.ModelEntry(modelName, modelName, 0, null);
     }
 
     private void renderMarket() {
@@ -234,10 +302,17 @@ public final class ModelDownloadFragment extends Fragment {
             ((MainActivity) requireActivity()).showPage(fragment, "模型 API 接入");
         });
 
-        // 需求2：删除已下载模型（递归删目录 + DAO 记录）。
+        // 需求2：删除已下载模型——弹窗确认后执行（递归删目录 + DAO 记录）。
         Button delete = new Button(requireContext());
         delete.setText("删除");
-        delete.setOnClickListener(v -> viewModel.deleteModel(modelName));
+        delete.setOnClickListener(v -> {
+            new androidx.appcompat.app.AlertDialog.Builder(requireContext())
+                    .setTitle("删除模型")
+                    .setMessage("确定删除「" + modelName + "」？\n将删除模型文件和下载记录，不可恢复。")
+                    .setPositiveButton("删除", (d, w) -> viewModel.deleteModel(modelName))
+                    .setNegativeButton("取消", null)
+                    .show();
+        });
 
         row.addView(name);
         row.addView(use);

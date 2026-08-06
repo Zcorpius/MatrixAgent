@@ -69,7 +69,7 @@ public final class DownloadService extends Service {
     @Override
     public void onCreate() {
         super.onCreate();
-        workExec = Executors.newFixedThreadPool(2, new DaemonThreadFactory());
+        workExec = Executors.newCachedThreadPool(new DaemonThreadFactory());
         createNotificationChannel();
     }
 
@@ -101,6 +101,10 @@ public final class DownloadService extends Service {
         ModelMarketClient.ModelEntry entry = new ModelMarketClient.ModelEntry(
                 modelName, desc != null ? desc : modelName, sizeGb, repo);
 
+        // 如果有上一次下载在跑（删除后重试场景），先 cancel 旧的让 workExec 线程释放
+        if (active && currentModel != null) {
+            try { manager.cancel(currentModel); } catch (Exception ignored) {}
+        }
         currentModel = modelName;
         active = true;
         try {

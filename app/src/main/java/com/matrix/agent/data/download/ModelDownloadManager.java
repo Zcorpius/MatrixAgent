@@ -225,20 +225,16 @@ public class ModelDownloadManager {
                 + " thread=" + Thread.currentThread().getName()
                 + "\n" + android.util.Log.getStackTraceString(new Throwable()));
         cancelFlags.put(modelName, Boolean.TRUE);
+        // 不删 .tmp——保留断点供下次续传（之前 cancel 删 .tmp 导致从头下载）
         try {
-            File tmpDir = new File(getModelsDir(), TMP_PREFIX + modelName);
-            if (tmpDir.exists()) deleteRecursive(tmpDir);
-        } finally {
-            try {
-                ModelDownloadEntity entity = dao.getByName(modelName);
-                if (entity != null) {
-                    entity.status = STATUS_FAILED;
-                    entity.updatedAt = System.currentTimeMillis();
-                    dao.update(entity);
-                }
-            } catch (Exception ignored) {
-                // cancel 必须不抛
+            ModelDownloadEntity entity = dao.getByName(modelName);
+            if (entity != null) {
+                entity.status = STATUS_PAUSED;
+                entity.updatedAt = System.currentTimeMillis();
+                dao.update(entity);
             }
+        } catch (Exception ignored) {
+            // cancel 必须不抛
         }
     }
 
@@ -397,6 +393,8 @@ public class ModelDownloadManager {
             if (isCancelled(modelName)) throw new IOException("cancelled: " + modelName);
 
             long existing = tmpFile.exists() ? tmpFile.length() : 0;
+            Log.i("ModelDownload", "[resume] file=" + tmpFile.getName()
+                    + " existing=" + existing + " expected=" + expectedSize);
             HttpURLConnection conn = (HttpURLConnection) new URL(downloadUrl).openConnection();
             try {
                 conn.setConnectTimeout(CONNECT_TIMEOUT_MS);
@@ -407,6 +405,9 @@ public class ModelDownloadManager {
                 }
 
                 int code = conn.getResponseCode();
+                Log.i("ModelDownload", "[resume] file=" + tmpFile.getName()
+                        + " HTTP=" + code + " existing=" + existing
+                        + (code == 206 ? " → APPEND(续传)" : code == 200 && existing > 0 ? " → OVERWRITE(服务端不支持Range!)" : ""));
                 // 416 Range Not Satisfiable 且已有字节 → 视为已完成
                 if (code == 416 && existing > 0) {
                     return;
