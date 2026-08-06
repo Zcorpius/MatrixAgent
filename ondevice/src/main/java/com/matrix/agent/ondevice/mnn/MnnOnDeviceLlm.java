@@ -70,11 +70,16 @@ public final class MnnOnDeviceLlm implements OnDeviceLlm {
 
     @Override
     public int countTokens(String messagesJson, String toolsJson) {
-        try {
-            return session.countTokensStructured(messagesJson, toolsJson);
-        } catch (RuntimeException e) {
-            return 0; // 调用方将 0 当模板/配置错误处理，不当"可激进裁剪"
+        // P2-17: retry 1 次——瞬时异常(JNI 短暂失败)不应被误判为模板错误(0 → trimToBudget terminal)。
+        // 第二次仍抛才返回 0，让上层按模板/配置错误处理。
+        for (int attempt = 0; attempt < 2; attempt++) {
+            try {
+                return session.countTokensStructured(messagesJson, toolsJson);
+            } catch (RuntimeException e) {
+                if (attempt == 1) return 0; // 调用方将 0 当模板/配置错误处理，不当"可激进裁剪"
+            }
         }
+        return 0;
     }
 
     @Override

@@ -27,6 +27,8 @@ public final class ModelApiViewModel extends ViewModel {
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private final MutableLiveData<ModelUiState> uiState = new MutableLiveData<>();
     private final AtomicLong operationSequence = new AtomicLong();
+    // P2-21: drafts 是内存表内切换草稿（非持久化）。process death 后仅 saved config（configStore.load）可恢复。
+    // 持久化跨 process death 的草稿需 SavedStateHandle（留后续）。
     private final Map<String, ModelConfig> drafts = new HashMap<>();
     private Future<?> activeFuture;
     /**

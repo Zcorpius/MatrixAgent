@@ -47,6 +47,12 @@ public final class MNNLlmSession {
             setConfigOrThrow(ptr, "memory", "\"" + opts.memory + "\"");
             setConfigOrThrow(ptr, "backend_type", "\"" + opts.backendType + "\"");
             setConfigOrThrow(ptr, "thread_num", Integer.toString(opts.threadNum));
+            // P2-15: enable_thinking 必须在 load 前设置——若 MNN 在 load 时快照 jinja 配置，
+            // load 后再 setThinkingMode 可能无效（与 precision/memory 等同批 setConfig）。
+            if (!MNNLlmNative.nativeSetConfig(ptr,
+                    "{\"jinja\":{\"context\":{\"enable_thinking\":" + opts.enableThinking + "}}}")) {
+                throw new IllegalStateException("nativeSetConfig failed: jinja.context.enable_thinking");
+            }
             if (!MNNLlmNative.nativeLoadLlm(ptr)) {
                 throw new IllegalStateException("nativeLoadLlm failed");
             }

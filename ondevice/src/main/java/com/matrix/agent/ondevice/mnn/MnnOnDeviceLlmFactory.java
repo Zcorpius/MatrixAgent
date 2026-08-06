@@ -27,6 +27,8 @@ public final class MnnOnDeviceLlmFactory implements OnDeviceLlmFactory {
                     + "（检查 llm_config.json/llm.mnn 及子文件完整性）");
         }
         try {
+            // P2-15: MNNLlmSession.create 内已在 load 前 setConfig enable_thinking；此处再调一次为保险
+            // （MNN 是否在 load 时快照 jinja 未文档化，pre+post 双设覆盖两种行为）。
             session.setThinkingMode(opts.enableThinking);
             return new MnnOnDeviceLlm(session, readMaxAllTokens(modelDir));
         } catch (RuntimeException e) {

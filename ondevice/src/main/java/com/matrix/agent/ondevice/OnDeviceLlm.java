@@ -45,7 +45,7 @@ public interface OnDeviceLlm {
 
     /**
      * 中断当前在跑的 generate（供 gateway abort/retire）。非阻塞——设置 native cancel flag，
-     * 让在途 generate 尽快返回 FAILED；不影响后续调用。幂等。
+     * 让在途 generate 尽快返回 CANCELLED；不影响后续调用。幂等。
      */
     void cancel();
 

@@ -108,6 +108,10 @@ public final class AppContainer {
      */
     private final com.matrix.agent.core.agent.DynamicThreadPool schedulerPool;
     private final com.matrix.agent.core.agent.DynamicThreadPool ioPool;
+    /**
+     * V0.5.x P2-24:端侧 gateway lifecycle 持有——AppContainer.shutdown 统一关闭其 drain executor。
+     */
+    private final GatewayLifecycleManager gatewayLifecycleManager;
     private final com.matrix.agent.data.audit.AuditEventRecorder auditEventRecorderField;
     /**
      * V0.5.3 评审 P1-3:MemoryStore 装配降级标志——database=null 或 RoomMemoryStore 构造抛时
@@ -218,6 +222,9 @@ public final class AppContainer {
         MockCapabilityProvider provider = new MockCapabilityProvider(memoryStore, memoryWriter);
         ModelApiClient modelClient = new ModelApiClient();
         SecureModelConfigStore configStore = new SecureModelConfigStore(appContext);
+        // P2-22: 启动链路只解密一次——classifier(L238)与 gateway(L346)复用同一 savedConfig，
+        // 避免 AES 解密重复执行（modelGatewayRepository.load 内部亦调 configStore.load）。
+        ModelConfig savedConfig = configStore.load();
 
         memoryRecaller = new MemoryRouter(
                 new SessionContextWorkingMemory(sessionManager),
@@ -235,7 +242,7 @@ public final class AppContainer {
         // 切换 Provider 时 ModelApiViewModel.saveAndApply 暂不更新 IntentClassifier——
         // LLM 用旧 config 失败时 Fallback 自动退 Keyword,语义安全(V0.5.3 增强)。
         IntentClassifier appClassifier = KeywordIntentClassifier.INSTANCE;
-        ModelConfig savedForClassifier = configStore.load();
+        ModelConfig savedForClassifier = savedConfig; // P2-22: 复用启动期缓存的 savedConfig
         if (savedForClassifier != null && savedForClassifier.protocol == ApiProtocol.ON_DEVICE) {
             // P0-7：端侧离线，启动即走 Keyword，不建 LlmIntentClassifier（避免打云端）
             Log.i(TAG, "[App] IntentClassifier = Keyword (on-device offline)");
@@ -334,7 +341,8 @@ public final class AppContainer {
         // mailbox 与 AgentEngine 共享同一实例,不重复创建。
         agentRuntimeRepository.setSteerMailbox(steerMailbox);
         // P0-2：注入端侧 gateway 生命周期管理器——切模型时异步退役旧端侧 gateway（lease 等 JNI 返回后 close）
-        agentRuntimeRepository.setGatewayLifecycleManager(new GatewayLifecycleManager(ioPool));
+        this.gatewayLifecycleManager = new GatewayLifecycleManager(ioPool);
+        agentRuntimeRepository.setGatewayLifecycleManager(gatewayLifecycleManager);
         // V0.5.2 评审 P1-3:注入增量 audit_event recorder,clearUserDataDetailed 时
         // 调 advanceEpoch + dropByUserZone,杜绝"clearByUserZone 后异步 flush 把旧事件写回"。
         agentRuntimeRepository.setAuditEventRecorder(auditEventRecorder);
@@ -343,7 +351,7 @@ public final class AppContainer {
         // memory.semantic.save handler 在未命中时直接 POLICY_REJECTED(硬 gate,prompt 约定双重防线)。
         agentRuntimeRepository.setMemoryIntentDetector(KeywordMemoryIntentDetector.INSTANCE);
 
-        ModelConfig saved = modelGatewayRepository.load();
+        ModelConfig saved = savedConfig; // P2-22: 复用启动期缓存的 savedConfig
         if (saved != null) {
             if (saved.protocol == ApiProtocol.ON_DEVICE) {
                 // 端侧模型加载耗时（GB 级），不阻塞启动：先保持默认 DemoModelGateway 占位，
@@ -352,6 +360,9 @@ public final class AppContainer {
                 final ModelConfig onDeviceConfig = saved;
                 ioPool.asExecutorService().execute(() -> {
                     try {
+                        // P2-25: 已知限制——createModelGateway 内 nativeLoadLlm 是阻塞 native 调用，
+                        // MNN API 无超时/中断支持，native hang 会永久占用 ioPool 线程（不可中断）。
+                        // 缓解：进程退出 daemon 回收；retire 已有 stuck 标记机制。留作 MNN API 限制。
                         // P1: 防启动期 async load 与用户 saveAndApply 竞态——
                         // 加载完成前若 saved config 已变（用户保存了新模型），丢弃本次（stale）加载
                         ModelConfig current = modelGatewayRepository.load();
@@ -436,6 +447,11 @@ public final class AppContainer {
             auditEventRecorderField.shutdown();
         } catch (Throwable t) {
             Log.w(TAG, "[App] shutdown: auditEventRecorder threw cause=" + t.getClass().getSimpleName());
+        }
+        try {
+            gatewayLifecycleManager.shutdown();
+        } catch (Throwable t) {
+            Log.w(TAG, "[App] shutdown: gatewayLifecycleManager threw cause=" + t.getClass().getSimpleName());
         }
         Log.i(TAG, "[App] shutdown done");
     }

@@ -19,6 +19,16 @@ public final class GatewayLifecycleManager {
     private static final long STUCK_TIMEOUT_MS = 30_000L;
 
     private final DynamicThreadPool ioPool;
+    /**
+     * P2-24: drain 任务专用单线程 executor——避免 retireAsync 的 awaitDrained(30s) 长时间占用
+     * 共享 ioPool（会阻塞 ModelCallExecutor / ToolExecutor 等 I/O 任务排队）。daemon 线程，进程退出时回收。
+     */
+    private final java.util.concurrent.ExecutorService drainExecutor =
+            java.util.concurrent.Executors.newSingleThreadExecutor(r -> {
+                Thread t = new Thread(r, "MNN-drain");
+                t.setDaemon(true);
+                return t;
+            });
 
     public GatewayLifecycleManager(DynamicThreadPool ioPool) {
         this.ioPool = ioPool;
@@ -37,7 +47,8 @@ public final class GatewayLifecycleManager {
             return;
         }
         try {
-            ioPool.asExecutorService().execute(new Runnable() {
+            // P2-24: drain 跑在专用单线程 executor，不占用共享 ioPool（awaitDrained 最长 30s 会堵 I/O 任务）
+            drainExecutor.execute(new Runnable() {
                 @Override
                 public void run() {
                     try {
@@ -61,6 +72,11 @@ public final class GatewayLifecycleManager {
             // native 资源等进程退出回收——维持 retired 状态比阻塞 main thread 安全。
             Log.w(TAG, "[Lifecycle] ioPool rejected retire task — gateway retired, native defers to process exit");
         }
+    }
+
+    /** P2-24: 关闭 drain 专用 executor（由 AppContainer.shutdown 调用）。 */
+    public void shutdown() {
+        drainExecutor.shutdown();
     }
 
     /** 同步 close 兜底（短超时 awaitDrained，不长时间阻塞调用方）。 */
