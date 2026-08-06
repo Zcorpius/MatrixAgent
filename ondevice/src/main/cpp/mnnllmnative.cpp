@@ -60,97 +60,6 @@ void clearCancelFlag(jlong llmPtr) {
 }
 
 // =======================
-// Audio Callback Support
-// =======================
-
-struct AudioCallbackHolder {
-    JavaVM* jvm = nullptr;
-    jobject callbackGlobalRef = nullptr;
-    jmethodID onAudioDataMethod = nullptr;
-};
-
-static std::mutex gAudioCallbackMutex;
-static std::map<jlong, AudioCallbackHolder> gAudioCallbacks;
-
-void clearAudioCallback(JNIEnv* env, jlong llmPtr) {
-    AudioCallbackHolder holder;
-    bool hasHolder = false;
-    {
-        std::lock_guard<std::mutex> lock(gAudioCallbackMutex);
-        auto it = gAudioCallbacks.find(llmPtr);
-        if (it != gAudioCallbacks.end()) {
-            holder = it->second;
-            gAudioCallbacks.erase(it);
-            hasHolder = true;
-        }
-    }
-
-    if (hasHolder && env != nullptr && holder.callbackGlobalRef != nullptr) {
-        env->DeleteGlobalRef(holder.callbackGlobalRef);
-    }
-}
-
-bool invokeAudioCallback(jlong llmPtr, const float* data, size_t size, bool isLastChunk) {
-    AudioCallbackHolder holder;
-    {
-        std::lock_guard<std::mutex> lock(gAudioCallbackMutex);
-        auto it = gAudioCallbacks.find(llmPtr);
-        if (it == gAudioCallbacks.end()) {
-            return false;
-        }
-        holder = it->second;
-    }
-
-    if (holder.jvm == nullptr || holder.callbackGlobalRef == nullptr || holder.onAudioDataMethod == nullptr) {
-        return false;
-    }
-
-    JNIEnv* env = nullptr;
-    bool needDetach = false;
-    int getEnvResult = holder.jvm->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION_1_6);
-    if (getEnvResult == JNI_EDETACHED) {
-        if (holder.jvm->AttachCurrentThread(&env, nullptr) != JNI_OK) {
-            LOGE("Failed to attach thread for audio callback");
-            return false;
-        }
-        needDetach = true;
-    } else if (getEnvResult != JNI_OK || env == nullptr) {
-        LOGE("Failed to get JNIEnv for audio callback: %d", getEnvResult);
-        return false;
-    }
-
-    jfloatArray audioDataArray = env->NewFloatArray(static_cast<jsize>(size));
-    if (audioDataArray == nullptr) {
-        if (needDetach) {
-            holder.jvm->DetachCurrentThread();
-        }
-        return false;
-    }
-    env->SetFloatArrayRegion(audioDataArray, 0, static_cast<jsize>(size), data);
-
-    jboolean shouldContinue = env->CallBooleanMethod(
-        holder.callbackGlobalRef,
-        holder.onAudioDataMethod,
-        audioDataArray,
-        isLastChunk ? JNI_TRUE : JNI_FALSE
-    );
-
-    env->DeleteLocalRef(audioDataArray);
-
-    if (env->ExceptionCheck()) {
-        env->ExceptionDescribe();
-        env->ExceptionClear();
-        shouldContinue = JNI_FALSE;
-    }
-
-    if (needDetach) {
-        holder.jvm->DetachCurrentThread();
-    }
-
-    return shouldContinue == JNI_TRUE;
-}
-
-// =======================
 // Helper Functions
 // =======================
 
@@ -164,46 +73,6 @@ std::string jstringToString(JNIEnv* env, jstring jstr) {
 
 jstring stringToJstring(JNIEnv* env, const std::string& str) {
     return env->NewStringUTF(str.c_str());
-}
-
-ChatMessages parseChatHistory(JNIEnv* env, jobject jhistory) {
-    ChatMessages history;
-    if (jhistory == nullptr) {
-        return history;
-    }
-
-    jclass listClass = env->FindClass("java/util/List");
-    jmethodID sizeMethod = env->GetMethodID(listClass, "size", "()I");
-    jmethodID getMethod = env->GetMethodID(listClass, "get", "(I)Ljava/lang/Object;");
-    jint listSize = env->CallIntMethod(jhistory, sizeMethod);
-
-    jclass pairClass = env->FindClass("kotlin/Pair");
-    jmethodID getFirstMethod = env->GetMethodID(pairClass, "getFirst", "()Ljava/lang/Object;");
-    jmethodID getSecondMethod = env->GetMethodID(pairClass, "getSecond", "()Ljava/lang/Object;");
-
-    for (jint i = 0; i < listSize; i++) {
-        jobject pairObj = env->CallObjectMethod(jhistory, getMethod, i);
-        if (pairObj == nullptr) {
-            continue;
-        }
-
-        jobject roleObj = env->CallObjectMethod(pairObj, getFirstMethod);
-        jobject contentObj = env->CallObjectMethod(pairObj, getSecondMethod);
-
-        if (roleObj != nullptr && contentObj != nullptr) {
-            std::string role = jstringToString(env, (jstring)roleObj);
-            std::string content = jstringToString(env, (jstring)contentObj);
-            history.emplace_back(role, content);
-        }
-
-        if (roleObj) env->DeleteLocalRef(roleObj);
-        if (contentObj) env->DeleteLocalRef(contentObj);
-        env->DeleteLocalRef(pairObj);
-    }
-
-    env->DeleteLocalRef(listClass);
-    env->DeleteLocalRef(pairClass);
-    return history;
 }
 
 #ifdef LLM_USE_MINJA
@@ -475,7 +344,6 @@ Java_com_matrix_agent_ondevice_mnn_MNNLlmNative_nativeReleaseLlm(
     LOGD("Releasing LLM at %p", llm);
     
     try {
-        clearAudioCallback(env, llmPtr);
         clearCancelFlag(llmPtr);
         Llm::destroy(llm);
         LOGI("LLM released successfully");
@@ -829,34 +697,6 @@ static jboolean runStreamGenerationWithInputIds(
 }
 
 extern "C" JNIEXPORT jboolean JNICALL
-Java_com_matrix_agent_ondevice_mnn_MNNLlmNative_nativeGenerateStream(
-    JNIEnv* env, jclass clazz,
-    jlong llmPtr,
-    jobject jhistory,
-    jint maxTokens,
-    jobject callback) {
-
-    if (llmPtr == 0) return JNI_FALSE;
-
-    Llm* llm = reinterpret_cast<Llm*>(llmPtr);
-    ChatMessages history = parseChatHistory(env, jhistory);
-    LOGD("Starting stream generation with %zu history messages", history.size());
-
-    try {
-        std::string prompt = llm->apply_chat_template(history);
-        if (prompt.empty()) {
-            LOGE("Failed to apply chat template for history");
-            return JNI_FALSE;
-        }
-        std::vector<int> inputTokens = llm->tokenizer_encode(prompt);
-        return runStreamGenerationWithInputIds(env, llmPtr, inputTokens, maxTokens, callback);
-    } catch (const std::exception& e) {
-        LOGE("Exception preparing stream generation: %s", e.what());
-        return JNI_FALSE;
-    }
-}
-
-extern "C" JNIEXPORT jboolean JNICALL
 Java_com_matrix_agent_ondevice_mnn_MNNLlmNative_nativeGenerateStreamStructured(
     JNIEnv* env, jclass clazz,
     jlong llmPtr,
@@ -925,26 +765,6 @@ Java_com_matrix_agent_ondevice_mnn_MNNLlmNative_nativeApplyChatTemplate(
 }
 
 extern "C" JNIEXPORT jstring JNICALL
-Java_com_matrix_agent_ondevice_mnn_MNNLlmNative_nativeApplyChatTemplateWithHistory(
-    JNIEnv* env, jclass clazz,
-    jlong llmPtr,
-    jobject jhistory) {
-
-    if (llmPtr == 0) return nullptr;
-
-    Llm* llm = reinterpret_cast<Llm*>(llmPtr);
-    ChatMessages history = parseChatHistory(env, jhistory);
-
-    try {
-        std::string templated = llm->apply_chat_template(history);
-        return stringToJstring(env, templated);
-    } catch (const std::exception& e) {
-        LOGE("Exception in applyChatTemplateWithHistory: %s", e.what());
-        return nullptr;
-    }
-}
-
-extern "C" JNIEXPORT jstring JNICALL
 Java_com_matrix_agent_ondevice_mnn_MNNLlmNative_nativeApplyChatTemplateWithStructuredMessages(
     JNIEnv* env, jclass clazz,
     jlong llmPtr,
@@ -966,27 +786,6 @@ Java_com_matrix_agent_ondevice_mnn_MNNLlmNative_nativeApplyChatTemplateWithStruc
     } catch (const std::exception& e) {
         LOGE("Exception in applyChatTemplateWithStructuredMessages: %s", e.what());
         return nullptr;
-    }
-}
-
-extern "C" JNIEXPORT jint JNICALL
-Java_com_matrix_agent_ondevice_mnn_MNNLlmNative_nativeCountTokensWithHistory(
-    JNIEnv* env, jclass clazz,
-    jlong llmPtr,
-    jobject jhistory) {
-
-    if (llmPtr == 0) return 0;
-
-    Llm* llm = reinterpret_cast<Llm*>(llmPtr);
-    ChatMessages history = parseChatHistory(env, jhistory);
-
-    try {
-        std::string templated = llm->apply_chat_template(history);
-        std::vector<int> tokens = llm->tokenizer_encode(templated);
-        return static_cast<jint>(tokens.size());
-    } catch (const std::exception& e) {
-        LOGE("Exception in countTokensWithHistory: %s", e.what());
-        return 0;
     }
 }
 
@@ -1099,70 +898,6 @@ Java_com_matrix_agent_ondevice_mnn_MNNLlmNative_nativeSetConfig(
         return success ? JNI_TRUE : JNI_FALSE;
     } catch (const std::exception& e) {
         LOGE("Exception in set_config: %s", e.what());
-        return JNI_FALSE;
-    }
-}
-
-extern "C" JNIEXPORT jboolean JNICALL
-Java_com_matrix_agent_ondevice_mnn_MNNLlmNative_nativeSetAudioDataCallback(
-    JNIEnv* env, jclass clazz, jlong llmPtr, jobject callback) {
-
-    if (llmPtr == 0) return JNI_FALSE;
-
-    Llm* llm = reinterpret_cast<Llm*>(llmPtr);
-
-    clearAudioCallback(env, llmPtr);
-
-    if (callback == nullptr) {
-        llm->setWavformCallback(std::function<bool(const float*, size_t, bool)>());
-        return JNI_TRUE;
-    }
-
-    JavaVM* jvm = nullptr;
-    if (env->GetJavaVM(&jvm) != JNI_OK || jvm == nullptr) {
-        LOGE("Failed to get JavaVM for audio callback");
-        return JNI_FALSE;
-    }
-
-    jclass callbackClass = env->GetObjectClass(callback);
-    jmethodID onAudioDataMethod = env->GetMethodID(callbackClass, "onAudioData", "([FZ)Z");
-    env->DeleteLocalRef(callbackClass);
-    if (onAudioDataMethod == nullptr) {
-        LOGE("Failed to find onAudioData method in audio callback");
-        return JNI_FALSE;
-    }
-
-    jobject callbackGlobalRef = env->NewGlobalRef(callback);
-    if (callbackGlobalRef == nullptr) {
-        LOGE("Failed to create global reference for audio callback");
-        return JNI_FALSE;
-    }
-
-    {
-        std::lock_guard<std::mutex> lock(gAudioCallbackMutex);
-        gAudioCallbacks[llmPtr] = AudioCallbackHolder{jvm, callbackGlobalRef, onAudioDataMethod};
-    }
-
-    llm->setWavformCallback([llmPtr](const float* data, size_t size, bool isLastChunk) {
-        return invokeAudioCallback(llmPtr, data, size, isLastChunk);
-    });
-
-    return JNI_TRUE;
-}
-
-extern "C" JNIEXPORT jboolean JNICALL
-Java_com_matrix_agent_ondevice_mnn_MNNLlmNative_nativeGenerateWavform(
-    JNIEnv* env, jclass clazz, jlong llmPtr) {
-
-    if (llmPtr == 0) return JNI_FALSE;
-
-    Llm* llm = reinterpret_cast<Llm*>(llmPtr);
-
-    try {
-        llm->generateWavform();
-        return JNI_TRUE;
-    } catch (const std::exception& e) {
-        LOGE("Exception in generateWavform: %s", e.what());
         return JNI_FALSE;
     }
 }
