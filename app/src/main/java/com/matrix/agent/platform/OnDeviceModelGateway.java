@@ -13,6 +13,7 @@ import com.matrix.agent.ondevice.OnDeviceLlm;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantLock;
@@ -49,6 +50,12 @@ public final class OnDeviceModelGateway implements RetirableModelGateway {
     private volatile CallState currentHoldingCall = null;
     /** P0-1: 保护 currentHoldingCall 读写 + cancel 的 check+nativeCancel 原子，避免 A 的 cancel 误伤刚拿锁的 B */
     private final Object cancelLock = new Object();
+    /**
+     * 最后一次端侧推理的性能统计快照（供 UI 展示 token/s + 当前 native heap 采样）。
+     * volatile：generate 在 ioPool 线程写、UI 经 Repository 读，需多线程可见。
+     * FAILED/CANCELLED 不更新（timing 字段为零/不完整，避免覆盖上次有效快照）。
+     */
+    private volatile String lastStats = "";
 
     public OnDeviceModelGateway(OnDeviceLlm llm, String displayName, int maxNewTokensConfig) {
         this.llm = llm;
@@ -58,6 +65,14 @@ public final class OnDeviceModelGateway implements RetirableModelGateway {
 
     public String getDisplayName() {
         return displayName;
+    }
+
+    /**
+     * 最后一次推理的性能统计（prefill/decode/tok/s/当前 native heap），UI 读取展示用。
+     * 无成功推理前返回空串；FAILED/CANCELLED 不覆盖（保留上次有效快照）。
+     */
+    public String getLastStats() {
+        return lastStats;
     }
 
     // —— ModelGateway ——
@@ -160,6 +175,9 @@ public final class OnDeviceModelGateway implements RetirableModelGateway {
                 throw new java.util.concurrent.CancellationException(
                         "端侧推理已取消(generate 后检查)");
             }
+            // 在 mapResult 前记录 timing——异常/cancel 路径已在上面抛出，不会到达此处；
+            // FAILED/CANCELLED finishReason 由 updateStats 内部跳过（不覆盖上次有效快照）。
+            updateStats(r);
             return mapResult(r, modelToCap);
         } catch (RuntimeException e) {
             throw e; // terminal
@@ -195,6 +213,31 @@ public final class OnDeviceModelGateway implements RetirableModelGateway {
             return ModelTurn.of("", FinishReason.NONE); // 空答复 → PROTOCOL_ERROR
         }
         return ModelTurn.directAnswer(text);
+    }
+
+    /**
+     * 把 {@link GenerationResult} 的 timing + token 统计格式化为 UI 可读字符串，写入 {@link #lastStats}。
+     *
+     * <p>调用点：{@code doDecide} 内 {@code llm.generate()} 返回 + 取消检查通过后、{@code mapResult} 前——
+     * 这样 generate 抛异常或被 cancel 时不会到达本方法。{@code FAILED}/{@code CANCELLED} finishReason
+     * 的 timing 字段为零/不完整，显式跳过以保留上次有效快照。
+     *
+     * <p>tps 由 {@code generatedTokens / decodeSec} 推导（decode 是逐 token 生成的稳态阶段）；
+     * native heap 取 {@code Debug.getNativeHeapAllocatedSize}（MNN session + KV cache 占用主体）。
+     */
+    private void updateStats(GenerationResult r) {
+        if (r == null) return;
+        if (r.finishReason == OnDeviceFinishReason.FAILED
+                || r.finishReason == OnDeviceFinishReason.CANCELLED) {
+            return;
+        }
+        double prefillSec = r.prefillUs / 1_000_000.0;
+        double decodeSec = r.decodeUs / 1_000_000.0;
+        double tps = decodeSec > 0 ? r.generatedTokens / decodeSec : 0;
+        long nativeHeapMB = android.os.Debug.getNativeHeapAllocatedSize() / (1024 * 1024);
+        lastStats = String.format(Locale.US,
+                "prefill %.2fs | decode %.2fs | %d tokens | %.1f tok/s | native heap %dMB",
+                prefillSec, decodeSec, r.generatedTokens, tps, nativeHeapMB);
     }
 
     /**

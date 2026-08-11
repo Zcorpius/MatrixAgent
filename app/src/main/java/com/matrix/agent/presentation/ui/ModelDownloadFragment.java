@@ -50,9 +50,11 @@ import java.util.Map;
  */
 public final class ModelDownloadFragment extends Fragment {
     private static final long REFRESH_INTERVAL_MS = 1200L;
+    private static final int REQUEST_POST_NOTIFICATIONS = 1001;
 
     private ModelDownloadViewModel viewModel;
     @Nullable private ModelDownloadManager manager;
+    @Nullable private ModelMarketClient.ModelEntry pendingDownloadEntry;
     private LinearLayout marketContainer;
     private LinearLayout activeContainer;
     private LinearLayout downloadedContainer;
@@ -157,7 +159,7 @@ public final class ModelDownloadFragment extends Fragment {
             actionBtn.setOnClickListener(v -> {
                 // 从市场列表或 DAO 恢复 entry
                 ModelMarketClient.ModelEntry entry = findEntryByName(entity.modelName);
-                if (entry != null) viewModel.startDownload(entry);
+                if (entry != null) startDownloadAfterNotificationPermission(entry);
                 else noticeText.setText("无法恢复下载：" + entity.modelName + "（缺少市场信息）");
             });
         }
@@ -240,15 +242,15 @@ public final class ModelDownloadFragment extends Fragment {
         } else if (entity != null && ModelDownloadManager.STATUS_PAUSED.equals(entity.status)) {
             // 需求1：PAUSED（kill 后 .tmp 残留、未完成）显示"继续"，点击重新下载，downloadFileWithResume 基线断点续传。
             btn.setText("继续 " + pct + "%");
-            btn.setOnClickListener(v -> viewModel.startDownload(entry));
+            btn.setOnClickListener(v -> startDownloadAfterNotificationPermission(entry));
         } else if (entity != null && ModelDownloadManager.STATUS_FAILED.equals(entity.status)) {
             btn.setText("重试");
-            btn.setOnClickListener(v -> viewModel.startDownload(entry));
+            btn.setOnClickListener(v -> startDownloadAfterNotificationPermission(entry));
         } else {
             boolean hasRepo = entry.modelScopeRepo != null && !entry.modelScopeRepo.isEmpty();
             btn.setText("下载");
             btn.setEnabled(hasRepo);
-            btn.setOnClickListener(v -> viewModel.startDownload(entry));
+            btn.setOnClickListener(v -> startDownloadAfterNotificationPermission(entry));
         }
         row.addView(info);
         row.addView(btn);
@@ -326,6 +328,38 @@ public final class ModelDownloadFragment extends Fragment {
         tv.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
         tv.setTextColor(ContextCompat.getColor(requireContext(), R.color.matrix_muted));
         return tv;
+    }
+
+    /**
+     * 下载前才请求通知权限，确保前台下载通知对用户可见。
+     * 用户拒绝时不启动下载，避免后台进行不可见的大文件传输。
+     */
+    private void startDownloadAfterNotificationPermission(ModelMarketClient.ModelEntry entry) {
+        if (android.os.Build.VERSION.SDK_INT < 33
+                || requireContext().checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
+                == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            viewModel.startDownload(entry);
+            return;
+        }
+        pendingDownloadEntry = entry;
+        requestPermissions(new String[]{android.Manifest.permission.POST_NOTIFICATIONS},
+                REQUEST_POST_NOTIFICATIONS);
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions,
+            @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode != REQUEST_POST_NOTIFICATIONS) return;
+        ModelMarketClient.ModelEntry entry = pendingDownloadEntry;
+        pendingDownloadEntry = null;
+        boolean granted = grantResults.length == 1
+                && grantResults[0] == android.content.pm.PackageManager.PERMISSION_GRANTED;
+        if (granted && entry != null) {
+            viewModel.startDownload(entry);
+        } else {
+            noticeText.setText("未授予通知权限，未开始下载。");
+        }
     }
 
     private Map<String, ModelDownloadEntity> downloadsByName() {

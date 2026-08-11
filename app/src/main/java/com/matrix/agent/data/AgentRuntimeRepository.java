@@ -28,6 +28,7 @@ import com.matrix.agent.data.audit.AuditEventRecorder;
 import com.matrix.agent.data.audit.AuditRepository;
 import com.matrix.agent.data.audit.ClearOutcome;
 import com.matrix.agent.data.audit.NoopAuditRepository;
+import com.matrix.agent.platform.OnDeviceModelGateway;
 import com.matrix.agent.platform.RetirableModelGateway;
 
 import java.util.List;
@@ -395,6 +396,21 @@ public final class AgentRuntimeRepository {
     }
 
     public String getActiveModelGateway() { return activeModelGateway; }
+
+    /**
+     * 最后一次端侧推理的性能统计（token/s + 当前 native heap 采样 + prefill/decode 耗时），供 UI 展示。
+     *
+     * <p>复用 {@link #lastRetirableGateway}——端侧 gateway 实现了 {@link RetirableModelGateway}，
+     * 切模型时该字段同步更新；当前 gateway 非端侧（云端 / DemoModelGateway）时为 null，本方法返回 null。
+     * 避免在 {@link AgentEngine} 内暴露 private gateway，也无需 static 字段或 AppContainer 中转。
+     */
+    public String getLastOnDeviceStats() {
+        RetirableModelGateway g = lastRetirableGateway;
+        if (g instanceof OnDeviceModelGateway) {
+            return ((OnDeviceModelGateway) g).getLastStats();
+        }
+        return null;
+    }
     public Map<String, Object> getVehicleState() { return mockProvider.snapshotVehicleState(); }
     public Map<String, List<String>> getSessionTurns() { return sessionManager.snapshotTurns(); }
 

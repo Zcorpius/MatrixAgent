@@ -190,7 +190,14 @@ public final class AgentTestViewModel extends ViewModel {
                 .append("\nSTOP     ").append(outcome.getStopReason())
                 .append("\nTIME     ").append(outcome.getDurationMillis()).append(" ms")
                 .append("\nCALLS    ").append(trajectory.getTotalToolCalls())
-                .append(" (success=").append(trajectory.countSuccessfulToolCalls()).append(")\n\n");
+                .append(" (success=").append(trajectory.countSuccessfulToolCalls()).append(")\n");
+        // 端侧推理性能：仅当 gateway 是 OnDeviceModelGateway 时 repository 返回非空，
+        // 云端 / Demo 不显示。任务多轮迭代时反映最后一次 generate 的快照。
+        String onDeviceStats = repository.getLastOnDeviceStats();
+        if (onDeviceStats != null && !onDeviceStats.isEmpty()) {
+            text.append("ONDEVICE ").append(onDeviceStats).append('\n');
+        }
+        text.append('\n');
 
         for (AgentIteration iteration : trajectory.getIterations()) {
             text.append("=== Iteration ").append(iteration.getIteration())
