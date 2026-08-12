@@ -1,6 +1,7 @@
 package com.matrix.agent;
 
 import android.os.Bundle;
+import android.view.View;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
@@ -10,9 +11,11 @@ import androidx.core.view.GravityCompat;
 import androidx.drawerlayout.widget.DrawerLayout;
 import androidx.fragment.app.Fragment;
 
+import com.matrix.agent.BuildConfig;
 import com.matrix.agent.presentation.ui.AgentTestFragment;
 import com.matrix.agent.presentation.ui.ModelApiFragment;
 import com.matrix.agent.presentation.ui.ModelDownloadFragment;
+import com.matrix.agent.presentation.ui.VoiceDebugFragment;
 
 /** Application shell. Business logic lives in repositories and ViewModels. */
 public final class MainActivity extends AppCompatActivity {
@@ -34,6 +37,14 @@ public final class MainActivity extends AppCompatActivity {
                 view -> showPage(new ModelApiFragment(), "模型 API 接入"));
         findViewById(R.id.nav_model_download).setOnClickListener(
                 view -> showPage(new ModelDownloadFragment(), "模型下载"));
+        // Voice 闭环进程内直连 repository.execute(Actor.DRIVER),误识别可能触发真实写;
+        // 仅 Debug 构建开放入口(文档 14.1 第 6 条),release 隐藏。
+        View navVoice = findViewById(R.id.nav_voice);
+        navVoice.setVisibility(BuildConfig.DEBUG ? View.VISIBLE : View.GONE);
+        if (BuildConfig.DEBUG) {
+            navVoice.setOnClickListener(
+                    view -> showPage(new VoiceDebugFragment(), "语音闭环"));
+        }
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
             @Override
             public void handleOnBackPressed() {
