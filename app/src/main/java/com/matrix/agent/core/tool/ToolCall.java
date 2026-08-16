@@ -16,7 +16,7 @@ import java.util.UUID;
  *   <li>{@link ArgumentProvenance#MODEL_INFERRED}:模型脑补,可以让模型重新推断</li>
  *       (例:用户说"副驾调温"模型默认填了 zone=driver → PARAMETER 拒绝,提示改 zone=passenger)。</li>
  *   <li>{@link ArgumentProvenance#SYSTEM_DEFAULT} / {@link ArgumentProvenance#CONTEXT_FILLED}:
- *       默认值或上下文补全,V0.4.0 与 MODEL_INFERRED 同等处理。</li>
+ *       默认值或上下文补全,与 MODEL_INFERRED 同等处理。</li>
  * </ul>
  *
  * <p>未显式标注来源的参数默认 {@link ArgumentProvenance#MODEL_INFERRED}(向后兼容:
@@ -48,7 +48,7 @@ public final class ToolCall {
      * 显式传入 stepId 的工厂方法。仅在 Provider Adapter 需要保留远端 tool call id 时使用
      * (例如 Anthropic tool_use 块的 toolu_xxx 必须原样回传给 tool_result)。
      *
-     * <p>第四轮 P2-1:stepId 不能为空。空 ID 会被 {@code UUID.randomUUID()} 静默补值,
+     * <p>stepId 不能为空。空 ID 会被 {@code UUID.randomUUID()} 静默补值,
      * Runtime 因此无法区分 ID 是模型返回还是本地伪造——非法 Provider 响应必须显式失败。
      * 缺失、空字符串、blank 都将抛 {@link IllegalArgumentException}。
      */
@@ -73,7 +73,7 @@ public final class ToolCall {
 
     private ToolCall(String stepId, String capabilityName, Map<String, Object> arguments,
             Map<String, ArgumentProvenance> provenance) {
-        // 第四轮 P2-1:外部通过 withId(...) 调用时,stepId 必须非空(否则是 Provider 协议错误,
+        // 外部通过 withId(...) 调用时,stepId 必须非空(否则是 Provider 协议错误,
         // 必须显式失败,不能静默补 UUID 掩盖问题)。
         // 内部 new ToolCall(cap, args) 与 new ToolCall(cap, args, provenance) 仍走自动 UUID,
         // 因为这些是 Runtime 自造的 ToolCall(DemoModelGateway / 测试),不涉及协议。

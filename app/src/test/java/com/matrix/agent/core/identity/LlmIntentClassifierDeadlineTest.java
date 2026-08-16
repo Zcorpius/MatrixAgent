@@ -16,7 +16,7 @@ import com.matrix.agent.platform.ModelConfig;
 import com.matrix.agent.platform.PlannerMode;
 
 /**
- * V0.5.2-rev 评审 P2-1:LlmIntentClassifier 用 3s 短 deadline 透传给 LlmClient.complete。
+ * LlmIntentClassifier 用 3s 短 deadline 透传给 LlmClient.complete。
  *
  * <p>用 fake LlmClient 捕获 deadline 参数,验证:
  * <ul>

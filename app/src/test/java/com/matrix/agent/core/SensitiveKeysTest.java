@@ -6,7 +6,7 @@ import static org.junit.Assert.assertTrue;
 import org.junit.Test;
 
 /**
- * V0.5.3 评审 P1-2:SensitiveKeys 共享 denylist 单元测试。
+ * SensitiveKeys 共享 denylist 单元测试。
  *
  * <p>验证 {@link SensitiveKeys#isPiiKey(String)} 的核心契约:
  * <ul>

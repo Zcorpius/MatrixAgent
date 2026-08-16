@@ -18,7 +18,7 @@ import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 
 /**
- * V0.4.1 Stage E:主驾优先级调度器,叠加在 {@link SessionLockManager} 之上。
+ * 主驾优先级调度器,叠加在 {@link SessionLockManager} 之上。
  *
  * <p>调度语义(用户决策):
  * <ul>
@@ -42,11 +42,11 @@ public final class TaskScheduler {
     private static final String TAG = "MatrixAgent";
 
     private final ExecutorService workers;
-    /** V0.5.2 Stage 11:true 时 shutdown() 才真正关闭池;共享池由外部统一关闭。 */
+    /** true 时 shutdown() 才真正关闭池;共享池由外部统一关闭。 */
     private final boolean ownsPool;
     private final SessionLockManager sessionLockManager;
     /**
-     * V0.4.3 Stage A:per-session FIFO 队列——同 session 内所有 submit 都被记录,
+     * per-session FIFO 队列——同 session 内所有 submit 都被记录,
      * 让 {@link #tryPreemptPassengerReadOnly} 能看到真正阻塞 session 的 task。
      * <p>旧实现用 putIfAbsent 语义,新 task 在旧 task 未完成时不进 map,
      * 导致主驾抢占判定只看到第一个被记录的 task,排队中的请求无法被抢占。
@@ -58,7 +58,7 @@ public final class TaskScheduler {
     }
 
     /**
-     * V0.5.2 Stage 11:接 {@link DynamicThreadPool}——共享池版本,让 TaskScheduler /
+     * 接 {@link DynamicThreadPool}——共享池版本,让 TaskScheduler /
      * ModelCallExecutor / ToolExecutor 复用同一池,统一监控 + 收敛线程数。
      *
      * <p>{@code sharedPool} 非空时忽略 {@code parallelism} 参数(仅留作签名兼容,旧测试可传 null)。
@@ -97,7 +97,7 @@ public final class TaskScheduler {
         if (request == null) throw new IllegalArgumentException("request 不能为空");
         if (runner == null) throw new IllegalArgumentException("runner 不能为空");
 
-        // V0.4.3 Round 3 P1.2:Scheduler 用 arbitrationKey(同车仲裁),不再用 sessionId。
+        // Scheduler 用 arbitrationKey(同车仲裁),不再用 sessionId。
         // 这样主驾和副驾可以共享调度队列参与抢占,但 SessionManager / SteerMailbox 仍用
         // sessionId 按乘员隔离对话上下文与运行时干预通道。
         final String arbitrationKey = request.getArbitrationKey();
@@ -107,7 +107,7 @@ public final class TaskScheduler {
         }
 
         final RunningTask newTask = new RunningTask(request);
-        // V0.4.3 Stage A:所有 submit 都记录到 FIFO 队列尾,旧实现的 putIfAbsent 语义
+        // 所有 submit 都记录到 FIFO 队列尾,旧实现的 putIfAbsent 语义
         // 会让排队中的 task 无法被记录,主驾抢占判定失效。
         runningTasks.computeIfAbsent(arbitrationKey, k -> new ConcurrentLinkedDeque<>())
                 .addLast(newTask);
@@ -139,7 +139,7 @@ public final class TaskScheduler {
                         + " readOnly=" + request.isReadOnlyHint()
                         + " lockWaitMs=" + ((System.nanoTime() - started) / 1_000_000L));
                 AgentOutcome outcome = runner.run(request);
-                // V0.4.3 Round 2:Scheduler 自己 cancel 的 task → 重映射 CANCELLED 为 PREEMPTED
+                // Scheduler 自己 cancel 的 task → 重映射 CANCELLED 为 PREEMPTED
                 outcome = remapIfPreempted(newTask, outcome);
                 long durationMs = (System.nanoTime() - started) / 1_000_000L;
                 Log.i(TAG, "[Scheduler] done req=" + request.getRequestId()
@@ -162,9 +162,9 @@ public final class TaskScheduler {
         try {
             future = workers.submit(task);
         } catch (RejectedExecutionException rejected) {
-            // V0.5.2 评审 P1-1:schedulerPool 队列满 / Executor 关闭——返回已完成 Future,
-            // 值是 REJECTED terminalOutcome(与 V0.5.1 EXECUTION_UNKNOWN 同模式)。
-            // Repository 兜底 audit 自动覆盖(V0.5.0 P1 终态审计)。
+            // schedulerPool 队列满 / Executor 关闭——返回已完成 Future,
+            // 值是 REJECTED terminalOutcome(与 EXECUTION_UNKNOWN 同模式)。
+            // Repository 兜底 audit 自动覆盖(终态审计)。
             Log.w(TAG, "[Scheduler] submit REJECTED req=" + request.getRequestId()
                     + " (schedulerPool 队列满 / executor 关闭)");
             AgentOutcome rejectedOutcome = terminalOutcome(request, TaskState.REJECTED,
@@ -186,14 +186,14 @@ public final class TaskScheduler {
     /**
      * 主驾请求抢占副驾只读任务。
      *
-     * <p>V0.4.3 Stage A:从 FIFO 队首找第一个未完成 task——同 arbitration 队列内可能已有多个
+     * <p>从 FIFO 队首找第一个未完成 task——同 arbitration 队列内可能已有多个
      * 排队,旧实现只看第一个被记录的,可能错失真正阻塞队列的 task。
      *
-     * <p>V0.4.3 Round 2:抢占前给 RunningTask 打 preempted 标记,runner 返回 CANCELLED 后
+     * <p>抢占前给 RunningTask 打 preempted 标记,runner 返回 CANCELLED 后
      * 由 {@link #remapIfPreempted} 重映射为 {@link StopReason#PREEMPTED} +
      * {@link TaskState#PREEMPTED},避免调用方在外层根据"被谁取消"猜测映射。
      *
-     * <p>V0.4.3 Round 3 P1.2:参数从 sessionId 改为 arbitrationKey,与 SessionManager/
+     * <p>参数从 sessionId 改为 arbitrationKey,与 SessionManager/
      * SteerMailbox 用的 conversationSessionId 解耦。
      */
     private void tryPreemptPassengerReadOnly(String arbitrationKey) {
@@ -214,7 +214,7 @@ public final class TaskScheduler {
     }
 
     /**
-     * V0.4.3 Round 2:Scheduler 自己 cancel 导致的 CANCELLED 重映射为 PREEMPTED。
+     * Scheduler 自己 cancel 导致的 CANCELLED 重映射为 PREEMPTED。
      *
      * <p>语义:Scheduler.tryPreemptPassengerReadOnly 调 token.cancel() 之前已给 RunningTask
      * 打 preempted 标记。任务 runner 返回 CANCELLED outcome 时,这里把 stopReason/finalState
@@ -222,7 +222,7 @@ public final class TaskScheduler {
      *
      * <p>runner 返回非 CANCELLED 时不重映射(防御性,避免错误覆盖 SUCCEEDED 等)。
      *
-     * <p>第四轮评审 P1 修复:重映射时必须同步把 trajectory.stopReason 从 CANCELLED 改写为
+     * <p>重映射时必须同步把 trajectory.stopReason 从 CANCELLED 改写为
      * PREEMPTED——否则 Repository 兜底 audit 落库后会出现"结构化列 PREEMPTED /
      * trajectoryJson.trajectory.stopReason CANCELLED"的语义矛盾。trajectory 由 Engine 在
      * token.cancel 后用 CANCELLED finish,本方法调 {@link Trajectory#rewriteStopReason}
@@ -249,7 +249,7 @@ public final class TaskScheduler {
         return total;
     }
 
-    /** 测试用:关闭线程池。V0.5.2 Stage 11:共享池不在此处关闭(由外部统一管理)。 */
+    /** 测试用:关闭线程池。共享池不在此处关闭(由外部统一管理)。 */
     public void shutdown() {
         if (ownsPool) {
             workers.shutdown();
@@ -271,7 +271,7 @@ public final class TaskScheduler {
     private static final class RunningTask {
         final AgentRequest request;
         volatile Future<AgentOutcome> future;
-        /** V0.4.3 Round 2:Scheduler 自己 cancel 的 task 标记,用于 outcome 重映射 PREEMPTED。 */
+        /** Scheduler 自己 cancel 的 task 标记,用于 outcome 重映射 PREEMPTED。 */
         volatile boolean preempted;
 
         RunningTask(AgentRequest request) {

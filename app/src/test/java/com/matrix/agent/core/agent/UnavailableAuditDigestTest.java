@@ -9,7 +9,7 @@ import org.junit.Test;
 import java.util.regex.Pattern;
 
 /**
- * V0.5.1 Stage 6 P1.1:验证 {@link UnavailableAuditDigest} fail-closed 语义。
+ * 验证 {@link UnavailableAuditDigest} fail-closed 语义。
  *
  * <p>核心断言:
  * <ul>

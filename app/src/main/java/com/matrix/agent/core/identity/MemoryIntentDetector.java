@@ -1,9 +1,9 @@
 package com.matrix.agent.core.identity;
 
 /**
- * V0.5.4 评审 P1-2:显式语义记忆意图检测器。
+ * 显式语义记忆意图检测器。
  *
- * <p>问题背景:V0.5.3 把 {@code memory.semantic.save} 设计为"仅显式",但只是 prompt 约定
+ * <p>问题背景:此前把 {@code memory.semantic.save} 设计为"仅显式",但只是 prompt 约定
  * (BASE_TEMPLATE 文案 + capability description)——R1_LOW_RISK_WRITE 风险级别允许模型
  * 在任意请求里自由调用。"今天天气怎么样"这种纯查询请求里,模型也能调 save 把无关内容
  * 写进 semantic 表,污染长期记忆。
@@ -13,7 +13,7 @@ package com.matrix.agent.core.identity;
  * 才被标记为 {@code memorySaveAllowed=true}。memory.semantic.save handler 在 false 时
  * 直接 POLICY_REJECTED,模型重试无效——硬 gate,prompt 约定的双重防线。
  *
- * <p>V0.5.4 提供默认实现 {@link KeywordMemoryIntentDetector}——中文关键词匹配。
+ * <p>提供默认实现 {@link KeywordMemoryIntentDetector}——中文关键词匹配。
  * 后续版本可替换为 LLM-based detector(同义词 / 否定 / 多语言),接口签名不变。
  *
  * <p>与 {@link IntentClassifier} 的差异:IntentClassifier 输出 readOnly(查询 vs 写)用于

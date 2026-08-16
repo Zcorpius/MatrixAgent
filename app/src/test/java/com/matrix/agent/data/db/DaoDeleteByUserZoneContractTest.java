@@ -13,14 +13,14 @@ import java.util.Map;
 import org.junit.Test;
 
 /**
- * V0.5.1 Stage 3:3 个 DAO(Trajectory / SessionHistory / MemoryRecord)新增
+ * 3 个 DAO(Trajectory / SessionHistory / MemoryRecord)新增
  * {@code deleteByUserZone(userId, zone)} 契约测试。
  *
  * <p>JVM 路径用 fake in-memory DAO 验证 caller 隔离行为(同 user 不同 zone 不被误删 +
  * 跨 user 不被误删 + 返回值正确);SQL 字符串契约用反射读 {@code @Query} 注解验证。
  *
  * <p>真实 Room SQL 执行(包括 SQL 解析、参数绑定、transaction 原子性)由
- * {@code src/androidTest/DaoDeleteByUserZoneInstrumentedTest} 在 V0.5.1 Stage 5 验证。
+ * {@code src/androidTest/DaoDeleteByUserZoneInstrumentedTest} 验证。
  */
 public final class DaoDeleteByUserZoneContractTest {
 
@@ -85,7 +85,7 @@ public final class DaoDeleteByUserZoneContractTest {
     // ===== 方法签名 + 返回类型契约(反射) =====
     // 注:Room @Query retention = CLASS(非 RUNTIME),反射读不到 SQL 字符串。
     // SQL 字符串本身的契约(含 "userId = :userId AND zone = :zone" 双 WHERE)
-    // 由 Stage 5 androidTest DaoDeleteByUserZoneInstrumentedTest 用真实 Room 验证。
+    // 由 androidTest DaoDeleteByUserZoneInstrumentedTest 用真实 Room 验证。
     // JVM 测试只验证方法存在 + 签名 + 返回类型——防 caller 误改成 deleteByUser 或仅 zone 过滤。
 
     @Test
@@ -104,8 +104,8 @@ public final class DaoDeleteByUserZoneContractTest {
 
     @Test
     public void memoryRecordRetainsLegacyDeleteByUserForCompatibility() throws Exception {
-        // V0.5.0 兼容契约:deleteByUser(String) 保留——账号切换 / 用户擦除场景仍用全量清。
-        // V0.5.1 不删除该方法,只新增 deleteByUserZone。SQL 字符串契约由 Stage 5 androidTest 验证。
+        // 兼容契约:deleteByUser(String) 保留——账号切换 / 用户擦除场景仍用全量清。
+        // 不删除该方法,只新增 deleteByUserZone。SQL 字符串契约由 androidTest 验证。
         Method legacy = MemoryRecordDao.class.getMethod("deleteByUser", String.class);
         assertEquals("deleteByUser 兼容签名返回类型必须 int",
                 int.class, legacy.getReturnType());

@@ -14,12 +14,12 @@ import org.junit.Test;
 import com.matrix.agent.core.identity.CancellationToken;
 
 /**
- * V0.5.2-rev 评审 P2-1:ModelApiClient.complete 5 参重载 + RetryPolicy 新重载契约。
+ * ModelApiClient.complete 5 参重载 + RetryPolicy 新重载契约。
  *
  * <p>ModelApiClient.complete 走真实 HTTP,JVM 单测无法稳定 mock HttpURLConnection。
  * 这里只验证两件事:
  * <ul>
- *   <li>5 参 complete 重载存在(P2-1 契约);旧 3 参仍可用(向后兼容)。</li>
+ *   <li>5 参 complete 重载存在;旧 3 参仍可用(向后兼容)。</li>
  *   <li>RetryPolicy.invokeWithRetry(action, token, deadline) 新重载在 cancel / deadline 场景行为正确——
  *       ModelApiClient 4 个生产入口(complete / callAnthropic / callOpenAi / callGemini)内部
  *       转发到此方法,所以这里直接测 RetryPolicy 等价于测 ModelApiClient 路径。</li>

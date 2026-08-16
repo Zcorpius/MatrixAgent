@@ -5,7 +5,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * V0.4.1 Stage D:用户在 Agent Loop 进行中追加的转向指令。
+ * 用户在 Agent Loop 进行中追加的转向指令。
  *
  * <p>区别于 {@code AgentRequest}(任务级)和 {@code CancellationToken}(终止信号),
  * Steer 是 Loop 内部消费的"运行时干预":

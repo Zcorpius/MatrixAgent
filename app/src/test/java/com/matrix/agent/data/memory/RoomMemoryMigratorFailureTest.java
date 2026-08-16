@@ -15,7 +15,7 @@ import com.matrix.agent.data.db.MemoryRecordDao;
 import com.matrix.agent.data.db.MemoryRecordEntity;
 
 /**
- * V0.5.2 评审 P1-2:RoomMemoryMigrator 失败保留 SP 契约测试。
+ * RoomMemoryMigrator 失败保留 SP 契约测试。
  *
  * <p>评审发现旧实现 per-entry try/catch + 循环外无条件 clear(),单条写入失败仍清空 SP 导致数据丢失。
  * 本测试验证:(1) 任一 upsert 失败 transaction rollback + SP 不清空;(2) 下次启动重试成功;

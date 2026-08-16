@@ -1,11 +1,11 @@
 package com.matrix.agent.core.capability.schema;
 
 /**
- * V0.4.2 Stage B:Schema 校验诊断码。
+ * Schema 校验诊断码。
  *
  * <p>仅作内部诊断——{@link com.matrix.agent.core.policy.PolicyDecision} 仍按
- * {@code PARAMETER} 归类(模型可在剩余预算内换参数重试)。Stage B 不引入新的
- * {@code RejectionType},保持 V0.4.0 二分契约(CAPABILITY 不可上诉 / PARAMETER 可重试)不变。
+ * {@code PARAMETER} 归类(模型可在剩余预算内换参数重试)。不引入新的
+ * {@code RejectionType},保持二分契约(CAPABILITY 不可上诉 / PARAMETER 可重试)不变。
  *
  * <p>覆盖的失败模式:
  * <ul>
@@ -19,7 +19,7 @@ package com.matrix.agent.core.capability.schema;
  *   <li>{@link #CONST_MISMATCH}——const 不匹配</li>
  *   <li>{@link #LENGTH_VIOLATION}——minLength / maxLength 越界</li>
  *   <li>{@link #PATTERN_MISMATCH}——pattern 不匹配</li>
- *   <li>{@link #EMPTY_STRING}——空白字符串(V0.4.0 quirk:trim 后空字符串拒绝)</li>
+ *   <li>{@link #EMPTY_STRING}——空白字符串(quirk:trim 后空字符串拒绝)</li>
  *   <li>{@link #COMPOSITION_FAILED}——allOf/oneOf/anyOf 校验未通过</li>
  *   <li>{@link #NOT_NULL}——非 nullable 节点收到 null</li>
  * </ul>

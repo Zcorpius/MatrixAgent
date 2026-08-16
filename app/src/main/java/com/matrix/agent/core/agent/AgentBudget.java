@@ -1,9 +1,9 @@
 package com.matrix.agent.core.agent;
 
 /**
- * Agent Loop 单任务执行预算。V0.4.0 不引 tokenizer,字符数用 char-based 估算。
+ * Agent Loop 单任务执行预算。不引 tokenizer,字符数用 char-based 估算。
  *
- * <p>第七轮 P2-2 修复:五个维度都必须真正生效,不能仅作为字段/getter 存在。
+ * <p>五个维度都必须真正生效,不能仅作为字段/getter 存在。
  * <ul>
  *   <li>{@code maxIterations} —— AgentEngine 主循环次数上限(超 → MAX_ITERATIONS);</li>
  *   <li>{@code maxToolCalls} —— 累计 ToolCall 总数上限(超 → MAX_TOOL_CALLS);</li>
@@ -25,12 +25,12 @@ public final class AgentBudget {
     public static final int DEFAULT_TOTAL_INPUT_CHARS = 32_000;
     public static final int DEFAULT_MAX_MESSAGE_COUNT = 64;
     /**
-     * V0.5.0 Stage 5:token 维度保守估算系数——1 token ≈ 4 chars(英文)。
+     * token 维度保守估算系数——1 token ≈ 4 chars(英文)。
      * 中文 token 数会更高(每个汉字 ≈ 1-2 token),用 char/4 是下限,避免误拒。
-     * V0.5.1 切 JtokkitTokenizer 后此系数退役。
+     * 切 JtokkitTokenizer 后此系数退役。
      */
     public static final int CHAR_PER_TOKEN_FALLBACK = 4;
-    /** V0.5.0 Stage 5:assistant 单轮 token 上限——V0.5.1 切 token 时 enforcement 接入。 */
+    /** assistant 单轮 token 上限——切 token 时 enforcement 接入。 */
     public static final int DEFAULT_MAX_ASSISTANT_TOKENS = 1_024;
 
     private final int maxIterations;
@@ -40,10 +40,10 @@ public final class AgentBudget {
     private final int totalInputChars;
     private final int maxMessageCount;
     /**
-     * V0.5.2 Stage 3a:token 维度字段——V0.5.0/V0.5.1 是 char/4 估算的派生值;
-     * V0.5.3 切真实 jtokkit token 时由新构造器显式注入。
+     * token 维度字段——此前是 char/4 估算的派生值;
+     * 切真实 jtokkit token 时由新构造器显式注入。
      *
-     * <p>主路径(appendMessageWithBudget)仍用 char——字段先落地,决策切换留 V0.5.3。
+     * <p>主路径(appendMessageWithBudget)仍用 char——字段先落地,决策切换留待后续。
      */
     private final int maxMessageTokens;
     private final int totalInputTokens;
@@ -70,10 +70,10 @@ public final class AgentBudget {
     }
 
     /**
-     * V0.5.2 Stage 3a:9 参构造器——显式传 token 维度(V0.5.3 切真实 jtokkit token 用)。
+     * 9 参构造器——显式传 token 维度(切真实 jtokkit token 用)。
      *
-     * <p>V0.5.2 不调用本构造器——主路径仍走 6 参构造器(char/4 估算)。
-     * V0.5.3 切换时 AppContainer 用真实 jtokkit 估算 prompt token,通过本构造器注入。
+     * <p>当前不调用本构造器——主路径仍走 6 参构造器(char/4 估算)。
+     * 切换时 AppContainer 用真实 jtokkit 估算 prompt token,通过本构造器注入。
      */
     public AgentBudget(int maxIterations, int maxToolCalls, long totalDeadlineMillis,
             int maxMessageChars, int totalInputChars, int maxMessageCount,
@@ -106,7 +106,7 @@ public final class AgentBudget {
     public int getMaxMessageCount() { return maxMessageCount; }
 
     /**
-     * V0.5.2 Stage 3a:读字段(而非每次 char/4 估算)——V0.5.3 切真实 jtokkit token 时
+     * 读字段(而非每次 char/4 估算)——切真实 jtokkit token 时
      * 字段值由 9 参构造器显式注入。
      */
     public int getMaxMessageTokens() {

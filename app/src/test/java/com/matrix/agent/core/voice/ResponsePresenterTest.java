@@ -19,7 +19,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 /**
- * {@link ResponsePresenter} 测试。Voice V1。
+ * {@link ResponsePresenter} 测试。
  *
  * <p>话术映射 + 隐私底线(PII 标记注入,断言不进 TTS)+ 截断。
  */

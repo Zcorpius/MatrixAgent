@@ -24,7 +24,7 @@ import com.matrix.agent.data.db.MemoryRecordDao;
 import com.matrix.agent.data.db.MemoryRecordEntity;
 
 /**
- * V0.5.2 Stage 2:RoomMemoryStore 真实 Room _Impl.java SQL 验证(in-memory,不走 SQLCipher)。
+ * RoomMemoryStore 真实 Room _Impl.java SQL 验证(in-memory,不走 SQLCipher)。
  *
  * <p>JVM 契约测试 {@code RoomMemoryStoreTest} 用 fake DAO 验证 caller 行为;
  * 真实 SQL / Transaction 隔离 / Room runInTransaction 在 emulator 上首次跑通由本类负责。

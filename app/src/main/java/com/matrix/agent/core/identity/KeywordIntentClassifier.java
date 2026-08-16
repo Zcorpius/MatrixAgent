@@ -6,7 +6,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 /**
- * V0.4.3 Round 3 P1.1:基于关键词的查询/写意图分类器(默认实现)。
+ * 基于关键词的查询/写意图分类器(默认实现)。
  *
  * <p>规则(保守,未知按写处理):
  * <ol>
@@ -17,7 +17,7 @@ import java.util.Set;
  * </ol>
  *
  * <p>关键词集合保守——只把语义清晰的中文动词纳入,英文只接受 capability 名字常见的
- * get/set/open/close。粗粒度匹配,容许 LLM 决策后 task-level hint 进一步细化(V0.5.0)。
+ * get/set/open/close。粗粒度匹配,容许 LLM 决策后 task-level hint 进一步细化。
  */
 public final class KeywordIntentClassifier implements IntentClassifier {
     public static final KeywordIntentClassifier INSTANCE = new KeywordIntentClassifier();
@@ -58,7 +58,7 @@ public final class KeywordIntentClassifier implements IntentClassifier {
     }
 
     /**
-     * V0.5.2 Stage 9:结构化分类——规则命中 confidence=1.0;模糊(同时含读/写 / 都不含)confidence=0.5。
+     * 结构化分类——规则命中 confidence=1.0;模糊(同时含读/写 / 都不含)confidence=0.5。
      *
      * <p>规则与 {@link #isReadOnly} 一致;reason 描述命中状态(用于审计 / 日志,不含 PII)。
      */

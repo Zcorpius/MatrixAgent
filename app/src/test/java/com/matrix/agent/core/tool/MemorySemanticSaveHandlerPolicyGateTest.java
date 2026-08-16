@@ -17,7 +17,7 @@ import com.matrix.agent.core.identity.VehicleZone;
 import com.matrix.agent.core.memory.InMemoryMemoryStore;
 
 /**
- * V0.5.4 评审 P1-2:验证 MockCapabilityProvider.MemorySemanticSaveHandler 的 POLICY_REJECTED gate。
+ * 验证 MockCapabilityProvider.MemorySemanticSaveHandler 的 POLICY_REJECTED gate。
  *
  * <p>用户硬约束——"长期记忆仅由用户决定"。handler 在 request.isMemorySaveAllowed()=false 时
  * 直接返回 POLICY_REJECTED,writeSemantic 不被调用(双重防线:prompt 约定 + 硬 gate)。

@@ -18,7 +18,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.junit.Test;
 
 /**
- * V0.4.1 Stage E:TaskScheduler 主驾优先抢占测试。
+ * TaskScheduler 主驾优先抢占测试。
  *
  * <p>4 个验证点:
  * <ol>
@@ -57,7 +57,7 @@ public final class TaskSchedulerTest {
                 } catch (InterruptedException ignored) {
                     Thread.currentThread().interrupt();
                 }
-                // V0.4.3 Round 2:真实 AgentEngine 路径下,token 被 cancel 后 Engine 返回
+                // 真实 AgentEngine 路径下,token 被 cancel 后 Engine 返回
                 // CANCELLED+CANCELLED;Scheduler 内部 remapIfPreempted 把它转 PREEMPTED+PREEMPTED。
                 // 测试 runner 简化为只返回 CANCELLED+CANCELLED,验证 Scheduler 重映射。
                 passengerOutcome.set(makeOutcome(req,
@@ -133,7 +133,7 @@ public final class TaskSchedulerTest {
             CountDownLatch driverStarted = new CountDownLatch(1);
             AtomicReference<Long> driverStartMillis = new AtomicReference<>();
             TaskScheduler.TaskRunner driverRunner = req -> {
-                // V0.5.1 Stage 1:先 set 再 countDown——保证主线程 await 返回时
+                // 先 set 再 countDown——保证主线程 await 返回时
                 // driverStartMillis 已写入,消除 L154 拆箱 NPE race。
                 driverStartMillis.set(System.currentTimeMillis());
                 driverStarted.countDown();

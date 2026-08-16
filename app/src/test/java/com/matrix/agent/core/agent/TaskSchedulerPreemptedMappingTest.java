@@ -17,11 +17,11 @@ import com.matrix.agent.core.identity.CancellationToken;
 import com.matrix.agent.core.session.SessionLockManager;
 
 /**
- * V0.4.3 Round 2:TaskScheduler PREEMPTED 重映射单元测试。
+ * TaskScheduler PREEMPTED 重映射单元测试。
  *
- * <p>P1.2 修复:Scheduler.tryPreemptPassengerReadOnly 自己 cancel 的 task,
+ * <p>Scheduler.tryPreemptPassengerReadOnly 自己 cancel 的 task,
  * runner 返回 CANCELLED+CANCELLED 后由 Scheduler.remapIfPreempted 重写为
- * StopReason.PREEMPTED + TaskState.PREEMPTED。V0.4.1 旧契约把映射责任推给调用方,
+ * StopReason.PREEMPTED + TaskState.PREEMPTED。旧契约把映射责任推给调用方,
  * 生产路径下 Repository 没做这层映射,导致终态永远是 CANCELLED+CANCELLED。
  */
 public final class TaskSchedulerPreemptedMappingTest {

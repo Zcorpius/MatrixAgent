@@ -5,7 +5,7 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * Agent Loop 整体轨迹。V0.4.0 内存态,V0.5.0 加 Room/WAL 持久化和加密。
+ * Agent Loop 整体轨迹。早期为纯内存态,后续加 Room/WAL 持久化和加密。
  * Trajectory 中所有 observation 字段必须在落结构化字段前经 {@link AuditRedactor} 字段级脱敏
  * (审计侧);conversation 喂回模型时走 {@link ModelSanitizer} 保留任务语义。
  */
@@ -39,7 +39,7 @@ public final class Trajectory {
     }
 
     /**
-     * 第四轮评审 P1:受控的终态重映射——把已 finish 的 stopReason 覆盖为新值,
+     * 受控的终态重映射——把已 finish 的 stopReason 覆盖为新值,
      * 保留 iterations / startedAtMillis / durationMillis / totalToolCalls 不变。
      *
      * <p>仅用于 Scheduler 抢占路径:Engine 在 token.cancel 后用 CANCELLED finish trajectory,

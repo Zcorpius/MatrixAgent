@@ -27,12 +27,12 @@ public final class ModelApiViewModel extends ViewModel {
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private final MutableLiveData<ModelUiState> uiState = new MutableLiveData<>();
     private final AtomicLong operationSequence = new AtomicLong();
-    // P2-21: drafts 是内存表内切换草稿（非持久化）。process death 后仅 saved config（configStore.load）可恢复。
+    // drafts 是内存表内切换草稿（非持久化）。process death 后仅 saved config（configStore.load）可恢复。
     // 持久化跨 process death 的草稿需 SavedStateHandle（留后续）。
     private final Map<String, ModelConfig> drafts = new HashMap<>();
     private Future<?> activeFuture;
     /**
-     * V0.5.3 评审 P1-3:MemoryStore 降级标志——从 AppContainer 透传,所有 UiState 更新携带。
+     * MemoryStore 降级标志——从 AppContainer 透传,所有 UiState 更新携带。
      * UI 显示 banner 提醒用户"记忆已降级,重启后丢失"。
      */
     private final boolean memoryDegraded;
@@ -42,7 +42,7 @@ public final class ModelApiViewModel extends ViewModel {
         this(runtimeRepository, modelRepository, false);
     }
 
-    /** V0.5.3 P1-3:3 参构造器,MatrixViewModelFactory 透传 AppContainer.isMemoryDegraded()。 */
+    /** 3 参构造器,MatrixViewModelFactory 透传 AppContainer.isMemoryDegraded()。 */
     public ModelApiViewModel(AgentRuntimeRepository runtimeRepository,
             ModelGatewayRepository modelRepository, boolean memoryDegraded) {
         this.runtimeRepository = runtimeRepository;
@@ -58,7 +58,7 @@ public final class ModelApiViewModel extends ViewModel {
         }
     }
 
-    /** V0.5.3 P1-3:统一 UiState 更新入口,自动透传 memoryDegraded(避免 6 处 new ModelUiState 重复)。 */
+    /** 统一 UiState 更新入口,自动透传 memoryDegraded(避免 6 处 new ModelUiState 重复)。 */
     private void updateUiState(boolean loading, String status) {
         uiState.setValue(new ModelUiState(loading, status, memoryDegraded));
     }
@@ -113,13 +113,13 @@ public final class ModelApiViewModel extends ViewModel {
         long operationId = beginOperation("正在加密保存配置…");
         activeFuture = executor.submit(() -> {
             try {
-                // P1: 先验证 gateway 可创建（端侧会 load 模型），成功后再落盘——避免"存了但加载失败"的分裂
+                // 先验证 gateway 可创建（端侧会 load 模型），成功后再落盘——避免"存了但加载失败"的分裂
                 com.matrix.agent.core.agent.ModelGateway gateway =
                         modelRepository.createModelGateway(config);
                 modelRepository.save(config);
                 runtimeRepository.setModelGateway(gateway,
                         modelRepository.displayName(config));
-                // V0.5.2-rev 评审 P2-2:Gateway 与 IntentClassifier 同步切换——
+                // Gateway 与 IntentClassifier 同步切换——
                 // 旧实现只更 Gateway,IntentClassifier 维持启动时配置,意图分类仍用旧 Provider / Keyword。
                 runtimeRepository.setIntentClassifier(modelRepository.buildIntentClassifier(config));
                 postIfCurrent(operationId,
@@ -134,7 +134,7 @@ public final class ModelApiViewModel extends ViewModel {
         operationSequence.incrementAndGet();
         cancelActiveOperation();
         runtimeRepository.setModelGateway(modelRepository.createDemoGateway(), "离线 DemoModelGateway");
-        // V0.5.2-rev 评审 P2-2:Demo 路径回退 Keyword,确保切回离线时 LLM 不再被调用。
+        // Demo 路径回退 Keyword,确保切回离线时 LLM 不再被调用。
         runtimeRepository.setIntentClassifier(modelRepository.buildKeywordClassifier());
         updateUiState(false, "已切换：" + runtimeRepository.getActiveModelGateway());
     }

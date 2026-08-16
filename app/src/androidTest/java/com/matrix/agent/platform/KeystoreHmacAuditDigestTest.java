@@ -16,7 +16,7 @@ import java.security.KeyStore;
 import java.util.regex.Pattern;
 
 /**
- * V0.5.1 Stage 6.2:KeystoreHmacAuditDigest 真路径验证——首次在 emulator 上跑通
+ * KeystoreHmacAuditDigest 真路径验证——首次在 emulator 上跑通
  * AndroidKeyStore HMAC-SHA-256 派生密钥链路。
  *
  * <p>JVM 测试 ({@code HmacAuditDigestTest}) 通过包私有构造器用 in-memory key 验证算法行为;

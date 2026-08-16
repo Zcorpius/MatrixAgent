@@ -57,7 +57,7 @@ public final class AgentTestFragment extends Fragment {
 
         actorSpinner.setAdapter(new ArrayAdapter<>(requireContext(),
                 android.R.layout.simple_spinner_dropdown_item, new String[]{"主驾", "副驾"}));
-        // V0.4.3 Round 3 P2:gear Spinner 让 demo 可手动切档位,验证 PARKED_ONLY 等约束生效。
+        // gear Spinner 让 demo 可手动切档位,验证 PARKED_ONLY 等约束生效。
         // P 当选:demo 启动默认 gear=P(满足所有 predicate);切到 D 后 climate 写 CAPABILITY 拒绝。
         ArrayAdapter<String> gearAdapter = new ArrayAdapter<>(requireContext(),
                 android.R.layout.simple_spinner_dropdown_item, new String[]{"P (驻车)", "R (倒车)", "N (空挡)", "D (前进)"});

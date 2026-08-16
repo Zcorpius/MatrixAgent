@@ -9,14 +9,14 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 /**
- * V0.4.2 Stage C:把 {@link CanonicalSchema} 投影到目标 provider JSON Schema。
+ * 把 {@link CanonicalSchema} 投影到目标 provider JSON Schema。
  *
- * <p>取代 V0.4.0 {@code ModelApiClient.toOpenAiTool / toAnthropicTool} 内部两段重复
+ * <p>取代 {@code ModelApiClient.toOpenAiTool / toAnthropicTool} 内部两段重复
  * 的手写 JSON——所有 schema 节点统一走本 writer,降级策略集中在 {@link SchemaProjectionConfig}。
  *
  * <h3>OpenAI strict 兼容降级</h3>
  * <ul>
- *   <li>$ref——V0.4.2 build 时已 eager inline,write 时永不出现</li>
+ *   <li>$ref——build 时已 eager inline,write 时永不出现</li>
  *   <li>required 自动补全:未显式 required 的 property 自动加入 required 数组</li>
  *   <li>additionalProperties 强制 false(所有 OBJECT)</li>
  *   <li>anyOf 仅允许简单类型并集(STRING/INTEGER/NUMBER/BOOLEAN),其他抛
@@ -27,7 +27,7 @@ import org.json.JSONObject;
  * </ul>
  *
  * <h3>Anthropic Full</h3>
- * 完整 JSON Schema 2020-12,无降级。$defs 在 V0.4.2 build 后已被清空,
+ * 完整 JSON Schema 2020-12,无降级。$defs 在 build 后已被清空,
  * $ref 已 inline——ANTHROPIC_FULL 输出的是内联 tree。
  *
  * <p>线程安全:无状态。

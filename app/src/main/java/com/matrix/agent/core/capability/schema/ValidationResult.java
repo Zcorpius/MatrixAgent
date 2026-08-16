@@ -5,7 +5,7 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * V0.4.2 Stage B:Schema 校验结果。不可变。
+ * Schema 校验结果。不可变。
  *
  * <p>{@link #isOk()} 为 true 时 {@link #getErrors()} 必空;为 false 时 errors 至少 1 条。
  * 校验遇到第一层致命错误时即返回(short-circuit),但嵌套层级会聚合到一个结果——

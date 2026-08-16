@@ -13,9 +13,9 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * V0.5.2 Stage 2:Room-backed MemoryStore 主路径实现。
+ * Room-backed MemoryStore 主路径实现。
  *
- * <p>替换 V0.4.3 {@link com.matrix.agent.platform.SharedPreferencesMemoryStore} 二元组存储,
+ * <p>替换旧版 {@link com.matrix.agent.platform.SharedPreferencesMemoryStore} 二元组存储,
  * 把 preference 数据搬到 memory_record 表(layer="preference"),与 SQLCipher 加密 + 4 表原子
  * clearUserData 协同。
  *
@@ -24,9 +24,9 @@ import java.util.concurrent.atomic.AtomicLong;
  *   <li>epoch 持久化到特殊行 ({@code __system__}/__system__/preference/__epoch__),与
  *       preference 行同表同层,跨进程重启不丢——与 SP EPOCH_KEY 语义对齐。</li>
  *   <li>历史 zone-less preference 的 zone 默认 "global"(与 {@link com.matrix.agent.core.memory.MemoryScope#ofLegacy}
- *       语义对齐;真正 zone 维度隔离留 V0.5.3)。</li>
+ *       语义对齐;真正 zone 维度隔离留后续版本)。</li>
  *   <li>{@code synchronized(lock)} 保护"epoch 校验 + 写数据"复合操作,与 SP 实现同款 check-then-act
- *       race 修复(评审第十轮 P1)。</li>
+ *       race 修复。</li>
  *   <li>{@link #clearUserDataAndBump(String, String)} 走 {@link TransactionRunner}(生产装配
  *       {@code database::runInTransaction})——bumpEpoch + delete×2 在同一 Room transaction
  *       原子完成,失败回滚 epoch + 抛异常反馈上层。</li>

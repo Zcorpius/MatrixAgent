@@ -6,7 +6,7 @@ import static org.junit.Assert.assertTrue;
 import org.junit.Test;
 
 /**
- * V0.4.2 Stage D:VehicleStatePredicate 单元测试。
+ * VehicleStatePredicate 单元测试。
  *
  * <p>每个 predicate 覆盖满足 / 不满足两种情况,确保 PolicyEngine 调用前行为已校准。
  */

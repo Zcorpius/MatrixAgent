@@ -9,9 +9,9 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * V0.4.2 Stage A:不可变 JSON Schema 2020-12 子集表示。
+ * 不可变 JSON Schema 2020-12 子集表示。
  *
- * <p>单一类递归设计(不引入 ArraySchema/ObjectSchema 子类型),与 V0.4.0
+ * <p>单一类递归设计(不引入 ArraySchema/ObjectSchema 子类型),与旧版
  * {@code ToolParameterDefinition} 风格最小迁移——所有 schema 节点共用一套字段,
  * 由 {@link SchemaType} + 字段是否非 null 区分实际形态。
  *
@@ -21,7 +21,7 @@ import java.util.Set;
  *   <li>枚举与常量:{@code enum}、{@code const}</li>
  *   <li>数值约束:{@code minimum} / {@code maximum} / {@code exclusiveMinimum} / {@code exclusiveMaximum}</li>
  *   <li>字符串约束:{@code minLength} / {@code maxLength} / {@code pattern}</li>
- *   <li>数组:{@code items}(子 schema,V0.4.2 暂不实现 minItems/maxItems)</li>
+ *   <li>数组:{@code items}(子 schema,暂不实现 minItems/maxItems)</li>
  *   <li>对象:{@code properties} / {@code required} / {@code additionalProperties}(默认 false)</li>
  *   <li>组合:{@code allOf} / {@code oneOf} / {@code anyOf}</li>
  *   <li>引用:{@code $ref}(局部 {@code #/$defs/Name} 形式)+ {@code $defs}(顶层独占)</li>
@@ -41,7 +41,7 @@ import java.util.Set;
  *   <li><b>局部引用</b>:仅支持 {@code #/$defs/Name} 形式,不支持外部 URI 引用。</li>
  *   <li><b>循环检测</b>:build 时 DFS,发现 back-edge 抛 {@link SchemaException}。</li>
  *   <li><b>$ref 与 sibling 互斥</b>:JSON Schema 2020-12 允许 {@code $ref + type + properties}
- *       同级,V0.4.2 拒绝(匹配 OpenAI strict 限制,简化语义)。</li>
+ *       同级,拒绝(匹配 OpenAI strict 限制,简化语义)。</li>
  * </ul>
  *
  * <p>线程安全:不可变,所有可变集合字段防御性拷贝后用 {@link Collections#unmodifiableXxx} 包裹。
@@ -309,10 +309,10 @@ public final class CanonicalSchema {
             }
             // 子 schema 上设置 $defs 是错误——只有顶层 schema 允许
             // (顶层 = 通过 CanonicalSchema.object()/array()/...etc 直接 build 的)
-            // $defs 在子 schema 上无意义,Stage A 通过 $defs 在子 schema build 时清空判断
+            // $defs 在子 schema 上无意义,通过 $defs 在子 schema build 时清空判断
             // 这里不强制顶层判定(无 runtime 标记),改为:任何 schema 都可以有 $defs,
             // 但若同时是 $ref 节点则已清空。语义上 $defs 只对最外层调用方有意义,
-            // 由调用方自律。Stage B validator 不依赖此约束。
+            // 由调用方自律。validator 不依赖此约束。
             if (!enumValues.isEmpty() && constValue != null) {
                 throw new SchemaException("enum 与 const 互斥");
             }
@@ -335,7 +335,7 @@ public final class CanonicalSchema {
         /**
          * DFS 循环检测——遇到 back-edge 抛 SchemaException。
          *
-         * <p>V0.4.3 Stage E 修复:properties/items/allOf/oneOf/anyOf 是兄弟节点,
+         * <p>properties/items/allOf/oneOf/anyOf 是兄弟节点,
          * 它们各自递归时必须 copy 当前 visited 快照,而不是共享同一集合——
          * 否则两个兄弟 property 引用同一 {@code $defs/Address} 时,第二个会被误判 cycle。
          */

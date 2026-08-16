@@ -25,7 +25,7 @@ import org.junit.runner.RunWith;
 import java.util.List;
 
 /**
- * V0.5.1 Stage 6.2:RoomAuditRepository.clearByUserZone 真路径验证(inMemory,不走 SQLCipher)。
+ * RoomAuditRepository.clearByUserZone 真路径验证(inMemory,不走 SQLCipher)。
  *
  * <p>覆盖:
  * <ul>
@@ -33,7 +33,7 @@ import java.util.List;
  *   <li>跨用户 / 跨 zone 隔离:其他 user / 其他 zone 数据保留。</li>
  * </ul>
  *
- * <p>ViewModel clearData UI 行为不在 instrumented 覆盖——V0.5.0 第十一轮已 JVM 测试,
+ * <p>ViewModel clearData UI 行为不在 instrumented 覆盖——已 JVM 测试,
  * 这里聚焦"Room Audit 数据真被删"端到端验证。
  */
 @RunWith(AndroidJUnit4.class)
@@ -131,7 +131,7 @@ public final class RoomAuditRepositoryClearByUserZoneInstrumentedTest {
     @Test
     public void clearByUserZoneFailClosedOnNullArgs() {
         RoomAuditRepository repo = new RoomAuditRepository(db, trajectoryDao, sessionDao, memoryDao);
-        // null userId / zone 不应抛,但 V0.5.1 Stage 6 P1.2 必须返回 FAILURE
+        // null userId / zone 不应抛,但必须返回 FAILURE
         ClearOutcome nullUser = repo.clearByUserZone(null, "DRIVER");
         assertEquals("null userId 必须返回 FAILURE",
                 ClearOutcome.Status.FAILURE, nullUser.getStatus());
@@ -142,7 +142,7 @@ public final class RoomAuditRepositoryClearByUserZoneInstrumentedTest {
 
     @Test
     public void singleArgConstructorClearsTrajectoryOnly() {
-        // V0.5.0 兼容路径——单参构造器无 database,只删 trajectory 表
+        // 旧版兼容路径——单参构造器无 database,只删 trajectory 表
         RoomAuditRepository repo = new RoomAuditRepository(trajectoryDao);
         trajectoryDao.insert(newTrajectory("r1", "demo-driver", "DRIVER"));
         sessionDao.insert(newSession("demo-driver", "DRIVER", "s1", 100L));
@@ -153,7 +153,7 @@ public final class RoomAuditRepositoryClearByUserZoneInstrumentedTest {
         assertTrue("trajectory driver zone 应清空",
                 trajectoryDao.queryBySessionScoped(
                         "demo-driver", "DRIVER", "s1", 10).isEmpty());
-        // session_history 在单参路径下未删——V0.5.0 兼容(测试断言此契约)
+        // session_history 在单参路径下未删——旧版兼容(测试断言此契约)
         assertEquals("session_history 在单参构造下不参与清理", 1,
                 sessionDao.queryByUserZone("demo-driver", "DRIVER", 10).size());
     }

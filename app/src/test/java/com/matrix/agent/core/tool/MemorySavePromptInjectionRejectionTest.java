@@ -15,11 +15,11 @@ import com.matrix.agent.core.identity.AgentRequest;
 import com.matrix.agent.core.memory.InMemoryMemoryStore;
 
 /**
- * V0.5.4 评审 P1-2:模拟提示注入场景——用户命令是纯查询("查天气"),模型仍尝试调
+ * 模拟提示注入场景——用户命令是纯查询("查天气"),模型仍尝试调
  * memory.semantic.save(可能被恶意网页/上下文诱导)。Detector 未命中关键词 →
  * memorySaveAllowed=false → handler 直接 POLICY_REJECTED,writeSemantic 不被调。
  *
- * <p>这是 P1-2 的核心安全语义:prompt 约定(BASE_TEMPLATE 文案 + capability description)
+ * <p>这是核心安全语义:prompt 约定(BASE_TEMPLATE 文案 + capability description)
  * 不再是唯一防线——即便模型被诱导调用,硬 gate 也守住。DUAL-DEFENSE(prompt + code)。
  */
 public final class MemorySavePromptInjectionRejectionTest {

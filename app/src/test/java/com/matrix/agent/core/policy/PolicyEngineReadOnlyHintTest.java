@@ -16,14 +16,14 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * V0.4.3 Round 4 P1:PolicyEngine 必须用 readOnlyHint 强制拒绝写 capability。
+ * PolicyEngine 必须用 readOnlyHint 强制拒绝写 capability。
  *
  * <p>IntentClassifier 在 LLM 调用前给 readOnlyHint 做保守分类,让 TaskScheduler 主驾抢占可触达。
  * 但模型输出不可信——LLM 错误或 prompt injection 后,可能对"查一下空调状态"等查询命令返回
  * climate.set_temperature 等写 capability。若 PolicyEngine 不强制,任务级 readOnlyHint=true
  * 的"被抢占查询任务"实际跑写操作,半路被 cancel 时违反"写操作不可半路中断"的安全契约。
  *
- * <p>Round 4 修复:readOnlyHint=true 时,所有 writeOperation=true 的 capability 一律 CAPABILITY
+ * <p>修复:readOnlyHint=true 时,所有 writeOperation=true 的 capability 一律 CAPABILITY
  * 拒绝(不可上诉)。误判代价最多是"查询任务失败",不会放出或中断写车控。
  */
 public final class PolicyEngineReadOnlyHintTest {

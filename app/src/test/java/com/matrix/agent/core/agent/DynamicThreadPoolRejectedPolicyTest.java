@@ -12,9 +12,9 @@ import java.util.concurrent.TimeUnit;
 import org.junit.Test;
 
 /**
- * V0.5.2 评审 P1-1:DynamicThreadPool RejectedExecutionHandler 构造器契约测试。
+ * DynamicThreadPool RejectedExecutionHandler 构造器契约测试。
  *
- * <p>评审发现 Stage 11 共享池嵌套等待死锁——三 executor 共享一个 DynamicThreadPool,
+ * <p>评审发现共享池嵌套等待死锁——三 executor 共享一个 DynamicThreadPool,
  * Scheduler 占线程等 model/tool 子任务,子任务在同池排队。改用两个独立池 + 显式拒绝策略。
  *
  * <p>本测试验证:

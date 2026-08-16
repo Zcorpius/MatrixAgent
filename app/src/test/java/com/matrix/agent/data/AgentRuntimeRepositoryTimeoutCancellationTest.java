@@ -32,9 +32,9 @@ import com.matrix.agent.core.tool.MockCapabilityProvider;
 import com.matrix.agent.core.tool.ToolExecutor;
 
 /**
- * V0.4.3 Round 2:验证 Repository 超时后主动取消后台 task。
+ * 验证 Repository 超时后主动取消后台 task。
  *
- * <p>P1.3 修复:旧实现 Repository.execute 在 scheduler.future.get(timeout) 抛 TimeoutException 后
+ * <p>修复:旧实现 Repository.execute 在 scheduler.future.get(timeout) 抛 TimeoutException 后
  * 仅返回 TIMED_OUT outcome,但 token / future 都没 cancel——scheduler worker 仍在跑,
  * 真实车控 Provider 会继续执行不可逆操作。新实现先 token.cancel()(逻辑取消 + abortHook)
  * 再 future.cancel(true)(中断 worker),最后返回 TIMED_OUT outcome。

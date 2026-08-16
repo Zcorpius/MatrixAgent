@@ -19,7 +19,7 @@ import org.junit.runner.RunWith;
 import com.matrix.agent.data.db.MatrixDatabase;
 
 /**
- * V0.5.3 评审 P1-1:RoomMemoryWriter 真实 Room _Impl.java SQL 验证
+ * RoomMemoryWriter 真实 Room _Impl.java SQL 验证
  * (in-memory,不走 SQLCipher)。
  *
  * <p>JVM 契约测试 {@code RoomMemoryWriterEpisodicTest} 用 fake DAO 验证 caller 行为;
@@ -34,7 +34,7 @@ import com.matrix.agent.data.db.MatrixDatabase;
  *   <li>userId/zone 隔离:不同 (user, zone) 同 key 互不影响。</li>
  * </ul>
  *
- * <p>V0.5.4 评审 P1-1:writeSemantic 接口加 requestEpoch 参数。RoomMemoryWriter 第 4 参
+ * <p>writeSemantic 接口加 requestEpoch 参数。RoomMemoryWriter 第 4 参
  * 是 {@link RoomMemoryStore.TransactionRunner},androidTest 传 {@code db::runInTransaction}
  * (真实 Room 事务)。默认 __system__ epoch 行不存在 → readEpochFromSystemRow=0,
  * requestEpoch=0 → 写入成功。

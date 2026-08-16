@@ -3,7 +3,7 @@ package com.matrix.agent.core.tool;
 import java.util.function.Function;
 
 /**
- * V0.4.3 Stage D:回读字段 verify 策略——{@link com.matrix.agent.core.capability.VerifyMethod#READBACK_FIELD}
+ * 回读字段 verify 策略——{@link com.matrix.agent.core.capability.VerifyMethod#READBACK_FIELD}
  * 对应实现。
  *
  * <p>对应 capability:vehicle.climate.set_temperature / vehicle.seat.set_heating_level /

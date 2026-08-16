@@ -22,9 +22,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * V0.5.2 Stage 4 / Stage 7:audit_event 增量事件落库——PRE_TOOL / POST_TOOL / POLICY / STEER。
+ * audit_event 增量事件落库——PRE_TOOL / POST_TOOL / POLICY / STEER。
  *
- * <p>AgentEngine 5 个出口点调用本类(fire-and-forget 异步 insert),与 V0.5.0 auditRepository.persist
+ * <p>AgentEngine 5 个出口点调用本类(fire-and-forget 异步 insert),与旧版 auditRepository.persist
  * (走 TrajectoryEntity 同步落库)协同——audit_event 表记录 per-event 增量,trajectory 表记录
  * 完整 iteration。
  *
@@ -35,22 +35,22 @@ import java.util.concurrent.atomic.AtomicLong;
  * <p><b>NOOP 单例</b>:Dao 为 null 时退化为 {@link #NOOP}(AppContainer.createAuditEventRecorderSafely
  * 失败时 fallback);所有 recordXxx 方法 null-safe。
  *
- * <p><b>V0.5.2 Stage 7 batch 升级</b>:生产构造器 {@link #AuditEventRecorder(AuditEventDao)}
+ * <p><b>batch 升级</b>:生产构造器 {@link #AuditEventRecorder(AuditEventDao)}
  * 启动 daemon {@link ScheduledExecutorService},每 {@value #BATCH_FLUSH_INTERVAL_MS}ms 调
  * {@link #drainAndFlush()} 把 {@link #pending} 队列批量落库;{@link #flushSync()} 直接同步
  * drain + insert(线程安全,与 scheduler 并发安全——{@link ConcurrentLinkedQueue#poll()} 单消费语义)。
  * 队列上限 {@value #QUEUE_CAP},溢出时丢最老 PRE_TOOL(POST_TOOL/POLICY/STEER 优先保留——
  * 后两者含审计关键信号)。测试构造器 {@link #AuditEventRecorder(AuditEventDao, ExecutorService)}
- * 仍走"每条独立 submit"语义,Stage 4 单测零回归。
+ * 仍走"每条独立 submit"语义,单测零回归。
  */
 public final class AuditEventRecorder {
     private static final String TAG = "MatrixAgent";
 
-    /** V0.5.2 Stage 7 batch 单次 flush 上限——避免 scheduler tick 拖过长。 */
+    /** batch 单次 flush 上限——避免 scheduler tick 拖过长。 */
     static final int BATCH_SIZE = 50;
-    /** V0.5.2 Stage 7 batch 触发周期——200ms 一次 drainAndFlush,保证延迟可观测。 */
+    /** batch 触发周期——200ms 一次 drainAndFlush,保证延迟可观测。 */
     static final long BATCH_FLUSH_INTERVAL_MS = 200L;
-    /** V0.5.2 Stage 7 队列上限——超过则丢最老 PRE_TOOL,POST_TOOL/POLICY/STEER 优先保留。 */
+    /** 队列上限——超过则丢最老 PRE_TOOL,POST_TOOL/POLICY/STEER 优先保留。 */
     static final int QUEUE_CAP = 500;
 
     /**
@@ -69,14 +69,14 @@ public final class AuditEventRecorder {
     private final AtomicLong dropped = new AtomicLong();
     private final AtomicLong queueOverflowDropped = new AtomicLong();
     /**
-     * V0.5.2 评审 P1-3:全局 stale epoch gate。Repository.clearUserDataDetailed 自增 epoch 后
+     * 全局 stale epoch gate。Repository.clearUserDataDetailed 自增 epoch 后
      * 调 advanceEpoch(newEpoch),所有 happenedAtMs < newEpoch 的事件被 drop。
      *
      * <p>默认 0 表示未启用——只有 Repository 显式 advance 过才生效。
      */
     private volatile long staleEpoch = 0L;
     /**
-     * V0.5.2 评审 P1-3:per-(userId+zone) stale epoch gate。
+     * per-(userId+zone) stale epoch gate。
      *
      * <p>dropByUserZone(userId, zone, staleEpochHint) 加 entry;后续 record() 时如果
      * entity.userId+zone 命中且 happenedAtMs < hint → drop。比全局 staleEpoch 更精确,
@@ -106,7 +106,7 @@ public final class AuditEventRecorder {
 
     /**
      * 测试用——注入自定义 Executor(同步 Executor 验证 fail-open / 顺序);batch 关闭,
-     * 每条 recordXxx 直接提交一条 insert Runnable,Stage 4 单测零回归。
+     * 每条 recordXxx 直接提交一条 insert Runnable,单测零回归。
      */
     public AuditEventRecorder(AuditEventDao dao, ExecutorService executor) {
         this.dao = dao;
@@ -117,7 +117,7 @@ public final class AuditEventRecorder {
         this.running = false;
     }
 
-    /** V0.5.2 Stage 7:scheduler 周期触发——drain 整个 pending 一次性 flush(单次上限 BATCH_SIZE*4)。 */
+    /** scheduler 周期触发——drain 整个 pending 一次性 flush(单次上限 BATCH_SIZE*4)。 */
     private void scheduledFlush() {
         if (!running) return;
         try {
@@ -130,7 +130,7 @@ public final class AuditEventRecorder {
     }
 
     /**
-     * V0.5.2 Stage 7:drain pending 队列并 batch insert。
+     * drain pending 队列并 batch insert。
      *
      * <p>线程安全——{@link ConcurrentLinkedQueue#poll()} 单消费语义,即使 scheduler 与
      * {@link #flushSync()} 并发调用,同一 entity 只会被一方拿到。Room DAO 本身线程安全
@@ -152,7 +152,7 @@ public final class AuditEventRecorder {
     private void flushBuffer(List<AuditEventEntity> buffer) {
         if (buffer.isEmpty() || dao == null) return;
         for (AuditEventEntity entity : buffer) {
-            // V0.5.2 评审 P1-3:事件入队后 stale gate 可能已 advance——insert 前再查一次,
+            // 事件入队后 stale gate 可能已 advance——insert 前再查一次,
             // 杜绝 scheduler tick 在 clearUserDataDetailed step3→step7 之间把旧 epoch 事件落库。
             if (isStale(entity)) {
                 dropped.incrementAndGet();
@@ -180,7 +180,7 @@ public final class AuditEventRecorder {
     }
 
     /**
-     * V0.5.2-rev 评审 P1-2:带 requestEpoch 的重载——AgentEngine 5 处调用方透传
+     * 带 requestEpoch 的重载——AgentEngine 5 处调用方透传
      * {@code request.getEpoch()},让 stale gate 用 epoch 而非毫秒时间戳比较。
      */
     public void recordPreTool(String requestId, String userId, String zone, String actor,
@@ -197,7 +197,7 @@ public final class AuditEventRecorder {
                 resultPreview, 0L);
     }
 
-    /** V0.5.2-rev 评审 P1-2:带 requestEpoch 的 POST_TOOL 重载。 */
+    /** 带 requestEpoch 的 POST_TOOL 重载。 */
     public void recordPostTool(String requestId, String userId, String zone, String actor,
             String toolName, String status, boolean verified, long durationMs,
             String resultPreview, long requestEpoch) {
@@ -212,7 +212,7 @@ public final class AuditEventRecorder {
                 0L);
     }
 
-    /** V0.5.2-rev 评审 P1-2:带 requestEpoch 的 POLICY 重载。 */
+    /** 带 requestEpoch 的 POLICY 重载。 */
     public void recordPolicyDecision(String requestId, String userId, String zone, String actor,
             String toolName, String rejectionType, String reasonPreview, long requestEpoch) {
         record(AuditEventTypes.POLICY, requestId, userId, zone, actor,
@@ -224,7 +224,7 @@ public final class AuditEventRecorder {
         recordSteer(requestId, userId, zone, actor, steerType, payloadChars, 0L);
     }
 
-    /** V0.5.2-rev 评审 P1-2:带 requestEpoch 的 STEER 重载。 */
+    /** 带 requestEpoch 的 STEER 重载。 */
     public void recordSteer(String requestId, String userId, String zone, String actor,
             String steerType, int payloadChars, long requestEpoch) {
         record(AuditEventTypes.STEER, requestId, userId, zone, actor,
@@ -236,7 +236,7 @@ public final class AuditEventRecorder {
         recordSteerDroppedStale(requestId, userId, zone, actor, steerType, payloadChars, 0L);
     }
 
-    /** V0.5.2-rev 评审 P1-2:带 requestEpoch 的 STEER_DROPPED_STALE 重载。 */
+    /** 带 requestEpoch 的 STEER_DROPPED_STALE 重载。 */
     public void recordSteerDroppedStale(String requestId, String userId, String zone, String actor,
             String steerType, int payloadChars, long requestEpoch) {
         record(AuditEventTypes.STEER_DROPPED_STALE, requestId, userId, zone, actor,
@@ -256,7 +256,7 @@ public final class AuditEventRecorder {
         entity.payloadJson = payloadJson;
         entity.requestEpoch = requestEpoch;
 
-        // V0.5.2-rev 评审 P1-2:stale gate 入队前检查——用 requestEpoch(MemoryStore 版本号)比较,
+        // stale gate 入队前检查——用 requestEpoch(MemoryStore 版本号)比较,
         // 不再用 happenedAtMs(毫秒时间戳)。requestEpoch=0 表示未透传(老数据 / 测试),不参与 gate。
         if (isStale(entity)) {
             dropped.incrementAndGet();
@@ -275,14 +275,14 @@ public final class AuditEventRecorder {
     }
 
     /**
-     * V0.5.2-rev 评审 P1-2:stale gate——用 requestEpoch(MemoryStore 版本号)比较,不再用 happenedAtMs。
+     * stale gate——用 requestEpoch(MemoryStore 版本号)比较,不再用 happenedAtMs。
      *
-     * <p>V0.5.2 P1-3 修复的次生 bug:happenedAtMs 是毫秒时间戳(17xxx...),staleEpoch 是版本号(1/2/3),
+     * <p>修复的次生 bug:happenedAtMs 是毫秒时间戳(17xxx...),staleEpoch 是版本号(1/2/3),
      * 永远 false,旧 epoch 事件不被 drop,clearUserData 后异步事件可能"复活"。
      *
      * <p>新规则:
      * <ul>
-     *   <li>{@code entity.requestEpoch == 0}:未透传(老数据 / 测试),不参与 gate,保留 V0.5.2 行为;</li>
+     *   <li>{@code entity.requestEpoch == 0}:未透传(老数据 / 测试),不参与 gate,保留旧版行为;</li>
      *   <li>全局 staleEpoch > 0 且 {@code entity.requestEpoch < staleEpoch}(整个进程级别的旧 epoch)→ drop;</li>
      *   <li>(userId+zone) 在 staleUserZoneEpochs 中且 {@code entity.requestEpoch < hint}(per-zone 精确清理)→ drop。</li>
      * </ul>
@@ -298,7 +298,7 @@ public final class AuditEventRecorder {
     }
 
     /**
-     * V0.5.2 评审 P1-3:推进全局 stale epoch——Repository.clearUserDataDetailed 在 epoch 自增后调。
+     * 推进全局 stale epoch——Repository.clearUserDataDetailed 在 epoch 自增后调。
      *
      * <p>后续 record() 时 happenedAtMs < newEpoch 的实体直接 drop(不入队)。已入队的实体由
      * {@link #dropByUserZone(String, String, long)} 显式 drain,或被 scheduler flush 时
@@ -314,7 +314,7 @@ public final class AuditEventRecorder {
     }
 
     /**
-     * V0.5.2 评审 P1-3:drain pending 队列中匹配 (userId, zone) 的事件,并加 stale gate。
+     * drain pending 队列中匹配 (userId, zone) 的事件,并加 stale gate。
      *
      * <p>由 Repository.clearUserDataDetailed 在 clearByUserZone 之前调用——把 pending 队列里
      * 指定 user+zone 的事件移除,避免 scheduler tick 在 clearByUserZone 之后把它们重新 insert。
@@ -347,7 +347,7 @@ public final class AuditEventRecorder {
         }
     }
 
-    /** V0.5.2 Stage 7:批量 enqueue——队列超 QUEUE_CAP 时丢最老 PRE_TOOL(优先保 POST/POLICY/STEER)。 */
+    /** 批量 enqueue——队列超 QUEUE_CAP 时丢最老 PRE_TOOL(优先保 POST/POLICY/STEER)。 */
     private void enqueueOrDrop(AuditEventEntity entity) {
         if (pending.size() >= QUEUE_CAP) {
             boolean evicted = evictOldestPreTool();
@@ -381,7 +381,7 @@ public final class AuditEventRecorder {
     private void submitImmediate(AuditEventEntity entity) {
         try {
             executor.execute(() -> {
-                // V0.5.2 评审 P1-3:executor 异步执行时 stale gate 可能已 advance——再查一次。
+                // executor 异步执行时 stale gate 可能已 advance——再查一次。
                 if (isStale(entity)) {
                     dropped.incrementAndGet();
                     Log.w(TAG, "[AuditEventRecorder] stale event dropped at submit type=" + entity.type
@@ -406,7 +406,7 @@ public final class AuditEventRecorder {
     }
 
     /**
-     * V0.5.2 Stage 7:同步 flush——drain pending 队列并同步 insert。
+     * 同步 flush——drain pending 队列并同步 insert。
      *
      * <p>用于 Terminal 事件 / 任务返回前 / 测试断言前——保证"任务返回后立即查询 audit"无竞态。
      * 与 scheduler 的 scheduledFlush 并发安全(ConcurrentLinkedQueue.poll 单消费 + Room DAO 线程安全)。
@@ -417,7 +417,7 @@ public final class AuditEventRecorder {
     }
 
     /**
-     * V0.5.2 Stage 7 测试辅助——同步等待指定条数已落库(queued 计数 ≥ expected)。
+     * 测试辅助——同步等待指定条数已落库(queued 计数 ≥ expected)。
      *
      * <p>比 flushSync 更精确:即使 scheduler 未触发,可用此方法等待具体 N 条出现。超时 timeoutMillis。
      */
@@ -429,7 +429,7 @@ public final class AuditEventRecorder {
     }
 
     /**
-     * V0.5.2 评审 P2-2:全部 payload 用 {@link JSONObject} 拼装,合法 escape 特殊字符。
+     * 全部 payload 用 {@link JSONObject} 拼装,合法 escape 特殊字符。
      *
      * <p>旧实现用 StringBuilder 手工拼接 + 仅 replace 双引号,反斜杠 / 换行 / 控制字符会破坏 JSON 结构。
      * 改用 JSONObject.put + toString,与 TrajectoryCodec / ModelApiClient 一致,JSONObject 自动 escape。
@@ -446,7 +446,7 @@ public final class AuditEventRecorder {
                 obj.put("args", argsJsonPreview);
             }
         } catch (org.json.JSONException ex) {
-            // V0.5.2-rev 评审 P3-1:fallback 也用 JSONObject 构造,避免 JSONObject.quote() 返回带引号
+            // fallback 也用 JSONObject 构造,避免 JSONObject.quote() 返回带引号
             // 字符串后拼到已有 "..." 内导致双重引号(非法 JSON)。
             Log.w(TAG, "[AuditEventRecorder] buildPreToolPayload JSONException, fallback cause="
                     + ex.getMessage());
@@ -514,12 +514,12 @@ public final class AuditEventRecorder {
         return dropped.get();
     }
 
-    /** V0.5.2 Stage 7:测试用——队列溢出丢弃数(含 evict + 当前事件丢)。 */
+    /** 测试用——队列溢出丢弃数(含 evict + 当前事件丢)。 */
     public long getQueueOverflowDropped() {
         return queueOverflowDropped.get();
     }
 
-    /** V0.5.2 Stage 7:测试用——当前 pending 队列长度。 */
+    /** 测试用——当前 pending 队列长度。 */
     public int getPendingSize() {
         return pending == null ? 0 : pending.size();
     }

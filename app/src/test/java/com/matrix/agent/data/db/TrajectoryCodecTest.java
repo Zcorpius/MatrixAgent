@@ -22,13 +22,13 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * V0.5.0 Stage 2:TrajectoryCodec round-trip 契约测试。
+ * TrajectoryCodec round-trip 契约测试。
  *
  * <p>验证 encode → decode 还原 Trajectory 关键字段:
  * iterations 数 / stopReason / durationMillis / totalToolCalls / iteration 内 observation。
  *
  * <p>已知限制:arguments 的 Integer 值 round-trip 后变 Long(org.json 行为),
- * 测试用 String 值避开此限制;V0.5.1 引入 schema-aware codec 后修复。
+ * 测试用 String 值避开此限制;引入 schema-aware codec 后修复。
  */
 public final class TrajectoryCodecTest {
 
@@ -159,7 +159,7 @@ public final class TrajectoryCodecTest {
     }
 
     /**
-     * 第四轮评审 P1:抢占路径 PREEMPTED 重映射后,outcome.stopReason 必须与
+     * 抢占路径 PREEMPTED 重映射后,outcome.stopReason 必须与
      * trajectory.stopReason 一致——否则 Audit 落库后结构化列(PREEMPTED)与
      * trajectoryJson.trajectory.stopReason(CANCELLED)矛盾,列表页显示"被抢占"但
      * 回放 JSON 解码为"已取消"。
@@ -193,7 +193,7 @@ public final class TrajectoryCodecTest {
     }
 
     /**
-     * 第四轮评审 P1:正常路径所有终态(SUCCEEDED / FAILED / CANCELLED / TIMED_OUT / PREEMPTED)
+     * 正常路径所有终态(SUCCEEDED / FAILED / CANCELLED / TIMED_OUT / PREEMPTED)
      * 都必须满足 outcome.stopReason == trajectory.stopReason,round-trip 后仍一致。
      */
     @Test
@@ -223,14 +223,14 @@ public final class TrajectoryCodecTest {
         }
     }
 
-    /** 第四轮评审 P1:rewriteStopReason 在 finish 之前调用必须抛 IllegalStateException(防御滥用)。 */
+    /** rewriteStopReason 在 finish 之前调用必须抛 IllegalStateException(防御滥用)。 */
     @Test(expected = IllegalStateException.class)
     public void rewriteStopReasonThrowsBeforeFinish() {
         Trajectory trajectory = new Trajectory();
         trajectory.rewriteStopReason(StopReason.PREEMPTED);
     }
 
-    /** 第四轮评审 P1:rewriteStopReason null 参数必须抛 IllegalArgumentException。 */
+    /** rewriteStopReason null 参数必须抛 IllegalArgumentException。 */
     @Test(expected = IllegalArgumentException.class)
     public void rewriteStopReasonThrowsOnNull() {
         Trajectory trajectory = new Trajectory();

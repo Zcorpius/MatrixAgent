@@ -6,7 +6,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 /**
- * V0.5.4 评审 P1-2:基于关键词的显式记忆意图检测器(默认实现)。
+ * 基于关键词的显式记忆意图检测器(默认实现)。
  *
  * <p>规则(用户指定字面落实):命令含以下任一正向关键词 → {@code true}:
  * <ul>
@@ -17,7 +17,7 @@ import java.util.Set;
  *   <li>{@code 长期}、{@code 永远用}——时间维度强调,长期记忆意图明确。</li>
  * </ul>
  *
- * <p>V0.5.5 P1-C 否定短语门(用户硬约束——"不要记住 不应作为安全边界的可接受行为"):
+ * <p>否定短语门(用户硬约束——"不要记住 不应作为安全边界的可接受行为"):
  * 命中以下任一否定短语 → 优先短路返回 {@code false}(在正向匹配之前):
  * <ul>
  *   <li>{@code 不要记住}、{@code 别记住}——明确拒绝记住;</li>
@@ -31,7 +31,7 @@ import java.util.Set;
  *
  * <p>未命中 / null / empty → {@code false}(保守,默认拒绝 save)。
  *
- * <p><b>已知限制</b>(V0.5.5 仍接受,后续版本升 LLM-based 解决):
+ * <p><b>已知限制</b>(当前仍接受,后续版本升 LLM-based 解决):
  * <ul>
  *   <li>同义词("给我存下来"/"记牢"/"记下")漏检;</li>
  *   <li>否定短语仅覆盖明确字面——同义否定("不要存进记忆"等)可能漏;</li>
@@ -47,7 +47,7 @@ public final class KeywordMemoryIntentDetector implements MemoryIntentDetector {
             "记住", "保存", "以后默认", "不要忘记", "别忘了", "默认用", "长期", "永远用"
     )));
 
-    /** V0.5.5 P1-C:否定短语——优先短路返回 false,避免 contains("记住") 把"不要记住"误判。 */
+    /** 否定短语——优先短路返回 false,避免 contains("记住") 把"不要记住"误判。 */
     private static final Set<String> MEMORY_SAVE_NEGATIVE_KEYWORDS = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
             "不要记住", "别记住", "无需保存", "不用保存", "不要长期保存", "删除记忆"
     )));
@@ -57,7 +57,7 @@ public final class KeywordMemoryIntentDetector implements MemoryIntentDetector {
         if (command == null) return false;
         String normalized = command.trim().toLowerCase();
         if (normalized.isEmpty()) return false;
-        // V0.5.5 P1-C:否定短语优先短路——"不要记住"/"别记住"/"删除记忆"等显式拒绝
+        // 否定短语优先短路——"不要记住"/"别记住"/"删除记忆"等显式拒绝
         for (String neg : MEMORY_SAVE_NEGATIVE_KEYWORDS) {
             if (normalized.contains(neg.toLowerCase())) {
                 return false;

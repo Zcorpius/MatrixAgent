@@ -18,16 +18,16 @@ import java.util.Locale;
 import java.util.Set;
 
 /**
- * V0.5.2 Stage 7:Semantic Memory 召回源——基于 MemoryRecordDao 的语义层召回。
+ * Semantic Memory 召回源——基于 MemoryRecordDao 的语义层召回。
  *
- * <p>替代 V0.5.0/V0.5.1 的 {@link EmptySemanticMemorySource}——按 (userId, zone, layer="semantic")
+ * <p>替代旧版 {@link EmptySemanticMemorySource}——按 (userId, zone, layer="semantic")
  * 拉取所有语义层记录,用关键词匹配 + score 排序。
  *
- * <p><b>V0.5.2 不引入 embedding / 向量 DB</b>——硬约束纯 Java,Android 端无开箱即用向量数据库。
+ * <p><b>不引入 embedding / 向量 DB</b>——硬约束纯 Java,Android 端无开箱即用向量数据库。
  * 关键词匹配:把 userText 切词(空格 / 标点 / 中文按字符),与 MemoryRecordEntity.key / value
  * 匹配命中次数作为 score;MemoryRecordEntity.score 字段作为静态优先级加分。
  *
- * <p><b>V0.5.3 候选</b>:接入 on-device embedding(如 TensorFlow Lite MiniLM),score 改为
+ * <p><b>候选</b>:接入 on-device embedding(如 TensorFlow Lite MiniLM),score 改为
  * cosine similarity + 关键词命中的加权融合。
  *
  * <p><b>fail-open</b>:Dao 异常仅 log,返回空 list——记忆是增强能力,不能成为车机任务入口的单点故障。
@@ -104,7 +104,7 @@ public final class SemanticMemorySourceImpl implements SemanticMemorySource {
      * <p>中文连续字符不累加——每个 CJK 字符单独成 token(中文分词需要词典,这里走最保守的
      * 单字切分);CJK 与 Latin 拼接也按字符类型切换边界。
      *
-     * <p>V0.5.3 接入 embedding 后此方法仍可用——作为 fallback / 解释性 token。
+     * <p>接入 embedding 后此方法仍可用——作为 fallback / 解释性 token。
      */
     static Set<String> tokenize(String text) {
         if (text == null || text.isEmpty()) return Collections.emptySet();

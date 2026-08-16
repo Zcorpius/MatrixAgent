@@ -17,10 +17,10 @@ import com.matrix.agent.core.memory.MemoryScope;
 import com.matrix.agent.core.memory.MemorySnippet;
 
 /**
- * V0.5.3 评审 P1-2 / V0.5.4 评审 P1-4:DefaultPromptBuilder 受控记忆投影测试——
+ * DefaultPromptBuilder 受控记忆投影测试——
  * 白名单 key + 范围校验 + SensitiveKeys 双重底线 + Episodic/Semantic/Working 层 value 永不进 prompt。
  *
- * <p>V0.5.4 验证规则:
+ * <p>验证规则:
  * <ul>
  *   <li>PREFERENCE + 白名单 key(preferred_temperature/preferred_seat_level/preferred_media_volume)
  *       + 范围合法 value → value 投影到 prompt(让模型直接用,无需调工具);</li>
@@ -30,7 +30,7 @@ import com.matrix.agent.core.memory.MemorySnippet;
  *   <li>EPISODIC 层所有 value 都不附(可能含 PII 回声);</li>
  *   <li>SEMANTIC 层所有 value 都不附(显式 PII 存储层);</li>
  *   <li>WORKING 层所有 value 都不附(用户上一轮原文);</li>
- *   <li>外层包 {@code <memory_context>} 边界(V0.5.4 从 trusted_memory 重命名)+ 底部提示文案。</li>
+ *   <li>外层包 {@code <memory_context>} 边界(从 trusted_memory 重命名)+ 底部提示文案。</li>
  * </ul>
  */
 public final class DefaultPromptBuilderPiiProjectionTest {

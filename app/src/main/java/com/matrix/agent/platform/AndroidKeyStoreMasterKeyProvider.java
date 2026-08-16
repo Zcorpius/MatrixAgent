@@ -18,7 +18,7 @@ import javax.crypto.SecretKey;
 import javax.crypto.spec.GCMParameterSpec;
 
 /**
- * V0.5.0 Stage 2:AndroidKeyStore 加密的 SQLCipher passphrase 提供者。
+ * AndroidKeyStore 加密的 SQLCipher passphrase 提供者。
  *
  * <p>复用 {@link SecureModelConfigStore} 的加密模式(AES-256-GCM + KeyStore 别名 +
  * GCM IV),仅别名改为 {@value #KEY_ALIAS}。
@@ -29,7 +29,7 @@ import javax.crypto.spec.GCMParameterSpec;
  * <p>passphrase 不在内存长期缓存——每次 {@link #getPassphrase()} 都重新解密,
  * 防止 passphrase 在内存中暴露给 dump。
  *
- * <p><b>第二轮评审 P2.4 修复</b>:首次生成 passphrase 时 SharedPreferences 用
+ * <p><b>修复</b>:首次生成 passphrase 时 SharedPreferences 用
  * {@link SharedPreferences.Editor#commit()} 同步落盘(替代 apply()),
  * 消除"生成后立即用于打开 DB,但落盘前进程崩溃 → 下次启动重新生成 → 旧审计库不可读"的断电窗口。
  * 常规读取路径不受影响。同时随机 byte[] 转 char[] 后立即 {@link Arrays#fill} 清零,
@@ -81,7 +81,7 @@ public final class AndroidKeyStoreMasterKeyProvider implements MasterKeyProvider
                 Arrays.fill(plain, (byte) 0);
             }
         } catch (Exception ex) {
-            // V0.5.0 Stage 2 P1.1 修复(评审 P1.1):KeyStore / 加解密失败必须抛异常,
+            // KeyStore / 加解密失败必须抛异常,
             // 让 MatrixDatabase.getInstance 把 IllegalStateException 透传给 AppContainer,
             // 由 createAuditRepositorySafely 退化 NoopAuditRepository——绝不返回 null
             // 触发"明文 Room DB"路径。审计数据不能悄然落为明文。
@@ -138,7 +138,7 @@ public final class AndroidKeyStoreMasterKeyProvider implements MasterKeyProvider
 
     /**
      * 把 32 字节随机按 ISO-8859-1 转 char[](避免 UTF-8 多字节损坏),
-     * 同时立即 {@link Arrays#fill} 清零调用方传入的 byte[](评审 P2.4)。
+     * 同时立即 {@link Arrays#fill} 清零调用方传入的 byte[]。
      *
      * <p>调用方在 finally 块里会再次 fill(防御性),本方法的 fill 是为了
      * 让 try 块中后续逻辑(如 commit 失败抛异常)不会泄漏原 byte[]。

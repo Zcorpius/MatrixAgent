@@ -43,7 +43,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * 第七轮 P1.3:验证 {@link AgentRuntimeRepository#clearUserData()} 的"取消—等待—清空"序列。
+ * 验证 {@link AgentRuntimeRepository#clearUserData()} 的"取消—等待—清空"序列。
  *
  * <p>评审场景:旧实现仅清 MemoryStore + SessionManager,
  * <ul>
@@ -159,7 +159,7 @@ public final class AgentRuntimeRepositoryClearUserDataTest {
     }
 
     /**
-     * 第八轮 P1.3 / 第九轮 P1.1 修正:epoch gate 强一致核心场景。
+     * epoch gate 强一致核心场景。
      *
      * <p>直接用 MemoryStore API 模拟"Provider 在旧 epoch 完成写入":
      * <ul>
@@ -168,7 +168,7 @@ public final class AgentRuntimeRepositoryClearUserDataTest {
      *   <li>putPreferenceChecked(epoch=1) 接受 (新 epoch)。</li>
      * </ul>
      *
-     * <p>第九轮 P1.1 关键变化:删除"epoch=0 兼容路径"。原评审指出 0L 静默放行会让安全语义
+     * <p>关键变化:删除"epoch=0 兼容路径"。原评审指出 0L 静默放行会让安全语义
      * 被绕过 (任何调用方传 0 都接受)。修复后 epoch 严格匹配 currentEpoch。
      */
     @Test
@@ -195,7 +195,7 @@ public final class AgentRuntimeRepositoryClearUserDataTest {
     }
 
     /**
-     * 第九轮 P1.1 关键场景:模拟"Repository 重启"——验证 MemoryStore 是 epoch 单一权威。
+     * 模拟"Repository 重启"——验证 MemoryStore 是 epoch 单一权威。
      *
      * <p>评审 bug:旧实现 Repository.epochCounter 从 0 开始,SharedPreferencesMemoryStore 启动
      * 从 prefs 加载 N。重启后 clearData → Repo.epochCounter=1, SP.epoch=N+1 → 后续新 execute
@@ -246,7 +246,7 @@ public final class AgentRuntimeRepositoryClearUserDataTest {
     }
 
     /**
-     * 第十轮 P1 核心并发测试:验证"旧写入通过 epoch 校验后阻塞 → 清空 → 放开旧写入"
+     * 核心并发测试:验证"旧写入通过 epoch 校验后阻塞 → 清空 → 放开旧写入"
      * 的 check-then-act race 不再让偏好"复活"。
      *
      * <p>评审 race(修复前):
@@ -302,7 +302,7 @@ public final class AgentRuntimeRepositoryClearUserDataTest {
     }
 
     /**
-     * 第十轮 P1 真正的并发测试:N 个 writer 线程持续用 epoch=0 调 putPreferenceChecked,
+     * 真正的并发测试:N 个 writer 线程持续用 epoch=0 调 putPreferenceChecked,
      * 主线程中间调 clearUserData(原子 clearUserDataAndBump),等所有 writer 完成后断言:
      * <ul>
      *   <li>memoryStore driver 数据为空(clearUserDataAndBump 之后没有任何 key 残留);</li>
@@ -404,7 +404,7 @@ public final class AgentRuntimeRepositoryClearUserDataTest {
     }
 
     /**
-     * V0.5.1 Stage 6 P1.2:clearUserDataDetailed 在 NoopAudit 路径下返回 NOT_APPLICABLE,
+     * clearUserDataDetailed 在 NoopAudit 路径下返回 NOT_APPLICABLE,
      * ViewModel 据此显示"已清空"(auditFailed=false)。
      */
     @Test
@@ -419,7 +419,7 @@ public final class AgentRuntimeRepositoryClearUserDataTest {
     }
 
     /**
-     * V0.5.1 Stage 6 P1.2:clearUserDataDetailed 在 audit 抛异常时,
+     * clearUserDataDetailed 在 audit 抛异常时,
      * Repository.clearAuditSafe try/catch 封装进 ClearOutcome.FAILURE,
      * ViewModel 据此显示"上下文已清,审计删除失败,请稍后再次点击清空"。
      */
@@ -436,7 +436,7 @@ public final class AgentRuntimeRepositoryClearUserDataTest {
     }
 
     /**
-     * V0.5.1 Stage 6 P1.2:audit 返回 ClearOutcome.FAILURE(不抛,直接返回结构化失败)
+     * audit 返回 ClearOutcome.FAILURE(不抛,直接返回结构化失败)
      * 时,outcome.auditFailed() 必须为 true,ViewModel 走重试提示文案。
      */
     @Test

@@ -14,7 +14,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * V0.5.1 Stage 4:验证 {@link KeystoreHmacAuditDigest} 的 JVM 可达行为。
+ * 验证 {@link KeystoreHmacAuditDigest} 的 JVM 可达行为。
  *
  * <p>真 AndroidKeyStore 链路在 androidTest ({@code KeystoreHmacAuditDigestTest})
  * 验证——本 JVM 测试通过包私有构造器 {@link KeystoreHmacAuditDigest#KeystoreHmacAuditDigest(byte[])}

@@ -15,7 +15,7 @@ import com.matrix.agent.core.session.SessionContext;
 import com.matrix.agent.core.tool.ToolCall;
 
 /**
- * V0.5.2 评审 P1-1:ModelCallExecutor 在 ioPool 队列满 / Executor 拒绝时的契约测试。
+ * ModelCallExecutor 在 ioPool 队列满 / Executor 拒绝时的契约测试。
  *
  * <p>评审发现共享池嵌套等待死锁,改为两独立池 + 显式拒绝处理。ModelCallExecutor submit 抛
  * RejectedExecutionException 时,返回 {@code Result.terminal(POLICY_HALT, "...")},让
@@ -51,7 +51,7 @@ public final class ModelCallExecutorRejectedExecutionTest {
         assertTrue(result.getMessage().contains("拒绝"));
     }
 
-    /** V0.5.2 helper——被某些 ModelTurn 工厂使用,保留作为后续扩展锚点。 */
+    /** helper 被某些 ModelTurn 工厂使用,保留作为后续扩展锚点。 */
     @SuppressWarnings("unused")
     private static ToolCall unusedToolCallRef() { return null; }
 }

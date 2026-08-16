@@ -1,7 +1,7 @@
 package com.matrix.agent.core.voice;
 
 /**
- * 语音会话事件。Voice V1。
+ * 语音会话事件。
  *
  * <p>封装一个 {@link EventType} 与可选载荷(ASR 文本/置信度、错误码),由 ASR / VAD /
  * Agent / TTS 等组件投递,驱动 {@link VoiceSessionState} 状态迁移。
@@ -25,7 +25,7 @@ public final class VoiceEvent {
         this.errorCode = errorCode;
     }
 
-    /** 事件类型。Voice V1 状态机接受的全部事件。 */
+    /** 事件类型。状态机接受的全部事件。 */
     public enum EventType {
         /** 检测到唤醒(Demo: Vosk 关键词;量产: DSP 唤醒词)。 */
         WAKE,

@@ -7,7 +7,7 @@ import com.matrix.agent.core.identity.CancellationToken;
 import java.util.List;
 
 /**
- * V0.5.0 Stage 3:LlmPlanner 调用模型 HTTP API 的最小契约。
+ * LlmPlanner 调用模型 HTTP API 的最小契约。
  *
  * <p>抽出的目的:让 LlmPlanner 在 JVM 单测中可注入 fake(无需起 HttpServer),
  * 验证 memoryRecaller 注入后 userPrompt 含召回 key。生产路径继续用
@@ -17,7 +17,7 @@ public interface LlmClient {
     String complete(ModelConfig config, String systemPrompt, String userPrompt) throws Exception;
 
     /**
-     * V0.5.2-rev 评审 P2-1 / P1-4:cancel + deadline 感知的 complete 重载。
+     * cancel + deadline 感知的 complete 重载。
      *
      * <p>生产实现({@link ModelApiClient})把 token + deadline 透传给
      * {@link RetryPolicy#invokeWithRetry(CallableWithRetry, CancellationToken, long)},

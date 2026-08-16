@@ -23,12 +23,12 @@ import com.matrix.agent.data.db.SessionHistoryDao;
 import com.matrix.agent.data.db.SessionHistoryEntity;
 
 /**
- * V0.5.3 评审 P1-1:RoomMemoryWriter fail-log 测试——Dao throw 时不向上传播,
+ * RoomMemoryWriter fail-log 测试——Dao throw 时不向上传播,
  * writeSemantic 返回 false,readSemantic 返回 null。
  *
  * <p>语义与 auditRepository fail-open 一致——Memory 写入失败仅 Log.w + 计数,不影响主路径。
  *
- * <p>V0.5.4 评审 P1-1:接口加 requestEpoch 参数。TransactionRunner 用 Runnable::run。
+ * <p>接口加 requestEpoch 参数。TransactionRunner 用 Runnable::run。
  */
 public final class RoomMemoryWriterFailLogTest {
 

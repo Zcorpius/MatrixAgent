@@ -17,7 +17,7 @@ import com.matrix.agent.core.identity.VehicleZone;
 import com.matrix.agent.core.tool.ToolCall;
 
 /**
- * V0.5.2 评审 P1-4:ConversationCompressor transaction-aware 截断契约测试。
+ * ConversationCompressor transaction-aware 截断契约测试。
  *
  * <p>评审发现旧实现按 {@code conversation.size()/2} 截断,可能把 assistant.tool_calls
  * 与其后续 tool observation 拆开——observation 在 recent 中无对应 assistant 父消息,

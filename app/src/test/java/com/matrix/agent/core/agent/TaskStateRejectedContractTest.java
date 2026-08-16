@@ -9,11 +9,11 @@ import java.util.Set;
 import org.junit.Test;
 
 /**
- * V0.5.2 评审 P1-1:TaskState.REJECTED + StopReason.REJECTED 枚举契约测试。
+ * TaskState.REJECTED + StopReason.REJECTED 枚举契约测试。
  *
- * <p>评审发现 Stage 11 共享池嵌套等待死锁,改为两独立池 + 显式拒绝处理。
+ * <p>评审发现共享池嵌套等待死锁,改为两独立池 + 显式拒绝处理。
  * Scheduler / ToolExecutor 在 RejectedExecutionException 时返回 REJECTED 终态,
- * Repository 兜底 audit 自动覆盖(V0.5.0 P1 终态审计)。
+ * Repository 兜底 audit 自动覆盖(终态审计)。
  *
  * <p>本测试验证:
  * <ul>

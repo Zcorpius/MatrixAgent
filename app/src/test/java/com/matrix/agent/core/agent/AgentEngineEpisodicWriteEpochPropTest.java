@@ -27,7 +27,7 @@ import com.matrix.agent.data.audit.AuditRecord;
 import com.matrix.agent.data.audit.AuditRepository;
 
 /**
- * V0.5.4 评审 P1-1:验证 AgentEngine 3 个 hook 点(L336 pre-loop / L704 主路径 /
+ * 验证 AgentEngine 3 个 hook 点(L336 pre-loop / L704 主路径 /
  * L812 terminalOutcome)都把 request.getEpoch() 透传到 MemoryWriter。
  *
  * <p>用户硬约束:epoch 必须与数据库写操作同事务。AgentEngine 不直接做 epoch 校验,
@@ -109,7 +109,7 @@ public final class AgentEngineEpisodicWriteEpochPropTest {
 
     @Test
     public void defaultEpochZeroIsPropagatedWhenNotSet() {
-        // AgentRequest 默认 epoch=0L(未显式注入,V0.4.x 兼容路径)
+        // AgentRequest 默认 epoch=0L(未显式注入,旧版兼容路径)
         CapturingWriter writer = new CapturingWriter();
         AgentEngine engine = newEngine(new DemoModelGateway());
         engine.setMemoryWriter(writer);

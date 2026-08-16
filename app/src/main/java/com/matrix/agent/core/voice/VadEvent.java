@@ -1,6 +1,6 @@
 package com.matrix.agent.core.voice;
 
-/** VAD 事件类型。Voice V1。 */
+/** VAD 事件类型。 */
 public enum VadEvent {
     /** 检测到语音。 */
     SPEECH,

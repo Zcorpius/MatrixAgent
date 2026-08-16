@@ -6,17 +6,17 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * V0.5.0 Stage 1:Preference Memory 默认实现——桥接 V0.4.3 {@link MemoryStore}。
+ * Preference Memory 默认实现——桥接旧版 {@link MemoryStore}。
  *
  * <p>调 {@link MemoryStore#getAllPreferences(String)} 取 userId 全部偏好,按 Map 迭代顺序
  * (InMemoryMemoryStore / SharedPreferencesMemoryStore 都是 LinkedHashMap,按 put 顺序)取前 maxItems 条。
  *
- * <p>行为兼容 V0.4.3 LlmPlanner.savedKeysFor——返回的 snippet.key 与原"已保存的偏好 key 列表"一致。
+ * <p>行为兼容旧版 LlmPlanner.savedKeysFor——返回的 snippet.key 与原"已保存的偏好 key 列表"一致。
  *
- * <p><b>双维度隔离边界(评审 P2.1)</b>:V0.5.0 Preference 层仍是 <b>legacy user 维度</b>——
+ * <p><b>双维度隔离边界</b>:Preference 层仍是 <b>legacy user 维度</b>——
  * 查询旧偏好只走 {@code userId},结果 snippet 的 scope 直接复用调用方传入的 scope(可能含 zone)。
- * 真正 zone 维度隔离要等 V0.5.1 Room {@code MemoryRecordEntity} 主键
- * {@code (userId, zone, layer, key)} 接入后才生效。在 V0.5.0 文档中,MemoryScope 的 zone 字段
+ * 真正 zone 维度隔离要等 Room {@code MemoryRecordEntity} 主键
+ * {@code (userId, zone, layer, key)} 接入后才生效。在文档中,MemoryScope 的 zone 字段
  * 对 Preference 层是"软标记",不参与查询过滤。
  */
 public final class LegacyPreferenceMemorySource implements PreferenceMemorySource {

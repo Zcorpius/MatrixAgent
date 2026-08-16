@@ -10,9 +10,9 @@ import com.matrix.agent.platform.SecureModelConfigStore;
 import java.util.List;
 
 /**
- * V0.5.2 评审 P1-4:基于 LLM(Provider)的对话摘要 Provider 实现。
+ * 基于 LLM(Provider)的对话摘要 Provider 实现。
  *
- * <p>V0.5.2 Stage 8 已定义 {@link SummaryProvider} 接口,但 AppContainer 装的是
+ * <p>已定义 {@link SummaryProvider} 接口,但 AppContainer 装的是
  * {@code new ConversationCompressor(null)}——Provider 永远是 null,压缩永远走 heuristic
  * (丢老 turns + 拼接 "[系统摘要] 上文已省略 N 条")。本类是生产实现,接入 ModelApiClient.complete,
  * 让旧 turns 真正被摘要,而不是被丢弃。
@@ -35,9 +35,9 @@ import java.util.List;
 public final class LlmSummaryProvider implements SummaryProvider {
     private static final String TAG = "MatrixAgent";
 
-    /** V0.5.2-rev 评审 P1-4:Provider 单次调用的 deadline 上限。 */
+    /** Provider 单次调用的 deadline 上限。 */
     static final long PROVIDER_DEADLINE_MS = 10_000L;
-    /** V0.5.2-rev 评审 P1-4:AgentRequest 剩余 < 2s 时放弃摘要(走 heuristic 降级)。 */
+    /** AgentRequest 剩余 < 2s 时放弃摘要(走 heuristic 降级)。 */
     static final long MIN_REMAINING_MS = 2_000L;
 
     private final LlmClient client;
@@ -74,7 +74,7 @@ public final class LlmSummaryProvider implements SummaryProvider {
         if (config == null) {
             throw new SummaryUnavailableException("no saved ModelConfig (first run / cleared)");
         }
-        // V0.5.2-rev 评审 P1-4:剩余预算 < 2s 直接放弃——Provider 10s 上限 + 重试 buffer 都需要充足时间。
+        // 剩余预算 < 2s 直接放弃——Provider 10s 上限 + 重试 buffer 都需要充足时间。
         // ConversationCompressor 入口已检过,这里是双保险(测试可能直接调 Provider)。
         if (request != null && request.remainingMillis() < MIN_REMAINING_MS) {
             throw new SummaryUnavailableException(
@@ -83,7 +83,7 @@ public final class LlmSummaryProvider implements SummaryProvider {
         }
         String systemPrompt = buildSystemPrompt();
         String userPrompt = buildUserPrompt(turns);
-        // V0.5.2-rev 评审 P1-4:cancel + deadline 透传——LlmClient 5 参重载把 token + deadline 转发给
+        // cancel + deadline 透传——LlmClient 5 参重载把 token + deadline 转发给
         // RetryPolicy 新重载,任务取消时摘要请求也 abort,不再等 read timeout 90s。
         long deadlineAtMillis = computeDeadline(request);
         String reply = client.complete(config, systemPrompt, userPrompt,
@@ -99,7 +99,7 @@ public final class LlmSummaryProvider implements SummaryProvider {
     }
 
     /**
-     * V0.5.2-rev 评审 P1-4:deadline = min(now + 10s, request.deadlineAtMillis)。
+     * deadline = min(now + 10s, request.deadlineAtMillis)。
      *
      * <p>10s 是 LLM 摘要合理上限(车机场景 turns ≤ 60 条,batch ≤ 20 条,模型小,远不到 10s)。
      * request 已临近 deadline 时取 min,避免摘要拖到 deadline 之后。

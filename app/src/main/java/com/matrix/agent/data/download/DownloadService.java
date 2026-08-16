@@ -33,7 +33,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * <p><b>线程模型</b>：用专用 {@link Executors#newFixedThreadPool}(2) 而非共享 ioPool。
  * 下载是分钟级长任务，占用 ioPool 线程会与 ModelCallExecutor / ToolExecutor 竞争，可能触发
  * AbortPolicy 拒绝 Agent I/O 子任务。专用池与 AppContainer 的 scheduler/io 池物理隔离，与
- * V0.5.2 评审 P1-1 "调度池与 I/O 池隔离" 同一原则。两个线程分别跑：
+ * 与 "调度池与 I/O 池隔离" 同一原则。两个线程分别跑：
  * <ol>
  *   <li>下载线程：阻塞调 {@code manager.download(entry)}；</li>
  *   <li>轮询线程：周期性读 DAO 进度，更新通知文字，直到终态。</li>

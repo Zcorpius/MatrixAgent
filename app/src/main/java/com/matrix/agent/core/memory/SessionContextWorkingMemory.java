@@ -7,7 +7,7 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * V0.5.0 Stage 1:Working Memory 默认实现——包装 SessionManager。
+ * Working Memory 默认实现——包装 SessionManager。
  *
  * <p>取 sessionId 对应的 SessionContext recentTurns,倒序(最近优先)取前 maxItems 条转 MemorySnippet。
  * sessionId 为 null 或 session 不存在时返回空列表(不抛)。

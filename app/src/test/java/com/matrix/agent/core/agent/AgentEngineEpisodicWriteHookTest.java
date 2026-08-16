@@ -25,7 +25,7 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertSame;
 
 /**
- * V0.5.3 评审 P1-1:AgentEngine setter 注入 MemoryWriter 后,主出口 + terminalOutcome
+ * AgentEngine setter 注入 MemoryWriter 后,主出口 + terminalOutcome
  * 出口都调 writeEpisodicOnTerminal 一次。
  *
  * <p>沿用 AgentEngineAuditSinkTest 模式——注入 {@link CapturingMemoryWriter} 计数调用,

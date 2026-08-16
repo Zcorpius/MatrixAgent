@@ -20,7 +20,7 @@ import com.matrix.agent.platform.ModelConfig;
 import com.matrix.agent.platform.PlannerMode;
 
 /**
- * V0.5.2-rev 评审 P1-4:LlmSummaryProvider 用 LlmClient 5 参重载,
+ * LlmSummaryProvider 用 LlmClient 5 参重载,
  * 透传 AgentRequest token + min(10s, request.remainingMillis()) deadline。
  *
  * <p>覆盖:

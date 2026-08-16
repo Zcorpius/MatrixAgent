@@ -128,7 +128,7 @@ public final class ModelApiFragment extends Fragment {
             testButton.setEnabled(!state.loading);
             saveButton.setEnabled(!state.loading);
             offlineButton.setEnabled(!state.loading);
-            // V0.5.3 评审 P1-3:memoryDegraded=true(SQLCipher/Room 不可用)时,在 apiStatus 顶部
+            // memoryDegraded=true(SQLCipher/Room 不可用)时,在 apiStatus 顶部
             // 显示 banner,提醒用户"记忆已降级到内存模式,重启后丢失"。fail-closed 文案——
             // 不暴露具体失败原因,避免给攻击者调试信号。
             String status = state.status;
@@ -192,7 +192,7 @@ public final class ModelApiFragment extends Fragment {
         if (onDevice) {
             modelInput.setHint("模型目录名（filesDir/models/mnn/<name>）");
             plannerModeSpinner.setSelection(PlannerMode.STRUCTURED_JSON_COMPATIBILITY.ordinal());
-            plannerModeSpinner.setEnabled(false); // P2-20: 端侧固定 Structured，不允许改 NATIVE
+            plannerModeSpinner.setEnabled(false); // 端侧固定 Structured，不允许改 NATIVE
             // 端侧：apiStatus 直接显示已下载模型清单（切换 provider 时 uiState 不变，observer 不会刷新）。
             apiStatus.setText(onDeviceHint());
         } else {

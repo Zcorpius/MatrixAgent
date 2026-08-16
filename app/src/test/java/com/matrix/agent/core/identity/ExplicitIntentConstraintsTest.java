@@ -7,10 +7,10 @@ import static org.junit.Assert.assertTrue;
 import org.junit.Test;
 
 /**
- * 第六轮 + 第七轮 ExplicitIntentConstraints 回归。
+ * ExplicitIntentConstraints 回归。
  *
- * <p>第六轮:副驾驶位 / 主副驾同时 / 驾驶位 单独出现。
- * <p>第七轮 P1-1:多目标 / 否定冲突不再降级为 UNSPECIFIED。
+ * <p>副驾驶位 / 主副驾同时 / 驾驶位 单独出现。
+ * <p>多目标 / 否定冲突不再降级为 UNSPECIFIED。
  */
 public final class ExplicitIntentConstraintsTest {
     @Test
@@ -53,7 +53,7 @@ public final class ExplicitIntentConstraintsTest {
         assertEquals(VehicleZone.PASSENGER, r2.getExplicitZone());
     }
 
-    /** 第七轮 P1-1:同时提到主驾和副驾(都肯定) → MULTI_TARGET fail-closed。 */
+    /** 同时提到主驾和副驾(都肯定) → MULTI_TARGET fail-closed。 */
     @Test
     public void bothZonesAffirmedIsMultiTargetBlocked() {
         ExplicitIntentConstraints r1 = ExplicitIntentConstraints.extractFrom("主驾和副驾都调到24度");
@@ -65,7 +65,7 @@ public final class ExplicitIntentConstraintsTest {
         assertTrue(r2.isBlocked());
     }
 
-    /** 第七轮 P1-1:"不要 X 只 Y" 否定 X 肯定 Y → SINGLE_TARGET=Y。 */
+    /** "不要 X 只 Y" 否定 X 肯定 Y → SINGLE_TARGET=Y。 */
     @Test
     public void negateDriverAffirmPassengerYieldsSinglePassenger() {
         ExplicitIntentConstraints r = ExplicitIntentConstraints.extractFrom("不要调主驾,只调副驾");
@@ -74,7 +74,7 @@ public final class ExplicitIntentConstraintsTest {
         assertFalse(r.isBlocked());
     }
 
-    /** 第七轮 P1-1:"不要 X 只 Y" 反向 → SINGLE_TARGET=X。 */
+    /** "不要 X 只 Y" 反向 → SINGLE_TARGET=X。 */
     @Test
     public void negatePassengerAffirmDriverYieldsSingleDriver() {
         ExplicitIntentConstraints r = ExplicitIntentConstraints.extractFrom("别调副驾,只调主驾");
@@ -82,7 +82,7 @@ public final class ExplicitIntentConstraintsTest {
         assertEquals(VehicleZone.DRIVER, r.getExplicitZone());
     }
 
-    /** 第七轮 P1-1:单 zone + 否定 + 无肯定 → CONFLICT fail-closed。 */
+    /** 单 zone + 否定 + 无肯定 → CONFLICT fail-closed。 */
     @Test
     public void negatedOnlyZoneIsConflictBlocked() {
         ExplicitIntentConstraints r = ExplicitIntentConstraints.extractFrom("不要调主驾");
@@ -90,7 +90,7 @@ public final class ExplicitIntentConstraintsTest {
         assertTrue("CONFLICT 必须 fail-closed", r.isBlocked());
     }
 
-    /** 第七轮 P1-1:两个 zone 都被否定 → CONFLICT。 */
+    /** 两个 zone 都被否定 → CONFLICT。 */
     @Test
     public void bothZonesNegatedIsConflictBlocked() {
         ExplicitIntentConstraints r = ExplicitIntentConstraints.extractFrom("不要调主驾和副驾");

@@ -20,7 +20,7 @@ import com.matrix.agent.core.identity.VehicleZone;
 import com.matrix.agent.core.memory.InMemoryMemoryStore;
 
 /**
- * V0.5.4 评审 P1-1:验证 MockCapabilityProvider.MemorySemanticSaveHandler 把
+ * 验证 MockCapabilityProvider.MemorySemanticSaveHandler 把
  * request.getEpoch() 透传到 MemoryWriter.writeSemantic 第 7 参 requestEpoch。
  *
  * <p>用户硬约束:epoch 必须与数据库写操作同事务。handler 不直接做 epoch 校验,
@@ -49,7 +49,7 @@ public final class MockCapabilityProviderSemanticEpochPropTest {
                         .sessionId("sess-epoch-5")
                         .occupantZone(VehicleZone.DRIVER)
                         .epoch(5L)
-                        // V0.5.4 P1-2:跨过 handler POLICY_REJECTED gate(单测直接 build,不走 Repository 检测)
+                        // 跨过 handler POLICY_REJECTED gate(单测直接 build,不走 Repository 检测)
                         .memorySaveAllowed(true)
                         .build(),
                 new ToolCall("memory.semantic.save", args));

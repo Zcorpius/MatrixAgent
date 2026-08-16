@@ -1,17 +1,17 @@
 package com.matrix.agent.core.tool;
 
 /**
- * 第五轮评审 P1:已下发命令的执行状态——让 Runtime 区分"命令已发但结果未知"
+ * 已下发命令的执行状态——让 Runtime 区分"命令已发但结果未知"
  * 与"命令已取消 / 已完成 / 已失败"。
  *
- * <p>背景:V0.4.x 的 {@code ToolExecutor} 在 timeout / cancel 时执行 {@code future.cancel(true)}
+ * <p>背景:旧版的 {@code ToolExecutor} 在 timeout / cancel 时执行 {@code future.cancel(true)}
  * 并直接返回 {@link ToolResult.Status#CANCELLED} / {@link ToolResult.Status#TIMED_OUT},
  * 对读操作没问题(读操作被中断即等于未发生);但写操作下发到 AIDL/Binder/Intent/厂商 SDK 后,
  * Java 线程中断<b>不保证</b>取消已发出的 IPC 命令——空调/座椅/导航 Provider 可能在 Runtime
  * 已返回"已取消"后继续设置车辆状态,导致 Agent Trajectory 与真实车辆状态不一致。
  *
- * <p>V0.5.0 协议定义 + 默认行为退化({@link CapabilityProvider#queryCommandState} 默认 UNKNOWN);
- * V0.5.1 / 后续版本接真实 Provider 时按 capability 实现查询,Runtime 在 EXECUTION_UNKNOWN
+ * <p>协议定义 + 默认行为退化({@link CapabilityProvider#queryCommandState} 默认 UNKNOWN);
+ * 后续版本接真实 Provider 时按 capability 实现查询,Runtime 在 EXECUTION_UNKNOWN
  * 终态后异步 readback 更新为 SUCCESS / VERIFICATION_FAILED / UNKNOWN。
  *
  * <ul>

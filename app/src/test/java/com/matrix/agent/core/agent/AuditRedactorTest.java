@@ -87,13 +87,13 @@ public final class AuditRedactorTest {
     /**
      * 非 memory 类 capability 的 observedState 原值保留(车辆状态)。
      *
-     * <p>第八轮 P1.2 修订:无 audit template 时 message 走 {@code redactFreeText}
+     * <p>修订:无 audit template 时 message 走 {@code redactFreeText}
      * ({@code [redacted:chars=N,sha=xxxxxxxx]}),不再保留原文 + 凭据正则——
      * 模型 / Provider 自由文本含业务 PII 时凭据正则识别不出,fail-closed 才安全。
      */
     @Test
     public void nonMemoryCapabilityKeepsObservedValuesIntact() {
-        // V0.5.1 C 路线评审反馈 P2:AuditRedactor 默认已改 fail-closed UnavailableAuditDigest,
+        // AuditRedactor 默认已改 fail-closed UnavailableAuditDigest,
         // 测试 SHA-1 格式契约必须显式 opt-in。
         AuditRedactor redactor = new AuditRedactor(1000);
         redactor.setDigest(new Sha1AuditDigest());
@@ -132,7 +132,7 @@ public final class AuditRedactorTest {
         assertEquals(null, redacted.getResult());
     }
 
-    // ===== 第四轮 P1-2:schema-aware 业务字段脱敏 =====
+    // ===== schema-aware 业务字段脱敏 =====
 
     /** schema 标 sensitive 的 memory preference value 必须按 placeholder 脱敏。 */
     @Test
@@ -204,7 +204,7 @@ public final class AuditRedactorTest {
         assertEquals("*** 北京", redacted.get("destination"));
     }
 
-    // ===== 第五轮 P1-3:fail-closed 兜底 =====
+    // ===== fail-closed 兜底 =====
 
     /**
      * 未注册的 capability(模型脑补 / 协议错误)必须 fail-closed——所有 value 替换为 ***。
@@ -261,7 +261,7 @@ public final class AuditRedactorTest {
         assertEquals("***", redacted.get("extra_meta"));
     }
 
-    // ===== 第五轮 P1-2:ToolResult 按 AuditSchema 投影 =====
+    // ===== ToolResult 按 AuditSchema 投影 =====
 
     /**
      * Provider 返回的 ToolResult.message 嵌入了真实目的地("已开始导航到 \"北京市某小区\""),
@@ -287,13 +287,13 @@ public final class AuditRedactorTest {
     /**
      * 非 memory / 非 navigation 的 capability(vehicle.climate) 没有 AuditSchema。
      *
-     * <p>第八轮 P1.2 修订:无 schema 时 message 走 {@code redactFreeText} (fail-closed),
+     * <p>修订:无 schema 时 message 走 {@code redactFreeText} (fail-closed),
      * 不再保留原文——模型 / Provider 自由文本含业务 PII 时凭据正则识别不出。
      * observedState 字段值仍保留 (无 schema 时默认 redactMapRecursive,数值字段不变)。
      */
     @Test
     public void capabilityWithoutAuditSchemaKeepsDefaultRedaction() {
-        // V0.5.1 C 路线评审反馈 P2:测试 SHA-1 格式契约必须显式 opt-in(默认已是 UnavailableAuditDigest)。
+        // 测试 SHA-1 格式契约必须显式 opt-in(默认已是 UnavailableAuditDigest)。
         AuditRedactor redactor = new AuditRedactor(1000, CapabilityRegistry.createDemoRegistry());
         redactor.setDigest(new Sha1AuditDigest());
         Map<String, Object> observed = new LinkedHashMap<>();
@@ -322,10 +322,10 @@ public final class AuditRedactorTest {
         return result;
     }
 
-    // ===== 第七轮 P1-3:失败 ToolResult 与未知回读字段 fail-closed =====
+    // ===== 失败 ToolResult 与未知回读字段 fail-closed =====
 
     /**
-     * 第七轮 P1-3:Provider 失败 message 嵌入了真实地址("导航到北京市某小区失败:网络不可用"),
+     * Provider 失败 message 嵌入了真实地址("导航到北京市某小区失败:网络不可用"),
      * 通用凭据正则识别不出业务值。配置了 auditFailureMessageTemplate 必须替换,
      * 真实地址不得进 Trajectory/UI/Log。
      */
@@ -350,7 +350,7 @@ public final class AuditRedactorTest {
     }
 
     /**
-     * 第七轮 P1-3:capability 配置了 auditMessageTemplate 但未配置 auditFailureMessageTemplate 时,
+     * capability 配置了 auditMessageTemplate 但未配置 auditFailureMessageTemplate 时,
      * 失败 message 也不能 fall through 到 redact 原文(凭据正则识别不出业务值),
      * 必须用 FAILURE_MESSAGE_FALLBACK 占位符。
      */
@@ -380,7 +380,7 @@ public final class AuditRedactorTest {
     }
 
     /**
-     * 第七轮 P1-3:Provider 新增 schema 外 observedState 字段(如 navigation.requested_destination、
+     * Provider 新增 schema 外 observedState 字段(如 navigation.requested_destination、
      * route.address)默认 mask。allowlist 只放行 navigation.status / navigation.error_code。
      */
     @Test
@@ -414,7 +414,7 @@ public final class AuditRedactorTest {
     }
 
     /**
-     * 第七轮 P1-3:失败状态 + 未知 observedState 字段,业务值也不能泄漏。
+     * 失败状态 + 未知 observedState 字段,业务值也不能泄漏。
      * 验证 failure template + allowlist mask 同时生效。
      */
     @Test

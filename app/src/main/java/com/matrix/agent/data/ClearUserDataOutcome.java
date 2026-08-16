@@ -3,7 +3,7 @@ package com.matrix.agent.data;
 import com.matrix.agent.data.audit.ClearOutcome;
 
 /**
- * V0.5.1 Stage 6 P1.2:{@link AgentRuntimeRepository#clearUserDataDetailed()} 的返回值。
+ * {@link AgentRuntimeRepository#clearUserDataDetailed()} 的返回值。
  *
  * <p>组合 driver / passenger 两个 zone 的 {@link ClearOutcome},让 ViewModel 据此选择
  * "已清空" vs "上下文已清,审计删除失败,请稍后重试"文案——避免主流程(MemoryStore /

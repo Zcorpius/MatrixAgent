@@ -21,13 +21,13 @@ import org.junit.runner.RunWith;
 import java.io.IOException;
 
 /**
- * V0.5.2 Stage 1:Room Migration v1→v2 端到端验证——audit_event 加 userId 列 +
+ * Room Migration v1→v2 端到端验证——audit_event 加 userId 列 +
  * idx_audit_user_zone 索引。
  *
  * <p>R1 缓解:用 room-testing {@link MigrationTestHelper} 在 instrumented device 上:
  * <ol>
  *   <li>createDatabase(v1):建立 v1 schema(audit_event 无 userId 列);</li>
- *   <li>insert 历史 V0.5.0/V0.5.1 行(无 userId 字段);</li>
+ *   <li>insert 历史格式行(无 userId 字段);</li>
  *   <li>runMigrationsAndValidate(v2, MIGRATION_1_2):执行迁移 + 校验 schema 与 2.json 一致;</li>
  *   <li>验证历史行 userId 默认 {@code ''}(Migration ALTER DEFAULT '' 生效);</li>
  *   <li>验证 idx_audit_user_zone 索引存在。</li>
@@ -61,7 +61,7 @@ public final class MatrixDatabaseMigrationTest {
     public void migrate1To2AddsUserIdColumnAndIndex() throws IOException {
         // 1. 建立 v1 schema(无 userId 列)
         SupportSQLiteDatabase db = helper.createDatabase(TEST_DB_NAME, 1);
-        // 历史 V0.5.0 行——所有原字段,requestId/type/actor/zone/happenedAtMs/payloadJson + id
+        // 历史格式行——所有原字段,requestId/type/actor/zone/happenedAtMs/payloadJson + id
         db.execSQL("INSERT INTO audit_event (id, requestId, type, actor, zone, happenedAtMs, "
                 + "payloadJson) VALUES (1, 'req-legacy', 'TERMINAL', 'DRIVER', 'DRIVER', "
                 + "1000, '{\"state\":\"SUCCEEDED\"}')");
@@ -106,7 +106,7 @@ public final class MatrixDatabaseMigrationTest {
 
         db = helper.runMigrationsAndValidate(TEST_DB_NAME, 2, true, MatrixDatabase.MIGRATION_1_2);
 
-        // 历史 V0.5.0 行 userId='' —— 主路径查询过滤不到
+        // 历史格式行 userId='' —— 主路径查询过滤不到
         db.execSQL("INSERT INTO audit_event (id, requestId, type, actor, zone, happenedAtMs, "
                 + "payloadJson) VALUES (1, 'req-legacy', 'TERMINAL', 'DRIVER', 'DRIVER', "
                 + "1000, '{}')");

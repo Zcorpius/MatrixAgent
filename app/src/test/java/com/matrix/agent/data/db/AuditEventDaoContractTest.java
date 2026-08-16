@@ -12,7 +12,7 @@ import java.util.Map;
 import org.junit.Test;
 
 /**
- * V0.5.2 Stage 1:AuditEventDao 新增 {@code deleteByUserZone / queryByUserZone} 契约测试。
+ * AuditEventDao 新增 {@code deleteByUserZone / queryByUserZone} 契约测试。
  *
  * <p>JVM 路径用 fake in-memory DAO 验证 caller 隔离行为(同 user 不同 zone 不被误删 +
  * 跨 user 不被误删);方法签名 + 返回值类型用反射验证(防 caller 误改成 deleteByUser 或
@@ -22,7 +22,7 @@ import org.junit.Test;
  * transaction 原子性)由 {@code src/androidTest/MatrixDatabaseMigrationTest} +
  * {@code src/androidTest/AuditEventDaoInstrumentedTest} 在 emulator 上验证。
  *
- * <p>覆盖 V0.5.2 Stage 1 R1 缓解:Migration 仅 1 ALTER + 1 CREATE INDEX 语句最小化,
+ * <p>覆盖该缓解:Migration 仅 1 ALTER + 1 CREATE INDEX 语句最小化,
  * 失败时 Room 抛 IllegalStateException,AppContainer catch 后退化 NoopAuditRepository。
  */
 public final class AuditEventDaoContractTest {
@@ -85,22 +85,22 @@ public final class AuditEventDaoContractTest {
         assertEquals("queryByUserZone 返回类型必须 List<AuditEventEntity>",
                 List.class, query.getReturnType());
 
-        // 兼容契约:V0.5.0 已有 queryByRequest 不动
+        // 兼容契约:已有 queryByRequest 不动
         Method byRequest = AuditEventDao.class.getMethod("queryByRequest", String.class);
         assertEquals("queryByRequest 返回类型必须 List<AuditEventEntity>",
                 List.class, byRequest.getReturnType());
     }
 
     /**
-     * V0.5.2 Stage 1:AuditEventEntity.userId 字段必须有默认值 ""(Migration ALTER
-     * DEFAULT ''),否则历史 V0.5.0/V0.5.1 行插入会 NPE。
+     * AuditEventEntity.userId 字段必须有默认值 ""(Migration ALTER
+     * DEFAULT ''),否则历史行插入会 NPE。
      */
     @Test
     public void auditEventEntityUserIdDefaultsToEmptyString() {
         AuditEventEntity entity = new AuditEventEntity();
         assertEquals("userId 字段默认必须空串(Migration ALTER DEFAULT '' 一致)",
                 "", entity.userId);
-        // history 行 userId='' 不影响 insert(等价 V0.5.0/V0.5.1 行为)
+        // history 行 userId='' 不影响 insert(等价旧行为)
         entity.requestId = "req-legacy";
         entity.type = "TERMINAL";
         entity.actor = "DRIVER";

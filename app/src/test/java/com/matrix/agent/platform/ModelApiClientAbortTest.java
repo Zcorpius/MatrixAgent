@@ -15,11 +15,11 @@ import org.junit.Test;
 import com.matrix.agent.core.identity.CancellationToken;
 
 /**
- * V0.4.3 Stage E:ModelApiClient.post 的 CancellationToken abort 集成测试。
+ * ModelApiClient.post 的 CancellationToken abort 集成测试。
  *
- * <p>V0.4.1 旧实现 post 只检查 {@code Thread.currentThread().isInterrupted()},
+ * <p>旧实现 post 只检查 {@code Thread.currentThread().isInterrupted()},
  * HTTP 连接在 read 阻塞时无法被强制 abort,长响应取消后 socket 仍占用 read timeout(90s)。
- * V0.4.3 改为把 connection.disconnect 注册到 token.abortHook,cancel() 触发后立即断开 socket,
+ * 改为把 connection.disconnect 注册到 token.abortHook,cancel() 触发后立即断开 socket,
  * read 抛 IOException 提前出 finally。
  *
  * <p>测试:本地 ServerSocket accept 后阻塞(永不响应),post 在 read 阻塞;

@@ -18,12 +18,12 @@ import org.junit.runner.RunWith;
 import java.util.List;
 
 /**
- * V0.5.1 Stage 5:DAO deleteByUserZone 真实 Room 执行验证(in-memory,不走 SQLCipher)。
+ * DAO deleteByUserZone 真实 Room 执行验证(in-memory,不走 SQLCipher)。
  *
  * <p>JVM 契约测试 {@code DaoDeleteByUserZoneContractTest} 只验证方法签名 + fake 行为;
  * 真实 SQL 字符串 / Room 生成 _Impl.java 在 emulator 上首次跑通由本类负责。
  *
- * <p>覆盖 V0.5.1 Stage 3 新增的 3 个 DAO {@code deleteByUserZone} 方法在 trajectory /
+ * <p>覆盖新增的 3 个 DAO {@code deleteByUserZone} 方法在 trajectory /
  * memory_record / session_history 三张表上的 zone+user 隔离语义。
  *
  * <p>用 {@link Room#inMemoryDatabaseBuilder} 绕过 SQLCipher + AndroidKeyStore,
@@ -123,7 +123,7 @@ public final class DaoDeleteByUserZoneInstrumentedTest {
 
     /**
      * 3 表跨表 transaction 包装:runInTransaction 内调用 3 个 DAO.deleteByUserZone,
-     * 验证 Room transaction 包装工作正常 + 全部生效。这覆盖 Stage 6 clearByUserZone
+     * 验证 Room transaction 包装工作正常 + 全部生效。这覆盖 clearByUserZone
      * 的 Room.runInTransaction 路径,先在 instrumented 验证基本可用性。
      */
     @Test

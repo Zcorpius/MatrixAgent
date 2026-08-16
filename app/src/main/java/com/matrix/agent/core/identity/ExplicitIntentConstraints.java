@@ -7,10 +7,10 @@ import java.util.regex.Pattern;
  * 用户明确意图约束——由 Runtime 受信任边界(关键词识别 / NLU / 上层调用方)提取,
  * **不能由模型声明**(模型输出不是安全可信来源)。
  *
- * <p>V0.4.0 范围:只覆盖 zone(关键词识别)。V0.5.0+ 扩展到 destination / target / action 等,
+ * <p>当前范围:只覆盖 zone(关键词识别)。后续扩展到 destination / target / action 等,
  * 由 NLU 服务填充。
  *
- * <p>第七轮 P1-1 修复:引入 {@link IntentType} 状态枚举,把"未提及"、"明确单一目标"、
+ * <p>引入 {@link IntentType} 状态枚举,把"未提及"、"明确单一目标"、
  * "多目标"、"否定冲突"区分开。旧实现把多目标 / 否定约束一律降级为 {@code empty()},
  * 混淆了三种语义,导致"主驾和副驾都调"或"不要调主驾只调副驾"被模型脑补 zone 后放行。
  *
@@ -21,7 +21,7 @@ import java.util.regex.Pattern;
  *   <li>{@link IntentType#SINGLE_TARGET} —— 单一明确目标(zone 有效),PolicyEngine 据此
  *       校验模型 ToolCall 的 zone 与用户意图一致;</li>
  *   <li>{@link IntentType#MULTI_TARGET} —— 文本同时肯定主驾和副驾(如"主驾和副驾都调到24度"),
- *       V0.4.0 不支持一句话拆分,PolicyEngine 必须 fail-closed 拒绝;</li>
+ *       不支持一句话拆分,PolicyEngine 必须 fail-closed 拒绝;</li>
  *   <li>{@link IntentType#CONFLICT} —— 否定 zone 但无肯定(如"不要调主驾"),或所有提及的 zone
  *       都被否定,PolicyEngine 必须 fail-closed 拒绝。</li>
  * </ul>
@@ -32,7 +32,7 @@ public final class ExplicitIntentConstraints {
     /**
      * 主驾关键词:{@code 主驾} 或不在 {@code 副} 之后的 {@code 驾驶位}。
      *
-     * <p>第六轮 P1-1 修复:"副驾驶位"包含"驾驶位"——用 lookbehind {@code (?<!副)驾驶位} 排除。
+     * <p>"副驾驶位"包含"驾驶位"——用 lookbehind {@code (?<!副)驾驶位} 排除。
      */
     private static final Pattern DRIVER_KEYWORD = Pattern.compile("主驾|(?<!副)驾驶位");
 
@@ -78,7 +78,7 @@ public final class ExplicitIntentConstraints {
     /**
      * 仅 {@link IntentType#SINGLE_TARGET} 时返回 zone,其他状态返回 null。
      *
-     * <p>保留兼容旧调用方——第七轮之前的代码假设"非 null 即有效"。
+     * <p>保留兼容旧调用方——早期代码假设"非 null 即有效"。
      * 新调用方应直接读 {@link #getIntentType()}。
      */
     public VehicleZone getExplicitZone() { return explicitZone; }
@@ -95,11 +95,11 @@ public final class ExplicitIntentConstraints {
     }
 
     /**
-     * 简单关键词识别——V0.4.0 Demo/联调用。V0.5.0+ 由 NLU 服务替代。
+     * 简单关键词识别——Demo/联调用。后续由 NLU 服务替代。
      *
-     * <p>第七轮 P1-1 修复要点:
+     * <p>修复要点:
      * <ol>
-     *   <li>"副驾驶位"包含"驾驶位"——必须用 lookbehind 排除(第六轮已修);</li>
+     *   <li>"副驾驶位"包含"驾驶位"——必须用 lookbehind 排除;</li>
      *   <li>同时肯定主驾和副驾("主驾和副驾都调") → {@link IntentType#MULTI_TARGET};</li>
      *   <li>否定 zone 但无肯定("不要调主驾") → {@link IntentType#CONFLICT};</li>
      *   <li>"不要 X 只 Y"模式("不要调主驾,只调副驾") → {@link IntentType#SINGLE_TARGET}=Y;</li>
@@ -132,7 +132,7 @@ public final class ExplicitIntentConstraints {
     /**
      * 检查 zone 关键词前 8 个字符中,最近一次出现的修饰词是否定还是肯定。
      *
-     * <p>第七轮 P1-1 修复要点:
+     * <p>修复要点:
      * <ul>
      *   <li>4 字符 lookback 太短——"不要调主驾和副驾"中"副驾"距"不要"6 字符,会被漏判。</li>
      *   <li>"只"/"只要"出现在否定之后会覆盖否定——"不要调主驾只调副驾"中副驾判为肯定。</li>

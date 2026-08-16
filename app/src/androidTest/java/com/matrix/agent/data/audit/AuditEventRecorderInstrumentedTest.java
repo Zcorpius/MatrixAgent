@@ -27,7 +27,7 @@ import com.matrix.agent.data.db.AuditEventEntity;
 import com.matrix.agent.data.db.MatrixDatabase;
 
 /**
- * V0.5.2 Stage 4:AuditEventRecorder 真实 Room _Impl.java SQL 验证(in-memory,不走 SQLCipher)。
+ * AuditEventRecorder 真实 Room _Impl.java SQL 验证(in-memory,不走 SQLCipher)。
  *
  * <p>JVM 契约测试 {@code AuditEventRecorderTest} 用 fake DAO 验证 fail-open / NOOP / payload;
  * 真实 SQL 字符串 / userId 默认值 / Room insert 在 emulator 上首次跑通由本类负责。

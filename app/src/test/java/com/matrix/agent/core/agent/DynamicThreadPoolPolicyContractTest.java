@@ -8,7 +8,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 import org.junit.Test;
 
 /**
- * V0.5.2-rev 评审 P1-1:DynamicThreadPool 双构造器拒绝策略契约。
+ * DynamicThreadPool 双构造器拒绝策略契约。
  *
  * <p>评审发现 AppContainer.ioPool 用默认 3 参构造器(CallerRunsPolicy),队列满时会在
  * caller 线程(TaskScheduler 线程)同步执行模型 HTTP 调用,绕过 future.get(timeout) + abort hook。

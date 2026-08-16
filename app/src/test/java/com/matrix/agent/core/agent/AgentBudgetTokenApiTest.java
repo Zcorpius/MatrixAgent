@@ -6,11 +6,11 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 /**
- * V0.5.0 Stage 5:AgentBudget token 维度 getter 测试。
+ * AgentBudget token 维度 getter 测试。
  *
- * <p>V0.5.0 token 维度不参与 enforcement——主路径仍用 char 判断。
+ * <p>token 维度不参与 enforcement——主路径仍用 char 判断。
  * 本测试只验证 getter 返回值符合保守估算(char / {@link AgentBudget#CHAR_PER_TOKEN_FALLBACK})。
- * V0.5.1 切 JtokkitTokenizer 主路径后,本测试改为 token-based 预算回归。
+ * 切 JtokkitTokenizer 主路径后,本测试改为 token-based 预算回归。
  */
 public final class AgentBudgetTokenApiTest {
     @Test

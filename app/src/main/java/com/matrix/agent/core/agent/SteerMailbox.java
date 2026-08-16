@@ -12,7 +12,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * V0.4.1 Stage D:Per-session Steer 队列。
+ * Per-session Steer 队列。
  *
  * <p>外部线程(主驾 / 副驾 UI)在任务执行中调用 {@link #offer} 追加转向指令;
  * Agent Loop 在两个 drain 点(L178 前 LLM 调用前 / L264 前 Tool 执行前)取出并消费。
@@ -21,22 +21,22 @@ import java.util.concurrent.atomic.AtomicLong;
  * 不同 session 互不干扰,同一 session 内严格 FIFO。
  *
  * <p>不阻塞 Loop:drain 操作 O(n) 一次性取出全部,空时不消耗任何资源。
- * 不持久化:JVM 重启即丢失(V0.5.0 接 Room 持久化时再补)。
+ * 不持久化:JVM 重启即丢失(接入 Room 持久化时再补)。
  *
- * <p><b>V0.5.2 Stage 5:epoch gate</b>——clearUserData 推进 memoryStore epoch 时,
+ * <p><b>epoch gate</b>——clearUserData 推进 memoryStore epoch 时,
  * Repository 同步调 {@link #advanceEpoch(long)} 把 SteerMailbox 的 currentEpoch 推到新值。
  * 后续 {@link #drain(String, long)} 看到 stamped.epoch &lt; currentEpoch 的 Steer → drop +
  * audit(STEER_DROPPED_STALE),不进 conversation。杜绝"clearUserData 前用户已 offer 的 FORCE_TOOL
- * 在 clearUserData 后被新任务消费到"——这是 V0.4.3 的 SLO 漏洞。
+ * 在 clearUserData 后被新任务消费到"——这是旧版 SLO 漏洞。
  *
- * <p><b>兼容契约</b>:旧 {@link #drain(String)}(不传 epoch)仍全量返回——V0.4.3 测试零回归;
+ * <p><b>兼容契约</b>:旧 {@link #drain(String)}(不传 epoch)仍全量返回——历史测试零回归;
  * AgentEngine 主路径切到 {@link #drain(String, long)} 用 request.getEpoch() 触发 epoch gate。
  */
 public final class SteerMailbox {
     private static final String TAG = "MatrixAgent";
 
     /**
-     * V0.5.2 Stage 5:内部包装——记录 Steer 入队时的 currentEpoch。
+     * 内部包装——记录 Steer 入队时的 currentEpoch。
      *
      * <p>StampedSteer 不暴露给 caller;offer / drain 外部 API 仍用 {@link Steer}。
      */
@@ -53,7 +53,7 @@ public final class SteerMailbox {
     private final ConcurrentMap<String, Queue<StampedSteer>> queues = new ConcurrentHashMap<>();
 
     /**
-     * V0.5.2 Stage 5:SteerMailbox 的 currentEpoch——由 Repository.clearUserData 推进。
+     * SteerMailbox 的 currentEpoch——由 Repository.clearUserData 推进。
      *
      * <p>初始 0L;offer(sessionId, steer) 默认用本值标记 stamped epoch。
      * advanceEpoch 推到 N 后,drain(sessionId, N) 把 stamped.epoch < N 的 Steer drop + audit。
@@ -61,7 +61,7 @@ public final class SteerMailbox {
     private final AtomicLong currentEpoch = new AtomicLong(0L);
 
     /**
-     * V0.5.2 Stage 5:stale Steer 处理器——drop 时回调 audit(STEER_DROPPED_STALE)。
+     * stale Steer 处理器——drop 时回调 audit(STEER_DROPPED_STALE)。
      *
      * <p>null 时仅 log warn(不 audit);AppContainer 注入真实 handler 后生效。
      */
@@ -70,7 +70,7 @@ public final class SteerMailbox {
     public SteerMailbox() {}
 
     /**
-     * V0.5.2 Stage 5:注入 stale handler——封装 drop + audit 逻辑。
+     * 注入 stale handler——封装 drop + audit 逻辑。
      *
      * <p>避免 SteerMailbox 直接依赖 AuditEventRecorder(单测可注入 fake)。
      */
@@ -80,7 +80,7 @@ public final class SteerMailbox {
     }
 
     /**
-     * V0.5.2 Stage 5:推进 currentEpoch——clearUserData 调用。
+     * 推进 currentEpoch——clearUserData 调用。
      *
      * <p>本方法**不自增**——只接收 Repository 推送的"当前 epoch 已变"信号(单一权威 = MemoryStore)。
      * 推进后,所有 stamped.epoch &lt; newEpoch 的 Steer 在下次 drain 时被 drop + audit。
@@ -101,7 +101,7 @@ public final class SteerMailbox {
     }
 
     /**
-     * V0.5.2 Stage 5:带 epoch 的 offer——AgentEngine 主路径用 request.getEpoch()。
+     * 带 epoch 的 offer——AgentEngine 主路径用 request.getEpoch()。
      *
      * <p>epoch = request.getEpoch()(Repository.execute 时注入的 memoryStore.currentEpoch());
      * clearUserData 后 request.getEpoch() 与 stamped.epoch 不一致 → drain 时 drop。
@@ -127,7 +127,7 @@ public final class SteerMailbox {
     /**
      * 取出并清空指定 session 队列的全部 Steer,按 FIFO 返回。空队列返回空 List。
      *
-     * <p>旧 API(不传 epoch)——全量 drain,不 drop stale。V0.4.3 测试零回归。
+     * <p>旧 API(不传 epoch)——全量 drain,不 drop stale。历史测试零回归。
      */
     public List<Steer> drain(String sessionId) {
         if (sessionId == null) return Collections.emptyList();
@@ -143,7 +143,7 @@ public final class SteerMailbox {
     }
 
     /**
-     * V0.5.2 Stage 5:epoch-gated drain——AgentEngine 主路径用。
+     * epoch-gated drain——AgentEngine 主路径用。
      *
      * <p>遍历 StampedSteer,stamped.epoch &lt; currentEpoch 的视为 stale → drop + audit
      * (走 {@link StaleSteerHandler#onStaleSteerDropped});stamped.epoch &gt;= currentEpoch
@@ -195,9 +195,9 @@ public final class SteerMailbox {
     }
 
     /**
-     * V0.4.3 Stage E:只查队列中是否含 DEFER,**不动队列**。
+     * 只查队列中是否含 DEFER,**不动队列**。
      *
-     * <p>V0.5.2 Stage 5:peek 不参与 epoch gate——epoch gate 只在 drain 时生效。
+     * <p>peek 不参与 epoch gate——epoch gate 只在 drain 时生效。
      * peek 看到的是 stale DEFER 仍返回 true(由 caller 决定是否提前 abort);
      * 但 AgentEngine 主路径 hasDeferredSteer → DEFER 终止本身就会让任务结束,
      * stale DEFER 让任务结束 = 等价 clearUserData 语义(用户数据已清,任务也该结束)。
@@ -220,7 +220,7 @@ public final class SteerMailbox {
     }
 
     /**
-     * 第七轮 P1.3:清空所有 session 队列——{@link com.matrix.agent.data.AgentRuntimeRepository#clearUserData()} 调用。
+     * 清空所有 session 队列——{@link com.matrix.agent.data.AgentRuntimeRepository#clearUserData()} 调用。
      */
     public void clearAll() {
         queues.clear();

@@ -3,7 +3,7 @@ package com.matrix.agent.core.identity;
 import android.util.Log;
 
 /**
- * V0.5.2 Stage 9:Fallback 意图分类器——包装 LLM + Keyword,Llm 失败 / 超时时退 Keyword。
+ * Fallback 意图分类器——包装 LLM + Keyword,Llm 失败 / 超时时退 Keyword。
  *
  * <p>主路径行为:
  * <ol>

@@ -1,11 +1,11 @@
 package com.matrix.agent.core.agent;
 
 /**
- * V0.4.1 Stage B:可取消的 ModelCall 抽象——把"调用 LLM"和"abort 传输层"分离成两个操作。
+ * 可取消的 ModelCall 抽象——把"调用 LLM"和"abort 传输层"分离成两个操作。
  *
- * <p>背景:V0.4.0 的 ModelCallExecutor 用 50ms polling + Future.cancel(true) 包裹 gateway.decide,
+ * <p>背景:ModelCallExecutor 用 50ms polling + Future.cancel(true) 包裹 gateway.decide,
  * 但 Future.cancel(true) 只发 thread interrupt,真实传输层(HttpURLConnection 阻塞 read)不响应
- * interrupt 时无法立即停止。Stage B 把 abort 语义从 ModelCallExecutor 下沉到 ModelGateway,
+ * interrupt 时无法立即停止。把 abort 语义从 ModelCallExecutor 下沉到 ModelGateway,
  * 由 ModelGateway 实现决定如何 abort(LlmModelGateway 未来挂 HttpURLConnection.disconnect /
  * OkHttp Call.cancel)。
  *
@@ -22,7 +22,7 @@ package com.matrix.agent.core.agent;
  * 真正生效需要 ModelGateway 实现方覆盖 prepare(),返回带 abort 能力的 CancellableModelCall。
  *
  * <p>后续版本接真实 HTTP 网关(OkHttp)时,abort() 会触发 OkHttp Call.cancel(),
- * 让 socket read 立即抛 IOException 而不是等 read timeout。V0.4.1 阶段 LlmModelGateway
+ * 让 socket read 立即抛 IOException 而不是等 read timeout。当前 LlmModelGateway
  * 走 HttpURLConnection,abort() 暂时仅触发 future.cancel(true) + thread interrupt。
  */
 public interface CancellableModelCall {

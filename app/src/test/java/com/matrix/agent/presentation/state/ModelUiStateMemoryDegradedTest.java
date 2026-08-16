@@ -7,7 +7,7 @@ import static org.junit.Assert.assertTrue;
 import org.junit.Test;
 
 /**
- * V0.5.3 评审 P1-3:ModelUiState 3 参构造器 + memoryDegraded 字段。
+ * ModelUiState 3 参构造器 + memoryDegraded 字段。
  *
  * <p>新 3 参构造器读回 memoryDegraded=true;旧 2 参构造器 delegate default false,
  * 所有现有调用点不需改。

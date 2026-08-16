@@ -8,7 +8,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 /**
- * {@link VoiceSessionState} 状态机测试。Voice V1。
+ * {@link VoiceSessionState} 状态机测试。
  *
  * <p>覆盖:正常流迁移、Demo CONFIRMING 不可达、barge-in、各状态取消 / 错误、非法事件容错。
  */

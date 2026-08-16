@@ -21,7 +21,7 @@ import com.matrix.agent.platform.ModelConfig;
 import com.matrix.agent.platform.PlannerMode;
 
 /**
- * V0.5.2 评审 P1-4:LlmSummaryProvider 契约测试。
+ * LlmSummaryProvider 契约测试。
  *
  * <p>验证:
  * <ul>

@@ -16,7 +16,7 @@ public final class PolicyEngine {
     private static final String TAG = "MatrixAgent";
 
     /**
-     * V0.5.5 P1-A:用户硬约束——"长期记忆仅由用户决定"。PolicyEngine 是受信任执行边界,
+     * 用户硬约束——"长期记忆仅由用户决定"。PolicyEngine 是受信任执行边界,
      * 在所有 CapabilityProvider 之前强制 memory.semantic.save 必须 request.isMemorySaveAllowed()=true。
      * MockCapabilityProvider.MemorySemanticSaveHandler 内的同款 gate 保留作 defence-in-depth
      * (若未来 Provider 不经过 PolicyEngine 直接调 handler,这层仍守住)。
@@ -31,7 +31,7 @@ public final class PolicyEngine {
 
     public PolicyDecision evaluate(AgentRequest request, ToolCall call) {
         String cap = call.getCapabilityName();
-        // 第七轮 P2-4:Tool 参数含 destination / home_address / preferred_temperature 等业务敏感字段,
+        // Tool 参数含 destination / home_address / preferred_temperature 等业务敏感字段,
         // 不能整段进 logcat。这里只暴露 capability 名 + 元数据(actor / occupantZone)。
         Log.d(TAG, "[Policy] evaluate cap=" + cap
                 + " actor=" + request.getActor()
@@ -48,21 +48,21 @@ public final class PolicyEngine {
             return PolicyDecision.denyCapability("R3 禁止能力：不允许由 Agent 控制");
         }
 
-        // V0.5.5 P1-A:capability-specific 显式许可 gate。
+        // capability-specific 显式许可 gate。
         // 必须在 schema / parameter 校验之前——memorySaveAllowed=false 是 capability-level
         // 不可上诉(模型只能放弃或换 capability),不应让模型通过修参数绕过。
         // 同语义:R3 / vehicleState / readOnlyHint + writeOperation 都是 capability-level fail-closed。
         PolicyDecision memorySaveGate = checkMemorySaveExplicitGate(request, cap);
         if (memorySaveGate != null) return memorySaveGate;
 
-        // 第七轮 P1-1:写操作 + MULTI_TARGET/CONFLICT 用户意图 → fail-closed。
+        // 写操作 + MULTI_TARGET/CONFLICT 用户意图 → fail-closed。
         // 必须在参数校验之前——多目标 / 否定冲突的 ToolCall 不允许执行,与参数是否合法无关。
         if (definition.isWriteOperation()) {
             PolicyDecision blocked = checkExplicitIntentBlocked(request, cap);
             if (blocked != null) return blocked;
         }
 
-        // V0.4.3 Round 4 P1:任务级 readOnlyHint 强制约束。
+        // 任务级 readOnlyHint 强制约束。
         // IntentClassifier 把"查电量"等查询命令标 readOnlyHint=true 让 TaskScheduler 抢占可触达,
         // 但模型输出不可信——若 LLM 错误或被 prompt injection 后返回 climate.set_temperature 等写
         // capability,旧实现仍 ALLOW,导致"被抢占的查询任务"实际跑了写操作,半路被 cancel 时
@@ -78,16 +78,16 @@ public final class PolicyEngine {
                     "任务被标记为只读(readOnlyHint=true),禁止执行写操作");
         }
 
-        // V0.4.2 Stage D:capability 前置车辆状态约束(AND 语义)。
+        // capability 前置车辆状态约束(AND 语义)。
         // 不满足时归 CAPABILITY 拒绝(不可上诉)——vehicle state 是车辆物理事实,
         // 模型换参数解决不了,等用户停车 / 启动引擎后重新下达。
         PolicyDecision vehicleStateDecision = checkVehicleState(definition, request, cap);
         if (vehicleStateDecision != null) return vehicleStateDecision;
 
-        // 第七轮 P1-2:strict schema 校验——模型输出是不可信输入,即使 JSON Schema 设了
+        // strict schema 校验——模型输出是不可信输入,即使 JSON Schema 设了
         // additionalProperties=false 也不能依赖。在 PolicyEngine(受信任执行边界)拒绝所有
         // 未声明字段;统一 required / range / enum / type 校验。
-        // V0.4.2 Stage B:委托 SchemaValidator 校验 CanonicalSchema(替换 V0.4.0
+        // 委托 SchemaValidator 校验 CanonicalSchema(替换旧版
         // checkStrictSchema + checkTypeAndRangeAndEnum 双方法)。
         PolicyDecision schemaDecision = checkCanonicalSchema(definition, call, cap);
         if (schemaDecision != null) return schemaDecision;
@@ -115,7 +115,7 @@ public final class PolicyEngine {
                         + " 不支持目标区域: " + targetZone);
                 return PolicyDecision.denyCapability("该 Capability 不支持目标区域：" + targetZone);
             }
-            // 第四轮 P1-1:显式用户目标统一前置约束。权威来源是 ExplicitIntentConstraints,
+            // 显式用户目标统一前置约束。权威来源是 ExplicitIntentConstraints,
             // 由 Runtime 受信任边界(关键词识别 / NLU)提取,**不依赖模型 adapter 标 provenance**。
             //
             // 评审指出的两种遗漏场景(都必须堵):
@@ -137,7 +137,7 @@ public final class PolicyEngine {
     }
 
     /**
-     * 第七轮 P1-1:写操作 + 用户意图被降级(MULTI_TARGET/CONFLICT)时 fail-closed。
+     * 写操作 + 用户意图被降级(MULTI_TARGET/CONFLICT)时 fail-closed。
      * 在参数 / zone 校验之前执行,确保多目标 / 否定冲突的 ToolCall 永不进入 Provider。
      */
     private static PolicyDecision checkExplicitIntentBlocked(AgentRequest request, String cap) {
@@ -152,7 +152,7 @@ public final class PolicyEngine {
     }
 
     /**
-     * V0.5.5 P1-A:memory.semantic.save capability-level 显式许可 gate。
+     * memory.semantic.save capability-level 显式许可 gate。
      *
      * <p>返回 null 表示放行(交回主流程);返回非 null 表示已得出决策。
      * 触发条件:capability == memory.semantic.save 且 request.isMemorySaveAllowed()==false。
@@ -171,7 +171,7 @@ public final class PolicyEngine {
     }
 
     /**
-     * V0.4.2 Stage D:capability 前置车辆状态约束判定(AND 语义)。
+     * capability 前置车辆状态约束判定(AND 语义)。
      *
      * <p>插在 {@link #checkExplicitIntentBlocked} 之后、{@link #checkCanonicalSchema} 之前——
      * vehicle state 是车辆物理事实,与参数无关,先于 schema 校验判定。
@@ -195,12 +195,12 @@ public final class PolicyEngine {
     }
 
     /**
-     * 第七轮 P1-2 / V0.4.2 Stage B:strict schema 校验——拒绝 schema 外字段、检查
+     * strict schema 校验——拒绝 schema 外字段、检查
      * required/type/range/enum/const/pattern/composition。
      *
      * <p>委托 {@link SchemaValidator#validateArguments(CanonicalSchema, java.util.Map)}
-     * 递归校验 V0.4.2 {@link CanonicalSchema}(JSON Schema 2020-12 子集)。V0.4.0
-     * checkStrictSchema + checkTypeAndRangeAndEnum 双方法已删除——V0.4.0 quirks
+     * 递归校验 {@link CanonicalSchema}(JSON Schema 2020-12 子集)。旧版
+     * checkStrictSchema + checkTypeAndRangeAndEnum 双方法已删除——旧版 quirks
      * (enum 大小写不敏感、integer enum String.valueOf 比对、空白字符串拒绝)在
      * SchemaValidator 内部保留。
      *
@@ -223,7 +223,7 @@ public final class PolicyEngine {
     }
 
     /**
-     * 把 SchemaError 转成模型可读的 deny reason——保留 V0.4.0 文案兼容
+     * 把 SchemaError 转成模型可读的 deny reason——保留旧版文案兼容
      * (PolicyEngineTest 测试 reason.contains("temperature") / contains("priority") 等)。
      */
     private static String buildReasonFromError(SchemaError error) {
@@ -258,7 +258,7 @@ public final class PolicyEngine {
     }
 
     /**
-     * 第四轮 P1-1:显式 zone 一致性 + 越权双检查。返回非 null 表示已得出决策(允许 / 拒绝),
+     * 显式 zone 一致性 + 越权双检查。返回非 null 表示已得出决策(允许 / 拒绝),
      * 返回 null 表示没有显式约束,交回主流程兜底处理。
      *
      * <p>顺序:
@@ -269,7 +269,7 @@ public final class PolicyEngine {
      *   <li>explicitZone 与 targetZone 一致且不越权 → ALLOW</li>
      * </ol>
      *
-     * <p>第七轮 P1-1:MULTI_TARGET / CONFLICT 已在 {@link #checkExplicitIntentBlocked} 前置
+     * <p>MULTI_TARGET / CONFLICT 已在 {@link #checkExplicitIntentBlocked} 前置
      * fail-closed,本方法只处理 SINGLE_TARGET 与 UNSPECIFIED。
      */
     private PolicyDecision checkExplicitZoneConsistency(AgentRequest request, ToolCall call,
@@ -330,8 +330,8 @@ public final class PolicyEngine {
     /**
      * 判断发起者所在 zone 是否有权写目标 zone。
      *
-     * <p>V0.4.0 规则:副驾(PASSENGER)不能写主驾(DRIVER)。其他组合(主驾写副驾、
-     * 主驾写主驾、副驾写副驾)允许。后排 / 第三排留待 V0.5.0+ 扩展。
+     * <p>规则:副驾(PASSENGER)不能写主驾(DRIVER)。其他组合(主驾写副驾、
+     * 主驾写主驾、副驾写副驾)允许。后排 / 第三排留待扩展。
      */
     private static boolean isCrossZoneViolation(VehicleZone occupantZone, VehicleZone targetZone) {
         return occupantZone == VehicleZone.PASSENGER && targetZone == VehicleZone.DRIVER;

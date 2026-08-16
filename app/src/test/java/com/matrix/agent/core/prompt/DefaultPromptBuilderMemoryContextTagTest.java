@@ -15,7 +15,7 @@ import com.matrix.agent.core.memory.MemoryScope;
 import com.matrix.agent.core.memory.MemorySnippet;
 
 /**
- * V0.5.4 评审 P1-4:DefaultPromptBuilder 用 {@code <memory_context>} 替代
+ * DefaultPromptBuilder 用 {@code <memory_context>} 替代
  * {@code <trusted_memory>},语义从"可信记忆"改为中性的"上下文记忆"。
  *
  * <p>用户硬约束:"不要把用户可控内容称为 trusted_memory"。

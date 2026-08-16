@@ -18,7 +18,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 /**
  * Stateful AAOS replacement used by the emulator build.
  *
- * <p>V0.4.3 Stage D 重写:删除 V0.4.0 的 7 个 if-else 硬编码分支,改走
+ * <p>重写:删除旧版的 7 个 if-else 硬编码分支,改走
  * {@code Map<String, CapabilityHandler>} 路由表——每个 capability 一个 handler 实现,
  * handler 内部用 {@link VerifyStrategy} 抽象 verify 行为。
  */
@@ -36,10 +36,10 @@ public final class MockCapabilityProvider implements CapabilityProvider {
     }
 
     /**
-     * V0.5.3 P1-1:带 {@link MemoryWriter} 的重载,memory.semantic.* handler 走真实持久化路径。
+     * 带 {@link MemoryWriter} 的重载,memory.semantic.* handler 走真实持久化路径。
      *
      * <p>旧单参构造器 delegate 到本方法,memoryWriter 默认 {@link MemoryWriter#NOOP}——
-     * 所有 V0.4.x / V0.5.x 测试 fake 调用点不需改,保 654 测试零回归。
+     * 所有测试 fake 调用点不需改,保 654 测试零回归。
      */
     public MockCapabilityProvider(MemoryStore memoryStore, MemoryWriter memoryWriter) {
         this.memoryStore = memoryStore;
@@ -232,9 +232,9 @@ public final class MockCapabilityProvider implements CapabilityProvider {
             long started = System.nanoTime();
             String key = String.valueOf(ctx.getCall().argument("key"));
             String value = String.valueOf(ctx.getCall().argument("value"));
-            // 第八轮 P1.3:带 epoch 校验的 putPreference——clearUserData 自增 epoch 后,
+            // 带 epoch 校验的 putPreference——clearUserData 自增 epoch 后,
             // 旧 epoch 的 Provider 写入会被 MemoryStore 拒绝 (return false),杜绝陈旧写回。
-            // V0.4.x 默认 epoch=0L (兼容路径),行为不变。
+            // 默认 epoch=0L (兼容路径),行为不变。
             long requestEpoch = ctx.getRequest().getEpoch();
             boolean accepted = ctx.getMemoryStore().putPreferenceChecked(
                     ctx.userId(), key, value, requestEpoch);
@@ -286,18 +286,18 @@ public final class MockCapabilityProvider implements CapabilityProvider {
     }
 
     /**
-     * V0.5.3 P1-1:Semantic 显式写入——用户明确要求长期记住的事实/知识(如"我对花生过敏")。
+     * Semantic 显式写入——用户明确要求长期记住的事实/知识(如"我对花生过敏")。
      *
-     * <p>V0.5.4 评审 P1-1:现在加 epoch gate——与 preference.save 同模式。requestEpoch
+     * <p>现在加 epoch gate——与 preference.save 同模式。requestEpoch
      * 由 AgentRequest.getEpoch() 透传,RoomMemoryWriter 在 Room 事务内做"读 system epoch +
      * 比较 + upsert"原子序列。clearUserData 后,旧 epoch 的 semantic save 也会被拒。
      *
-     * <p>V0.5.4 评审 P1-2:用户硬约束——"长期记忆仅由用户决定"。Repository.execute 入口
+     * <p>用户硬约束——"长期记忆仅由用户决定"。Repository.execute 入口
      * 用 MemoryIntentDetector 判定 {@link AgentRequest#isMemorySaveAllowed()},false 时
      * 本 handler 直接 POLICY_REJECTED,模型重试无效——硬 gate,prompt 约定的双重防线。
      * 杜绝"查天气"等纯查询请求里模型自由调 save 污染长期记忆。
      *
-     * <p>V0.5.5 P1-A:主 gate 已上移到 {@code PolicyEngine.checkMemorySaveExplicitGate}
+     * <p>主 gate 已上移到 {@code PolicyEngine.checkMemorySaveExplicitGate}
      * (capability-level CAPABILITY_REJECTED,先于 schema 校验,deny → Provider 永不被调)。
      * 本 handler 内的同款 POLICY_REJECTED 检查保留作 defence-in-depth——若未来 Provider
      * 不经过 PolicyEngine 直接调 handler(测试桩 / 第三方 runtime),这层仍守住。
@@ -308,7 +308,7 @@ public final class MockCapabilityProvider implements CapabilityProvider {
         @Override
         public ToolResult execute(ProviderContext ctx) {
             long started = System.nanoTime();
-            // V0.5.4 P1-2:硬 gate——用户未显式要求长期记忆时直接 POLICY_REJECTED。
+            // 硬 gate——用户未显式要求长期记忆时直接 POLICY_REJECTED。
             // 模型看到此状态码后不应再重试同一 capability(与 CAPABILITY_REJECTED 语义一致)。
             if (!ctx.getRequest().isMemorySaveAllowed()) {
                 Log.w(TAG, "[Provider] memory.semantic.save POLICY_REJECTED user=" + ctx.userId()
@@ -352,7 +352,7 @@ public final class MockCapabilityProvider implements CapabilityProvider {
     }
 
     /**
-     * V0.5.3 P1-1:Semantic 显式读取——memory.semantic.get capability handler。
+     * Semantic 显式读取——memory.semantic.get capability handler。
      *
      * <p>readSemantic 返回 null(无记录 / 失败)时转 EXECUTION_FAILED,
      * 与 MemoryPreferenceGetHandler 的 not-found 路径一致。

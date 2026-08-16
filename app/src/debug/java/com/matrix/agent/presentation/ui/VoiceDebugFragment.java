@@ -24,7 +24,7 @@ import com.matrix.agent.presentation.viewmodel.MatrixViewModelFactory;
 import com.matrix.agent.presentation.viewmodel.VoiceDebugViewModel;
 
 /**
- * 语音闭环 Demo 界面。Voice V1 Stage 4。
+ * 语音闭环 Demo 界面。
  *
  * <p>进页面即申请 RECORD_AUDIO,授权后 ViewModel 下载模型 + 装配 + 启动采音。
  */
@@ -60,7 +60,7 @@ public final class VoiceDebugFragment extends Fragment {
 
         if (!BuildConfig.DEBUG) {
             Log.i(TAG, "[Voice] release 构建,不装配/不采音");
-            statusView.setText("语音闭环仅 Debug 构建可用(release 不开放)");
+            statusView.setText(getString(R.string.voice_debug_debug_only));
             return;
         }
         viewModel.getUiState().observe(getViewLifecycleOwner(), this::render);
@@ -69,8 +69,8 @@ public final class VoiceDebugFragment extends Fragment {
 
     private void render(VoiceUiState s) {
         if (s == null) return;
-        stateView.setText(s.state == null ? "—" : s.state.name());
-        partialView.setText(s.partial == null || s.partial.isEmpty() ? "(无)" : s.partial);
+        stateView.setText(s.state == null ? getString(R.string.voice_debug_state_placeholder) : s.state.name());
+        partialView.setText(s.partial == null || s.partial.isEmpty() ? getString(R.string.voice_debug_partial_empty) : s.partial);
         statusView.setText(s.status == null ? "" : s.status);
     }
 
@@ -96,7 +96,7 @@ public final class VoiceDebugFragment extends Fragment {
         if (granted) {
             viewModel.onReadyAndPermitted();
         } else if (statusView != null) {
-            statusView.setText("需要麦克风权限才能运行语音闭环");
+            statusView.setText(getString(R.string.voice_debug_mic_required));
         }
     }
 

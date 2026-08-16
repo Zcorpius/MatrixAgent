@@ -3,7 +3,7 @@ package com.matrix.agent.presentation.state;
 import com.matrix.agent.core.voice.VoiceSessionState;
 
 /**
- * 语音闭环界面状态。Voice V1 Stage 4。
+ * 语音闭环界面状态。
  *
  * <p>{@code state} 是当前会话状态机;{@code partial} 是 ASR 中间文本;{@code status} 是提示文案
  * (下载进度 / 就绪 / 错误)。

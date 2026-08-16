@@ -3,7 +3,7 @@ package com.matrix.agent.core.memory;
 import java.util.List;
 
 /**
- * V0.5.0 Stage 1:Working Memory 层——当前会话上下文(SessionContext recentTurns)。
+ * Working Memory 层——当前会话上下文(SessionContext recentTurns)。
  *
  * <p>默认实现 {@link SessionContextWorkingMemory} 包装 {@link com.matrix.agent.core.session.SessionManager},
  * 按 sessionId 取最近 N 条 turn 转 MemorySnippet。

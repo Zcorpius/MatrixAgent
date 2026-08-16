@@ -18,7 +18,7 @@ import com.matrix.agent.data.db.AuditEventDao;
 import com.matrix.agent.data.db.AuditEventEntity;
 
 /**
- * V0.5.2 评审 P2-2:AuditEventRecorder payloadJson 合法 JSON 契约测试。
+ * AuditEventRecorder payloadJson 合法 JSON 契约测试。
  *
  * <p>评审发现旧实现仅 replace 双引号,反斜杠 / 换行 / 控制字符 / Map.toString() 都会破坏 JSON 结构。
  * 本测试验证所有 recordXxx 路径产生的 payloadJson 都能通过 new JSONObject(payloadJson) 解析,

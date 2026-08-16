@@ -10,7 +10,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * V0.5.2-rev 评审 P3-1:buildPreToolPayload fallback 路径必须返回合法 JSON。
+ * buildPreToolPayload fallback 路径必须返回合法 JSON。
  *
  * <p>旧 fallback 用 {@code JSONObject.quote(toolName)} 返回带引号字符串(如 {@code "toolName"})
  * 后拼到已有 {@code "..."} 内,产生 {@code "tool":""toolName""} 双重引号——非法 JSON,

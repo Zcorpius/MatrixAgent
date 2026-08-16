@@ -9,7 +9,7 @@ import org.json.JSONObject;
 import org.junit.Test;
 
 /**
- * V0.4.2 Stage C:Anthropic Full schema 投影契约测试。
+ * Anthropic Full schema 投影契约测试。
  *
  * <p>ANTHROPIC_FULL 不做降级,完整保留 JSON Schema 2020-12 语义:
  * <ul>
@@ -94,7 +94,7 @@ public final class SchemaJsonWriterAnthropicTest {
 
     @Test
     public void additionalPropertiesFollowsSchemaDeclaration() throws Exception {
-        // 显式 true 时跟随(虽然 V0.4.2 默认 false,允许显式 override)
+        // 显式 true 时跟随(虽然默认 false,允许显式 override)
         CanonicalSchema schema = CanonicalSchema.object()
                 .property("a", CanonicalSchema.string().build())
                 .additionalProperties(true)

@@ -15,16 +15,16 @@ public enum StopReason {
     /** 用户取消。 */
     CANCELLED,
     /**
-     * V0.4.1 Stage D:用户通过 {@link Steer}(Type=DEFER)显式推迟当前任务。
+     * 用户通过 {@link Steer}(Type=DEFER)显式推迟当前任务。
      * Loop 立即终止,TaskState 对应 {@link TaskState#DEFERRED}。
      * 区别于 {@link #CANCELLED}:被推迟的任务语义上可被重新调度,不是失败。
      */
     DEFERRED,
     /**
-     * V0.4.3 Round 2:被主驾更高优先级任务抢占。
+     * 被主驾更高优先级任务抢占。
      *
      * <p>区别于 {@link #CANCELLED}:抢占语义上不是用户主动取消。
-     * V0.4.1 旧契约把映射责任推给调用方,V0.4.3 Round 2 改为 TaskScheduler 内部识别
+     * 旧契约把映射责任推给调用方,改为 TaskScheduler 内部识别
      * (token 由 Scheduler 自己 cancel 的 task)→ StopReason 重映射为 PREEMPTED,
      * TaskState 对应 {@link TaskState#PREEMPTED}。
      */
@@ -43,12 +43,12 @@ public enum StopReason {
      * (映射为 {@link FinishReason#NONE}),或 STOP 但 content 为空。Runtime 不能信任
      * 这样的输出,直接终止任务,不允许被错判为正常完成。
      *
-     * <p>第五轮 P2-1:旧实现把 NONE 一律当作 NO_TOOL_CALL → 可能 SUCCEEDED,
+     * <p>旧实现把 NONE 一律当作 NO_TOOL_CALL → 可能 SUCCEEDED,
      * 把协议错误掩盖成正常完成。
      */
     PROTOCOL_ERROR,
     /**
-     * 第六轮评审 P1:写命令已下发但执行结果未知——Repository 外层 deadline/interrupt
+     * 写命令已下发但执行结果未知——Repository 外层 deadline/interrupt
      * 触发后,token.cancel + grace window 仍未让 Engine 返回结果,而 IntentClassifier
      * 判定用户输入为写操作(intentReadOnly=false)。对应 {@link TaskState#EXECUTION_UNKNOWN}。
      *
@@ -57,7 +57,7 @@ public enum StopReason {
      */
     EXECUTION_UNKNOWN,
     /**
-     * V0.5.2 评审 P1-1:任务在调度层就被拒绝(schedulerPool 队列满)。对应 {@link TaskState#REJECTED}。
+     * 任务在调度层就被拒绝(schedulerPool 队列满)。对应 {@link TaskState#REJECTED}。
      *
      * <p>区别于 {@link #POLICY_HALT}(能力级拒绝反复出现):REJECTED 是系统过载,任务从未
      * 进入 Loop,也未下发给 Provider / Capability。UI 应提示"系统繁忙,请稍后重试"。

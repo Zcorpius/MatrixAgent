@@ -11,11 +11,11 @@ import androidx.core.view.GravityCompat;
 import androidx.drawerlayout.widget.DrawerLayout;
 import androidx.fragment.app.Fragment;
 
-import com.matrix.agent.BuildConfig;
 import com.matrix.agent.presentation.ui.AgentTestFragment;
 import com.matrix.agent.presentation.ui.ModelApiFragment;
 import com.matrix.agent.presentation.ui.ModelDownloadFragment;
-import com.matrix.agent.presentation.ui.VoiceDebugFragment;
+import com.matrix.agent.presentation.viewmodel.VoiceEntryProvider;
+import com.matrix.agent.presentation.viewmodel.VoiceEntryProviders;
 
 /** Application shell. Business logic lives in repositories and ViewModels. */
 public final class MainActivity extends AppCompatActivity {
@@ -37,13 +37,14 @@ public final class MainActivity extends AppCompatActivity {
                 view -> showPage(new ModelApiFragment(), "模型 API 接入"));
         findViewById(R.id.nav_model_download).setOnClickListener(
                 view -> showPage(new ModelDownloadFragment(), "模型下载"));
-        // Voice 闭环进程内直连 repository.execute(Actor.DRIVER),误识别可能触发真实写;
-        // 仅 Debug 构建开放入口(文档 14.1 第 6 条),release 隐藏。
+        // Voice 入口经 VoiceEntryProvider 解耦:仅 debug 构建有实现(createVoiceFragment),
+        // release 时 provider=null 隐藏入口。main 不直接引用 voice Demo 类(Release 不含 Vosk)。
         View navVoice = findViewById(R.id.nav_voice);
-        navVoice.setVisibility(BuildConfig.DEBUG ? View.VISIBLE : View.GONE);
-        if (BuildConfig.DEBUG) {
+        VoiceEntryProvider voiceProvider = VoiceEntryProviders.get();
+        navVoice.setVisibility(voiceProvider != null ? View.VISIBLE : View.GONE);
+        if (voiceProvider != null) {
             navVoice.setOnClickListener(
-                    view -> showPage(new VoiceDebugFragment(), "语音闭环"));
+                    view -> showPage(voiceProvider.createVoiceFragment(), "语音闭环"));
         }
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
             @Override

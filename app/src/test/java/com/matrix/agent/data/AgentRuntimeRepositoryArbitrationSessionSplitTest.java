@@ -30,14 +30,14 @@ import com.matrix.agent.core.tool.MockCapabilityProvider;
 import com.matrix.agent.core.tool.ToolExecutor;
 
 /**
- * V0.4.3 Round 3 P1.2:验证 Repository 把 arbitrationKey(同车调度仲裁)
+ * 验证 Repository 把 arbitrationKey(同车调度仲裁)
  * 和 sessionId(乘员上下文隔离)拆成两个独立的 key。
  *
- * <p>Round 2 旧实现把主驾和副驾 sessionId 都设成 demo-vehicle 让 TaskScheduler
+ * <p>旧实现把主驾和副驾 sessionId 都设成 demo-vehicle 让 TaskScheduler
  * 抢占可触达,但 SessionManager 和 SteerMailbox 也跟着共享——副驾的 REPROMPT
- * 可能进入主驾 mailbox,后续 V0.5 上下文持久化时也会主副驾串扰。
+ * 可能进入主驾 mailbox,后续上下文持久化时也会主副驾串扰。
  *
- * <p>Round 3 拆键:TaskScheduler 内部用 arbitrationKey(demo-vehicle),AgentEngine
+ * <p>拆键:TaskScheduler 内部用 arbitrationKey(demo-vehicle),AgentEngine
  * 内部(SessionManager / SteerMailbox)用 sessionId(demo-driver / demo-passenger)。
  * 即使共享 arbitrationKey 让抢占生效,乘员上下文仍按 sessionId 严格隔离。
  */

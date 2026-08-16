@@ -3,11 +3,11 @@ package com.matrix.agent.core.identity;
 import android.util.Log;
 
 /**
- * V0.5.0 Stage 3:Actor → userId 字面量映射工具。
+ * Actor → userId 字面量映射工具。
  *
- * <p>V0.4.3 ProviderContext / MemoryStore 都用 {@code "demo-driver"} / {@code "demo-passenger"}
- * 字面量;V0.5.0 Audit / Memory 引用同一字面量,确保 Room TrajectoryEntity.userId 列
- * 与 SharedPreferences MemoryStore 主键兼容(V0.5.1 一次性迁移)。
+ * <p>ProviderContext / MemoryStore 都用 {@code "demo-driver"} / {@code "demo-passenger"}
+ * 字面量;Audit / Memory 引用同一字面量,确保 Room TrajectoryEntity.userId 列
+ * 与 SharedPreferences MemoryStore 主键兼容(一次性迁移)。
  *
  * <p>后续版本接 OccupantZone / Android User 时,这里改读 CarOccupantZoneManager。
  */

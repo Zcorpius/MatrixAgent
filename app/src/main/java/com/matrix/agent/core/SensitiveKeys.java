@@ -6,7 +6,7 @@ import java.util.Locale;
 import java.util.Set;
 
 /**
- * V0.5.3 评审 P1-2:业务 PII key 共享 denylist。
+ * 业务 PII key 共享 denylist。
  *
  * <p>两个调用方共享,避免双份维护漂移:
  * <ul>
@@ -16,7 +16,7 @@ import java.util.Set;
  *       value 替换为 {@code <memory>}(key 本身是元数据,不 mask)。</li>
  * </ul>
  *
- * <p><b>denylist 而非 allowlist</b>:V0.5.3 没法穷举所有合法 preference key(用户/车型/地区差异),
+ * <p><b>denylist 而非 allowlist</b>:没法穷举所有合法 preference key(用户/车型/地区差异),
  * allowlist 会逼业务方申请审批——denylist 默认放行,已知 PII key 列入。
  *
  * <p><b>后续版本切 capability schema isSensitive() 后本类可移除</b>:届时 PII 由

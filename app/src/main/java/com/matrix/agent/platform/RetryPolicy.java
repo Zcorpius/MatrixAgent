@@ -9,7 +9,7 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeoutException;
 
 /**
- * V0.5.2 Stage 10:模型 API 受控重试策略——对 {@link ModelApiException.RateLimitException}
+ * 模型 API 受控重试策略——对 {@link ModelApiException.RateLimitException}
  * 与 {@link ModelApiException.ServerException} 做指数退避重试,4xx / 网络异常 / 超时不重试。
  *
  * <p><b>策略</b>:
@@ -21,7 +21,7 @@ import java.util.concurrent.TimeoutException;
  *   <li>非 retryable 异常直接向上抛(不消耗重试次数)。</li>
  * </ul>
  *
- * <p><b>V0.5.2 评审 P2-3</b>:新增 {@link #invokeWithRetry(CallableWithRetry, CancellationToken, long)}
+ * <p>新增 {@link #invokeWithRetry(CallableWithRetry, CancellationToken, long)}
  * 重载——退避期间感知 cancellation(立即唤醒 sleep + 抛 CancellationException),并按剩余 deadline
  * 截断 delay(剩余时间不足时直接抛 TimeoutException,避免"退避后剩余时间不够仍发请求")。
  *
@@ -45,7 +45,7 @@ public class RetryPolicy {
     /** Jitter 比例——±20% 抖动,避免雷鸣群。 */
     public static final double JITTER = 0.2;
 
-    /** V0.5.2 Stage 10:函数式调用包装——catch + 重试 + 退避。 */
+    /** 函数式调用包装——catch + 重试 + 退避。 */
     public interface CallableWithRetry<T> {
         T call() throws Exception;
     }
@@ -62,7 +62,7 @@ public class RetryPolicy {
     }
 
     /**
-     * V0.5.2 评审 P2-3:cancel + deadline 感知的重试入口。
+     * cancel + deadline 感知的重试入口。
      *
      * <p>每次 retry 前检查:
      * <ul>
@@ -87,7 +87,7 @@ public class RetryPolicy {
             long deadlineAtMillis) throws Exception {
         Exception lastException = null;
         for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-            // V0.5.2 评审 P2-3:retry 前 cancel / deadline 检查(attempt > 1 时 retry 才有意义)
+            // retry 前 cancel / deadline 检查(attempt > 1 时 retry 才有意义)
             if (attempt > 1) {
                 if (token != null && token.isCancelled()) {
                     throw new CancellationException(
@@ -140,7 +140,7 @@ public class RetryPolicy {
     }
 
     /**
-     * V0.5.2 评审 P2-3:cancel 感知的 sleep。
+     * cancel 感知的 sleep。
      *
      * <p>注册 abort hook,token.cancel() 时立即 interrupt 当前线程,Thread.sleep 抛
      * InterruptedException,catch 后转 CancellationException。token == null 时普通 sleep。

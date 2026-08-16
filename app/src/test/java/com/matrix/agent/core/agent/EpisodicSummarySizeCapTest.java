@@ -15,7 +15,7 @@ import com.matrix.agent.core.tool.ToolCall;
 import com.matrix.agent.core.tool.ToolResult;
 
 /**
- * V0.5.4 评审 P1-3:EpisodicSummary.summaryJson 长度上限测试。
+ * EpisodicSummary.summaryJson 长度上限测试。
  *
  * <p>用户硬约束:"限制在 1-2KB"。即便 trajectory 有 100 个 iteration,
  * summaryJson.length() 必须 ≤ {@link EpisodicSummary#MAX_SUMMARY_JSON_LENGTH}(2048)。

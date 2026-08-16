@@ -3,7 +3,7 @@ package com.matrix.agent.core.identity;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * V0.4.3 Stage B:可配置的 mock {@link VehicleStateSource}。
+ * 可配置的 mock {@link VehicleStateSource}。
  *
  * <p>默认 {@link VehicleState#satisfyAllPredicates()}(满足所有约束,capability 全放行)。
  * 提供 setter 供测试和 demo 切换状态(如 {@code setGear(Gear.D)} 触发 PARKED_ONLY 拒绝)。

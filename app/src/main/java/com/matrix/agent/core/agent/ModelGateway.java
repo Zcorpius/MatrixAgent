@@ -17,7 +17,7 @@ public interface ModelGateway {
     ModelTurn decide(ModelTurnRequest request);
 
     /**
-     * V0.4.1 Stage B:返回可取消的 ModelCall 包装。
+     * 返回可取消的 ModelCall 包装。
      *
      * <p>默认实现不挂真传输层 abort——call() 直接调 {@link #decide},abort() 仅记录 intent。
      * 真正生效需要实现方覆盖本方法,返回带 abort 能力的 {@link CancellableModelCall}

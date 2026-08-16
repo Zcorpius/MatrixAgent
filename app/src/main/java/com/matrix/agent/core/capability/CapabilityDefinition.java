@@ -22,32 +22,32 @@ public final class CapabilityDefinition {
     private final long timeoutMillis;
     private final int maxRetries;
     /**
-     * V0.4.0 兼容字段——已 {@code @Deprecated},内部桥接到 {@link #verifyMethod}。
+     * 兼容字段——已 {@code @Deprecated},内部桥接到 {@link #verifyMethod}。
      * 通过 {@link #isVerificationRequired()} 暴露,语义为 {@code verifyMethod != NONE}。
      */
     private final boolean verificationRequired;
-    /** V0.4.2 Stage E 主字段——区分 4 种 verify 策略(NONE / READBACK_FIELD / READBACK_GET / 预留)。 */
+    /** 主字段——区分 4 种 verify 策略(NONE / READBACK_FIELD / READBACK_GET / 预留)。 */
     private final VerifyMethod verifyMethod;
     private final boolean targetZoneRequired;
     private final Set<VehicleZone> allowedTargetZones;
     /**
-     * V0.4.2 Stage D:capability 前置车辆状态约束(AND 语义,空集表示无约束)。
+     * capability 前置车辆状态约束(AND 语义,空集表示无约束)。
      * PolicyEngine 在 schema 校验之前判定,不满足归 CAPABILITY 拒绝(不可上诉)。
      */
     private final Set<VehicleStatePredicate> requiredVehicleStates;
     private final CapabilityValidator validator;
     /**
-     * V0.4.2 主字段——{@link CanonicalSchema} 完整 JSON Schema 2020-12 子集。
+     * 主字段——{@link CanonicalSchema} 完整 JSON Schema 2020-12 子集。
      * <p>{@link #toolParameters} 是兼容字段,由 capability registry 走 deprecated
      * {@code parameter()} 入口填入;{@code ModelApiClient} 走 schema 投影后该字段
-     * 不再被 production 代码读,V0.5.0 删除。
+     * 不再被 production 代码读,后续删除。
      */
     private final CanonicalSchema parameterSchema;
     private final List<ToolParameterDefinition> toolParameters;
-    // 第五轮 P1-2:Audit 视图投影规则。
+    // Audit 视图投影规则。
     private final String auditMessageTemplate;
     private final Map<String, String> sensitiveObservedFields;
-    // 第七轮 P1-3:失败状态专用模板 + observedState allowlist(失败 / 未知字段 fail-closed)。
+    // 失败状态专用模板 + observedState allowlist(失败 / 未知字段 fail-closed)。
     private final String auditFailureMessageTemplate;
     private final Set<String> auditObservedAllowlist;
 
@@ -81,23 +81,23 @@ public final class CapabilityDefinition {
     public long getTimeoutMillis() { return timeoutMillis; }
     public int getMaxRetries() { return maxRetries; }
     /**
-     * V0.4.0 兼容入口——内部映射 {@code verifyMethod != NONE}。
-     * <p>V0.4.2 Stage E 起,调用方应直接用 {@link #getVerifyMethod()} 区分具体策略。
+     * 兼容入口——内部映射 {@code verifyMethod != NONE}。
+     * <p>调用方应直接用 {@link #getVerifyMethod()} 区分具体策略。
      */
     public boolean isVerificationRequired() { return verifyMethod != VerifyMethod.NONE; }
-    /** V0.4.2 Stage E 主入口——区分 NONE / READBACK_FIELD / READBACK_GET 等。 */
+    /** 主入口——区分 NONE / READBACK_FIELD / READBACK_GET 等。 */
     public VerifyMethod getVerifyMethod() { return verifyMethod; }
     public boolean isTargetZoneRequired() { return targetZoneRequired; }
     public Set<VehicleZone> getAllowedTargetZones() { return allowedTargetZones; }
-    /** V0.4.2 Stage D:capability 前置车辆状态约束(AND 语义)。 */
+    /** capability 前置车辆状态约束(AND 语义)。 */
     public Set<VehicleStatePredicate> getRequiredVehicleStates() { return requiredVehicleStates; }
 
     /**
-     * V0.4.2 主入口——返回完整 JSON Schema 2020-12 子集 OBJECT。
+     * 主入口——返回完整 JSON Schema 2020-12 子集 OBJECT。
      *
-     * <p>若 Builder 直接配了 {@code parameterSchema()} 用之;若仍走 V0.4.0
+     * <p>若 Builder 直接配了 {@code parameterSchema()} 用之;若仍走
      * {@code parameter()} 入口,由 {@link #projectSchemaFromToolParameters} 投影
-     * 出 OBJECT 节点(损失 nested 信息,但保 V0.4.0 行为兼容)。
+     * 出 OBJECT 节点(损失 nested 信息,但保行为兼容)。
      */
     public CanonicalSchema getParameterSchema() {
         if (parameterSchema != null) return parameterSchema;
@@ -109,7 +109,7 @@ public final class CapabilityDefinition {
     }
 
     /**
-     * V0.4.0 兼容入口——仅 scalar 4 种 type(STRING/INTEGER/NUMBER/BOOLEAN)。
+     * 兼容入口——仅 scalar 4 种 type(STRING/INTEGER/NUMBER/BOOLEAN)。
      * <p>若 Builder 直接配了 {@code parameterSchema()},由 schema 反向投影出
      * ToolParameterDefinition;否则返回 Builder 显式配的 toolParameters。
      */
@@ -120,8 +120,8 @@ public final class CapabilityDefinition {
     }
 
     /**
-     * Schema → ToolParameterDefinition 投影——仅供 ModelApiClient V0.4.0 路径兼容。
-     * Stage C 重写 ModelApiClient 用 SchemaJsonWriter 后此方法删除。
+     * Schema → ToolParameterDefinition 投影——仅供 ModelApiClient 旧版路径兼容。
+     * 重写 ModelApiClient 用 SchemaJsonWriter 后此方法删除。
      */
     private List<ToolParameterDefinition> projectToolParametersFromSchema() {
         List<ToolParameterDefinition> list = new ArrayList<>();
@@ -129,7 +129,7 @@ public final class CapabilityDefinition {
             String name = entry.getKey();
             CanonicalSchema node = entry.getValue();
             ToolParameterDefinition.Type mapped = mapSchemaType(node.getType());
-            if (mapped == null) continue;  // ARRAY/OBJECT 节点无法投影到 V0.4.0 Type,跳过
+            if (mapped == null) continue;  // ARRAY/OBJECT 节点无法投影到 Type,跳过
             ToolParameterDefinition.Builder b = ToolParameterDefinition.builder(name, mapped)
                     .description(node.getDescription())
                     .required(parameterSchema.getRequired().contains(name));
@@ -210,7 +210,7 @@ public final class CapabilityDefinition {
     }
 
     /**
-     * 第五轮 P1-2:Audit 视图中 ToolResult.message 的固定模板。
+     * Audit 视图中 ToolResult.message 的固定模板。
      *
      * <p>当 capability 涉及业务敏感字段时(导航目的地 / 联系人 / 地址),Provider 的 message
      * 通常会把真实值嵌入(如 "已开始导航到 \"北京市某小区\"")——这种字符串原样进 Trajectory /
@@ -219,7 +219,7 @@ public final class CapabilityDefinition {
     public String getAuditMessageTemplate() { return auditMessageTemplate; }
 
     /**
-     * 第五轮 P1-2:ToolResult.observedState 中的敏感字段及其占位符。
+     * ToolResult.observedState 中的敏感字段及其占位符。
      *
      * <p>key = observedState 字段名(如 "navigation.destination"),
      * value = 替换占位符(如 "&lt;destination&gt;")。
@@ -228,7 +228,7 @@ public final class CapabilityDefinition {
     public Map<String, String> getSensitiveObservedFields() { return sensitiveObservedFields; }
 
     /**
-     * 第七轮 P1-3:失败状态(EXECUTION_FAILED / VERIFICATION_FAILED)专用 Audit 模板。
+     * 失败状态(EXECUTION_FAILED / VERIFICATION_FAILED)专用 Audit 模板。
      *
      * <p>背景:Provider 失败 message 常含业务值(如 "导航到北京市某小区失败:网络不可用"),
      * 通用凭据正则只识别 API Key/Token/Bearer,识别不出目的地、地址、联系人。
@@ -239,7 +239,7 @@ public final class CapabilityDefinition {
     public String getAuditFailureMessageTemplate() { return auditFailureMessageTemplate; }
 
     /**
-     * 第七轮 P1-3:observedState 的显式 allowlist(诊断安全字段)。
+     * observedState 的显式 allowlist(诊断安全字段)。
      *
      * <p>非空时,AuditRedactor 走 fail-closed:sensitiveObservedFields 中的字段用占位符,
      * allowlist 中的字段走 redactValue(允许通过),**其余字段一律替换为 {@code ***}**。
@@ -272,7 +272,7 @@ public final class CapabilityDefinition {
         private Set<VehicleStatePredicate> requiredVehicleStates = EnumSet.noneOf(VehicleStatePredicate.class);
         private CapabilityValidator validator;
         /**
-         * V0.4.2 主字段——完整 JSON Schema 2020-12 子集 OBJECT。
+         * 主字段——完整 JSON Schema 2020-12 子集 OBJECT。
          * 调用方应优先使用 {@link #parameterSchema(CanonicalSchema)} 入口;
          * {@link #parameter(ToolParameterDefinition)} 入口仍可用(@Deprecated),
          * 由 {@link CapabilityDefinition#getParameterSchema()} 投影出 schema。
@@ -281,7 +281,6 @@ public final class CapabilityDefinition {
         private final List<ToolParameterDefinition> toolParameters = new ArrayList<>();
         private String auditMessageTemplate;
         private final Map<String, String> sensitiveObservedFields = new LinkedHashMap<>();
-        // 第七轮 P1-3
         private String auditFailureMessageTemplate;
         private final Set<String> auditObservedAllowlist = new LinkedHashSet<>();
 
@@ -297,20 +296,20 @@ public final class CapabilityDefinition {
         public Builder timeoutMillis(long value) { timeoutMillis = value; return this; }
         public Builder maxRetries(int value) { maxRetries = value; return this; }
 
-        /** V0.4.2 Stage E 主入口——配置 verify 策略(NONE / READBACK_FIELD / READBACK_GET 等)。 */
+        /** 主入口——配置 verify 策略(NONE / READBACK_FIELD / READBACK_GET 等)。 */
         public Builder verifyMethod(VerifyMethod value) {
             if (value == null) throw new IllegalArgumentException("verifyMethod 不能为空");
             verifyMethod = value;
-            // 同步旧字段,V0.4.0 调用方仍能读 isVerificationRequired()
+            // 同步旧字段,调用方仍能读 isVerificationRequired()
             verificationRequired = value != VerifyMethod.NONE;
             return this;
         }
 
         /**
-         * V0.4.0 入口——二值 verify。
+         * 入口——二值 verify。
          *
-         * @deprecated V0.4.2 起改用 {@link #verifyMethod(VerifyMethod)}。{@code true}
-         * 桥接到 {@link VerifyMethod#READBACK_FIELD}(V0.4.0 mock 默认行为),
+         * @deprecated 改用 {@link #verifyMethod(VerifyMethod)}。{@code true}
+         * 桥接到 {@link VerifyMethod#READBACK_FIELD}(mock 默认行为),
          * {@code false} 设为 {@link VerifyMethod#NONE}。
          */
         @Deprecated
@@ -325,7 +324,7 @@ public final class CapabilityDefinition {
                     ? EnumSet.noneOf(VehicleZone.class) : EnumSet.copyOf(value);
             return this;
         }
-        /** V0.4.2 Stage D:声明前置车辆状态约束(AND 语义,POLICYENGINE schema 校验之前判定)。 */
+        /** 声明前置车辆状态约束(AND 语义,POLICYENGINE schema 校验之前判定)。 */
         public Builder requiredVehicleStates(VehicleStatePredicate... predicates) {
             Set<VehicleStatePredicate> set = EnumSet.noneOf(VehicleStatePredicate.class);
             if (predicates != null) {
@@ -338,7 +337,7 @@ public final class CapabilityDefinition {
         }
         public Builder validator(CapabilityValidator value) { validator = value; return this; }
 
-        /** V0.4.2 主入口——配置完整 JSON Schema 2020-12 OBJECT 参数 schema。 */
+        /** 主入口——配置完整 JSON Schema 2020-12 OBJECT 参数 schema。 */
         public Builder parameterSchema(CanonicalSchema value) {
             if (value == null) throw new IllegalArgumentException("parameterSchema 不能为空");
             if (value.getType() != SchemaType.OBJECT) {
@@ -349,12 +348,12 @@ public final class CapabilityDefinition {
             return this;
         }
 
-        /** 第五轮 P1-2:设置 Audit 视图中 ToolResult.message 的固定模板。 */
+        /** 设置 Audit 视图中 ToolResult.message 的固定模板。 */
         public Builder auditMessageTemplate(String value) {
             auditMessageTemplate = value == null || value.isEmpty() ? null : value;
             return this;
         }
-        /** 第五轮 P1-2:声明 observedState 中的敏感字段及其占位符。 */
+        /** 声明 observedState 中的敏感字段及其占位符。 */
         public Builder sensitiveObservedField(String fieldName, String placeholder) {
             if (fieldName == null || fieldName.isEmpty()) {
                 throw new IllegalArgumentException("敏感 observed 字段名不能为空");
@@ -365,12 +364,12 @@ public final class CapabilityDefinition {
             sensitiveObservedFields.put(fieldName, placeholder);
             return this;
         }
-        /** 第七轮 P1-3:失败状态(EXECUTION_FAILED / VERIFICATION_FAILED)专用 Audit 模板。 */
+        /** 失败状态(EXECUTION_FAILED / VERIFICATION_FAILED)专用 Audit 模板。 */
         public Builder auditFailureMessageTemplate(String value) {
             auditFailureMessageTemplate = value == null || value.isEmpty() ? null : value;
             return this;
         }
-        /** 第七轮 P1-3:声明 observedState 中允许进 Audit 视图的诊断安全字段。 */
+        /** 声明 observedState 中允许进 Audit 视图的诊断安全字段。 */
         public Builder auditObservedAllowlist(String... fields) {
             auditObservedAllowlist.clear();
             if (fields == null) return this;

@@ -46,12 +46,12 @@ public final class CapabilityRegistry {
     }
 
     /**
-     * V0.4.2 Stage E:per-zone 投影——仅暴露允许 {@code zone} 调用的 capability。
+     * per-zone 投影——仅暴露允许 {@code zone} 调用的 capability。
      *
      * <p>调用方({@code LlmModelGateway})按 {@link AgentRequest#getOccupantZone()} 派生
-     * 主驾/副驾可见工具集,主驾不看到的副驾专属能力(如 V0.5.0+ 字段级 mask)被过滤掉。
-     * <p>当 {@code zone == null} 时不过滤(等价于 V0.4.0 {@link #toToolDefinitions()}),
-     * 保 V0.4.0 默认行为不退绿。
+     * 主驾/副驾可见工具集,主驾不看到的副驾专属能力(如字段级 mask)被过滤掉。
+     * <p>当 {@code zone == null} 时不过滤(等价于 {@link #toToolDefinitions()}),
+     * 保默认行为不退绿。
      */
     public synchronized List<ToolDefinition> toToolDefinitions(VehicleZone zone) {
         List<ToolDefinition> tools = new ArrayList<>();
@@ -71,7 +71,7 @@ public final class CapabilityRegistry {
     }
 
     /**
-     * V0.4.2 Stage E:从 capability 列表派生 {@link AgentRequest.Builder#readOnlyHint(boolean)}。
+     * 从 capability 列表派生 {@link AgentRequest.Builder#readOnlyHint(boolean)}。
      *
      * <p>规则:集合内所有 capability 都不是 writeOperation 时返回 true(纯读,
      * 允许被主驾同 hint 请求抢占);否则 false(含写操作,TaskScheduler 不抢占)。
@@ -83,7 +83,7 @@ public final class CapabilityRegistry {
      *     .build();
      * }</pre>
      * 不修改 {@code AgentRequest} 构造 / {@code TaskScheduler.submit} 签名,
-     * 保 V0.4.1 TaskSchedulerTest 不断。
+     * 保 TaskSchedulerTest 不断。
      *
      * @param capabilityNames 调用方期望执行的 capability 名集合(可空——保守返回 false)
      */
@@ -98,7 +98,7 @@ public final class CapabilityRegistry {
     }
 
     /**
-     * V0.4.3 Stage C:per-zone readOnlyHint 派生——按 zone 投影后的 tool 集合是否纯读。
+     * per-zone readOnlyHint 派生——按 zone 投影后的 tool 集合是否纯读。
      *
      * <p>语义:zone 内任一 capability 是 writeOperation 时返回 false(保守,不抢占);
      * 全部纯读时返回 true(允许主驾同 hint 请求抢占)。空 zone(无 capability)保守返回 false。
@@ -168,11 +168,11 @@ public final class CapabilityRegistry {
                                 .additionalProperties(false)
                                 .build())
                         .validator(args -> requireText(args, "destination", "未指定目的地", "缺少明确的导航目的地"))
-                        // 第五轮 P1-2:Provider 的 message / observedState 会带真实目的地,
+                        // Provider 的 message / observedState 会带真实目的地,
                         // Audit 视图必须按 schema 投影——message 用模板,observedState 替换为占位符。
                         .auditMessageTemplate("已开始导航到 <destination>")
                         .sensitiveObservedField("navigation.destination", "<destination>")
-                        // 第七轮 P1-3:失败 message fail-closed(Provider 诊断文本常含真实地址),
+                        // 失败 message fail-closed(Provider 诊断文本常含真实地址),
                         // observedState allowlist 只放行诊断安全字段;schema 外字段(如
                         // navigation.requested_destination / route.destination)默认 mask。
                         .auditFailureMessageTemplate("导航失败,详情见 errorCode")
@@ -187,7 +187,7 @@ public final class CapabilityRegistry {
                                         .build())
                                 .property("value", CanonicalSchema.string()
                                         .description("偏好值")
-                                        // 第四轮 P1-2:Memory Value 是用户私人事实(温度/家地址/常去地),
+                                        // Memory Value 是用户私人事实(温度/家地址/常去地),
                                         // Audit 视图全脱敏——主驾副驾可能共用 Android User,UI 查看者未必是数据所有者。
                                         .sensitive(true).sensitivePlaceholder("<memory>").build())
                                 .required("key", "value")
@@ -200,17 +200,17 @@ public final class CapabilityRegistry {
                                 .description("记忆偏好 get 参数")
                                 .property("key", CanonicalSchema.string()
                                         .description("偏好键，常用约定：preferred_temperature / preferred_seat_level / home_address / common_destinations")
-                                        // 第四轮 P1-2:key 本身可能暴露"用户保存过哪些敏感事实"——home_address 等
+                                        // key 本身可能暴露"用户保存过哪些敏感事实"——home_address 等
                                         // 命名直接进 Audit 也不合适,Audit 视图同样替换为 <memory>。
                                         .sensitive(true).sensitivePlaceholder("<memory>").build())
                                 .required("key")
                                 .additionalProperties(false)
                                 .build())
                         .validator(args -> requireKeys(args, "key")).build())
-                // V0.5.3 评审 P1-1:Semantic 记忆层——用户**明确要求长期记住**的事实/知识,
+                // Semantic 记忆层——用户**明确要求长期记住**的事实/知识,
                 // 区别于 preference(存偏好如温度/座椅),semantic 存事实性知识(如「我女儿叫小红」、
                 // 「我对花生过敏」)。PII key(home_address / contact_phone / id_card 等)写入会被
-                // 接受,但 V0.5.3 P1-2 投影路径不进 prompt(只附"已保存,请用工具查询"),
+                // 接受,但投影路径不进 prompt(只附"已保存,请用工具查询"),
                 // 模型需通过 memory.semantic.get 查询读取。
                 .register(CapabilityDefinition.builder("memory.semantic.save", RiskLevel.R1_LOW_RISK_WRITE)
                         .description("把用户**明确要求长期记住**的事实或知识存到语义层（例如：用户说「记住我女儿叫小红」、「我对花生过敏」、「我在公司是产品经理」）。区别于 memory.preference.save（存偏好如温度/座椅）,memory.semantic.save 存事实性知识。需要 key 和 value")
@@ -222,7 +222,7 @@ public final class CapabilityRegistry {
                                                 + "(如 family.daughter_name / allergy.peanut / work.role / fact.home_city),"
                                                 + "后缀仅字母数字与 ._ 字符。PII key(home_address / contact_phone / id_card)不再接受,"
                                                 + "请改用 family.* / fact.* 等命名空间。Schema 强制 pattern + maxLength(64)")
-                                        // V0.5.5 P2-B:namespace 白名单 + 字符集 + 长度上限。
+                                        // namespace 白名单 + 字符集 + 长度上限。
                                         // 用户硬约束:"memory.semantic.save 只接受明确支持的 key namespace"。
                                         .pattern("^(family|allergy|work|fact)\\.[A-Za-z0-9_.]+$")
                                         .maxLength(64)
@@ -231,7 +231,7 @@ public final class CapabilityRegistry {
                                         .description("事实值(最多 2048 字符)。空字符串 / 纯空白被拒,超长被拒"
                                                 + "。注意:maxLength 是 Java char(UTF-16 code unit)数,中文 / emoji "
                                                 + "的 UTF-8 字节数会更多(最坏 ~4 倍)")
-                                        // V0.5.5 P2-B / V0.5.6 P2-D:maxLength 是 JSON Schema 标准语义
+                                        // maxLength 是 JSON Schema 标准语义
                                         // (Java String.length() = UTF-16 code unit 数),不是 UTF-8 字节数。
                                         // 文档/UI 必须说"最多 2048 字符",不要说"≤ 2KB"——后者误导。
                                         // UTF-8 字节上限留后续版本视真实 PII 容量需求评估(最坏 8KB/行,
@@ -263,7 +263,7 @@ public final class CapabilityRegistry {
                                 .required("question")
                                 .additionalProperties(false)
                                 .build())
-                        // 第八轮 P1.2:Provider message 是模型自由文本 (常含用户问题原文回显),
+                        // Provider message 是模型自由文本 (常含用户问题原文回显),
                         // 凭据正则识别不出业务 PII (地址 / 联系人 / 电话) —— 配 audit template
                         // 让 AuditRedactor 走 fail-closed 路径,success/失败均替换为占位符。
                         .auditMessageTemplate("[knowledge answer redacted: free-text contains potential PII]")

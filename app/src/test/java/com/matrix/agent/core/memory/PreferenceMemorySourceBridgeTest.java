@@ -11,9 +11,9 @@ import java.util.Map;
 import org.junit.Test;
 
 /**
- * V0.5.0 Stage 1:LegacyPreferenceMemorySource 桥接测试。
+ * LegacyPreferenceMemorySource 桥接测试。
  *
- * <p>验证 V0.5.0 Preference 层行为与 V0.4.3 MemoryStore.getAllPreferences 一致——
+ * <p>验证 Preference 层行为与旧版 MemoryStore.getAllPreferences 一致——
  * 返回的 snippet.key 集合与原"已保存的偏好 key 列表"完全等价,LlmPlanner.savedKeysFor 兼容。
  */
 public final class PreferenceMemorySourceBridgeTest {

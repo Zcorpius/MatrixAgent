@@ -17,14 +17,14 @@ import com.matrix.agent.data.db.AuditEventDao;
 import com.matrix.agent.data.db.AuditEventEntity;
 
 /**
- * V0.5.2-rev 评审 P1-2:AuditEventRecorder advanceEpoch + dropByUserZone 用真实 requestEpoch 契约测试。
+ * AuditEventRecorder advanceEpoch + dropByUserZone 用真实 requestEpoch 契约测试。
  *
- * <p>V0.5.2 上一轮 P1-3 测试 bug:用 {@code futureEpoch = System.currentTimeMillis() + 60_000L}
+ * <p>测试 bug:用 {@code futureEpoch = System.currentTimeMillis() + 60_000L}
  * 当 staleEpoch,绕过了 epoch(版本号 1/2/3)与 happenedAtMs(毫秒时间戳)语义混淆的根因
  * ——生产路径 staleEpoch 来自 MemoryStore epoch(1/2/3),永远 < happenedAtMs(17xxx...),
  * isStale 永远 false,stale gate 失效。
  *
- * <p>V0.5.2-rev 修复:entity 加 requestEpoch 字段,isStale 用 requestEpoch 而非 happenedAtMs 比较。
+ * <p>修复:entity 加 requestEpoch 字段,isStale 用 requestEpoch 而非 happenedAtMs 比较。
  * 本测试改用真实 epoch 值(1/2/3),advanceEpoch(2) 后 requestEpoch=1 的事件 drop,
  * requestEpoch=2 不 drop,requestEpoch=0(老数据 / 未透传)不参与 gate。
  */
@@ -61,7 +61,7 @@ public final class AuditEventRecorderClearRaceTest {
 
     @Test
     public void requestEpochZeroDoesNotParticipateInGate() {
-        // V0.5.2-rev P1-2 新行为:requestEpoch=0(老数据 / 未透传)不参与 gate
+        // 新行为:requestEpoch=0(老数据 / 未透传)不参与 gate
         FakeDao dao = new FakeDao();
         AuditEventRecorder recorder = new AuditEventRecorder(dao, immediateExecutor());
 

@@ -35,7 +35,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * V0.4.0 Agent Loop Runtime。
+ * Agent Loop Runtime。
  *
  * 主循环:LLM → ToolCall → Policy → Execute → Observation → LLM。
  * 每轮先做 5 个终止检查(cancel / deadline / 字符预算 / 无 tool_call / tool call 累计上限),
@@ -62,57 +62,57 @@ public final class AgentEngine {
     private final AgentBudget budget;
     private final ModelSanitizer modelSanitizer;
     private final AuditRedactor auditRedactor;
-    // V0.4.1 Stage D:可选 SteerMailbox,null 时跳过 drain(向后兼容 V0.4.0 构造器)。
+    // 可选 SteerMailbox,null 时跳过 drain(向后兼容旧构造器)。
     private final SteerMailbox steerMailbox;
     /**
-     * V0.5.0 Stage 3:Audit 持久化——5 个出口点统一调用。
-     * 默认 {@link NoopAuditRepository#INSTANCE}(V0.4.x 兼容,289 测试继续绿);
+     * Audit 持久化——5 个出口点统一调用。
+     * 默认 {@link NoopAuditRepository#INSTANCE}(旧版兼容,289 测试继续绿);
      * AppContainer 注入 RoomAuditRepository 后,所有终态落 SQLCipher 加密库。
      */
     private final AuditRepository auditRepository;
     /**
-     * V0.5.0 Stage 3:Memory 召回——buildSystemPrompt 末尾拼召回 snippet。
-     * null 时退化为 V0.4.3 文案(289 测试兼容);AppContainer 注入 MemoryRouter 后生效。
+     * Memory 召回——buildSystemPrompt 末尾拼召回 snippet。
+     * null 时退化为旧文案(289 测试兼容);AppContainer 注入 MemoryRouter 后生效。
      */
     private final MemoryRecaller memoryRecaller;
     /**
-     * V0.5.2 Stage 3a:Tokenizer——主路径双轨统计用,不影响 budget 决策。
+     * Tokenizer——主路径双轨统计用,不影响 budget 决策。
      *
-     * <p>null 时退化为 char-based 估算(与 V0.4.x / 289 测试一致);AppContainer 注入
+     * <p>null 时退化为 char-based 估算(与旧版 / 289 测试一致);AppContainer 注入
      * JtokkitTokenizer 后,关键日志点(BEGIN / 迭代边界 / Tool 写入)输出双轨
-     * {@code convChars=N convTokens=M},便于 V0.5.3 决定切主路径时机。
+     * {@code convChars=N convTokens=M},便于后续决定切主路径时机。
      *
      * <p>主路径 {@link #appendMessageWithBudget} 仍用 {@link #estimateConversationChars}
      * + {@link AgentBudget#getTotalInputChars()} / {@link AgentBudget#getMaxMessageChars()}。
      */
     private Tokenizer tokenizer;
     /**
-     * V0.5.2 Stage 4:audit_event 增量事件落库——PRE_TOOL / POST_TOOL / POLICY / STEER。
+     * audit_event 增量事件落库——PRE_TOOL / POST_TOOL / POLICY / STEER。
      *
-     * <p>默认 {@link AuditEventRecorder#NOOP}(289 测试 + V0.4.x 兼容);AppContainer
+     * <p>默认 {@link AuditEventRecorder#NOOP}(289 测试 + 旧版兼容);AppContainer
      * 注入真实 recorder 后,Loop 4 个出口点写入 audit_event 表(异步 fire-and-forget,
-     * Dao 异常仅 log 不阻塞主路径)。Stage 5 加 STEER_DROPPED_STALE 第 5 个出口点。
+     * Dao 异常仅 log 不阻塞主路径)。另加 STEER_DROPPED_STALE 第 5 个出口点。
      */
     private AuditEventRecorder auditEventRecorder = AuditEventRecorder.NOOP;
     /**
-     * V0.5.3 评审 P1-1:Memory 写入——Episodic 自动 + Semantic 显式。
+     * Memory 写入——Episodic 自动 + Semantic 显式。
      *
-     * <p>默认 {@link MemoryWriter#NOOP}(V0.4.x / 289 测试兼容);AppContainer 注入
+     * <p>默认 {@link MemoryWriter#NOOP}(旧版 / 289 测试兼容);AppContainer 注入
      * RoomMemoryWriter 后,主路径终态出口点(L678)+ terminalOutcome 出口点(L783)
      * 写入 session_history 表,供 EpisodicMemorySourceImpl 召回。
      */
     private MemoryWriter memoryWriter = MemoryWriter.NOOP;
     /**
-     * V0.5.2 Stage 6:PromptBuilder——buildSystemPrompt 委托入口。
+     * PromptBuilder——buildSystemPrompt 委托入口。
      *
      * <p>null 时退化为内联拼装(289 测试兼容);AppContainer 注入 DefaultPromptBuilder 后
-     * 走 segmented 路径——V0.5.2 字面等价,V0.5.3 由 PromptComposer 加入 token 预算分配。
+     * 走 segmented 路径——字面等价,由 PromptComposer 加入 token 预算分配。
      */
     private PromptBuilder promptBuilder;
     /**
-     * V0.5.2 Stage 8:ConversationCompressor——appendMessageWithBudget 失败前压缩旧 turns。
+     * ConversationCompressor——appendMessageWithBudget 失败前压缩旧 turns。
      *
-     * <p>null 时退化为 V0.4.x 行为(直接 BUDGET_EXHAUSTED);AppContainer 注入后走
+     * <p>null 时退化为旧行为(直接 BUDGET_EXHAUSTED);AppContainer 注入后走
      * LLM 摘要 + heuristic 降级双路径。
      */
     private ConversationCompressor conversationCompressor;
@@ -133,7 +133,7 @@ public final class AgentEngine {
                 contextUpdater, sessionLockManager, toolExecutor, budget, null);
     }
 
-    /** V0.4.1 Stage D:注入 SteerMailbox 的全参构造器。null 时跳过 drain,行为与 V0.4.0 一致。 */
+    /** 注入 SteerMailbox 的全参构造器。null 时跳过 drain,行为与旧版一致。 */
     public AgentEngine(ModelGateway modelGateway, ModelCallExecutor modelCallExecutor,
             PolicyEngine policyEngine, CapabilityRegistry registry, CapabilityProvider provider,
             SessionManager sessionManager, ContextUpdater contextUpdater,
@@ -145,10 +145,10 @@ public final class AgentEngine {
     }
 
     /**
-     * V0.5.0 Stage 3:全参构造器——audit + memoryRecaller。
+     * 全参构造器——audit + memoryRecaller。
      *
      * <p>auditRepository 为 null 时退化 Noop;memoryRecaller 为 null 时 buildSystemPrompt
-     * 走 V0.4.3 旧文案(289 测试兼容)。
+     * 走旧文案(289 测试兼容)。
      */
     public AgentEngine(ModelGateway modelGateway, ModelCallExecutor modelCallExecutor,
             PolicyEngine policyEngine, CapabilityRegistry registry, CapabilityProvider provider,
@@ -180,7 +180,7 @@ public final class AgentEngine {
         this.auditRepository = auditRepository == null ? NoopAuditRepository.INSTANCE : auditRepository;
         this.memoryRecaller = memoryRecaller;
         this.modelSanitizer = new ModelSanitizer(budget.getMaxMessageChars());
-        // 第四轮 P1-2:注入 CapabilityRegistry,AuditRedactor 按 schema 脱敏 memory.preference.value、
+        // 注入 CapabilityRegistry,AuditRedactor 按 schema 脱敏 memory.preference.value、
         // navigation.destination、contact.phone 等业务敏感字段,不再依赖自由文本凭据正则。
         this.auditRedactor = new AuditRedactor(budget.getMaxMessageChars(), registry);
         Log.i(TAG, "[Engine] init gateway=" + modelGateway.getClass().getSimpleName()
@@ -190,7 +190,7 @@ public final class AgentEngine {
                 + " memoryRecaller=" + (memoryRecaller == null ? "off" : "on"));
     }
 
-    /** V0.4.1 Stage D:对外暴露的追加转向指令入口,null mailbox 时直接返回 false。 */
+    /** 对外暴露的追加转向指令入口,null mailbox 时直接返回 false。 */
     public boolean offerSteer(String sessionId, Steer steer) {
         if (steerMailbox == null) {
             Log.w(TAG, "[Engine] offerSteer ignored, no SteerMailbox configured");
@@ -201,22 +201,22 @@ public final class AgentEngine {
     }
 
     /**
-     * V0.5.1 Stage 4 + C 路线评审反馈 P2:AppContainer 装配期注入 HMAC digest——一行委托到 {@link AuditRedactor}。
+     * AppContainer 装配期注入 HMAC digest——一行委托到 {@link AuditRedactor}。
      *
      * <p>调用契约:仅 AppContainer engineFactory lambda 内,AgentEngine 构造后立即调用;
      * 任务执行期不再变更。null 时退化为 {@link UnavailableAuditDigest}(fail-closed,
-     * 不再退回 V0.5.0 SHA-1——避免遗漏 HMAC 注入时静默降低隐私级别)。
+     * 不再退回旧 SHA-1——避免遗漏 HMAC 注入时静默降低隐私级别)。
      */
     public void setAuditDigest(AuditDigest digest) {
         this.auditRedactor.setDigest(digest);
     }
 
     /**
-     * V0.5.2 Stage 3a:AppContainer 装配期注入 Tokenizer——主路径双轨统计用。
+     * AppContainer 装配期注入 Tokenizer——主路径双轨统计用。
      *
      * <p>null 时退化为 char-based 估算(289 测试兼容);AppContainer 注入 JtokkitTokenizer 后
      * 关键日志点输出双轨 {@code convChars=N convTokens=M}。**主路径 budget 决策仍用 char**,
-     * 切换留 V0.5.3。
+     * 切换留待后续。
      */
     public void setTokenizer(Tokenizer tokenizer) {
         this.tokenizer = tokenizer;
@@ -226,10 +226,10 @@ public final class AgentEngine {
     }
 
     /**
-     * V0.5.2 Stage 4:AppContainer 装配期注入 AuditEventRecorder。
+     * AppContainer 装配期注入 AuditEventRecorder。
      *
      * <p>null 时退化为 {@link AuditEventRecorder#NOOP}(289 测试兼容);AppContainer 注入真实
-     * recorder 后,Loop 4 个出口点写入 audit_event 表。Stage 5 加 STEER_DROPPED_STALE。
+     * recorder 后,Loop 4 个出口点写入 audit_event 表。另加 STEER_DROPPED_STALE 事件。
      */
     public void setAuditEventRecorder(AuditEventRecorder recorder) {
         this.auditEventRecorder = recorder == null ? AuditEventRecorder.NOOP : recorder;
@@ -238,10 +238,10 @@ public final class AgentEngine {
     }
 
     /**
-     * V0.5.2 Stage 6:AppContainer 装配期注入 PromptBuilder。
+     * AppContainer 装配期注入 PromptBuilder。
      *
      * <p>null 时退化为内联拼装(289 测试兼容);AppContainer 注入 DefaultPromptBuilder 后
-     * buildSystemPrompt 走 segmented 路径。V0.5.2 字面等价,V0.5.3 由 PromptComposer
+     * buildSystemPrompt 走 segmented 路径。字面等价,由 PromptComposer
      * 加入 token 预算分配 / 截断。
      */
     public void setPromptBuilder(PromptBuilder promptBuilder) {
@@ -252,10 +252,10 @@ public final class AgentEngine {
     }
 
     /**
-     * V0.5.2 Stage 8:AppContainer 装配期注入 ConversationCompressor。
+     * AppContainer 装配期注入 ConversationCompressor。
      *
      * <p>null 时 appendMessageWithBudget 在预算超限时直接返回 false(BUDGET_EXHAUSTED 终止,
-     * V0.4.x 行为);AppContainer 注入 ConversationCompressor 后,先压缩再重试 append,
+     * 旧行为);AppContainer 注入 ConversationCompressor 后,先压缩再重试 append,
      * 长任务也能继续跑。Compressor 用 LLM 摘要(provider 注入)或 heuristic 降级(provider=null)。
      */
     public void setConversationCompressor(ConversationCompressor compressor) {
@@ -266,9 +266,9 @@ public final class AgentEngine {
     }
 
     /**
-     * V0.5.3 评审 P1-1:注入 MemoryWriter。
+     * 注入 MemoryWriter。
      *
-     * <p>null 退化为 {@link MemoryWriter#NOOP}(289 测试 + V0.4.x 兼容)。
+     * <p>null 退化为 {@link MemoryWriter#NOOP}(289 测试 + 旧版兼容)。
      * AppContainer 注入 RoomMemoryWriter 后,主路径终态 + terminalOutcome 出口点
      * 写入 session_history 表,供 EpisodicMemorySourceImpl 召回。
      */
@@ -280,7 +280,7 @@ public final class AgentEngine {
 
     public AgentOutcome execute(AgentRequest request) {
         long started = System.nanoTime();
-        // 第七轮 P2-4:BEGIN 行只暴露元数据,用户输入原文用 SafeLog 占位符包裹。
+        // BEGIN 行只暴露元数据,用户输入原文用 SafeLog 占位符包裹。
         // 旧实现把 truncate(text, 80) 直接写 logcat——前 80 字符可能含目的地 / 联系人 / 偏好值。
         Log.i(TAG, "[Engine] BEGIN req=" + request.getRequestId()
                 + " session=" + request.getSessionId()
@@ -322,20 +322,20 @@ public final class AgentEngine {
                     + " | RESULT: " + preTerminal);
             AgentOutcome preLoopOutcome = new AgentOutcome(request.getRequestId(), preTerminal,
                     reason, trajectory, elapsedMillis(started));
-            // V0.5.0 Stage 3:出口点 3——pre-loop terminal(cancel/deadline 已触发)
+            // 出口点 3——pre-loop terminal(cancel/deadline 已触发)
             auditRepository.persist(preLoopOutcome, request);
-            // V0.5.3 评审 P1-1:pre-loop terminal 也要写 episodic(覆盖 CANCELLED/TIMED_OUT 终态)。
-            // V0.5.4 评审 P1-1:传 request.getEpoch(),RoomMemoryWriter 在 Room 事务内做 epoch gate。
+            // pre-loop terminal 也要写 episodic(覆盖 CANCELLED/TIMED_OUT 终态)。
+            // 传 request.getEpoch(),RoomMemoryWriter 在 Room 事务内做 epoch gate。
             memoryWriter.writeEpisodicOnTerminal(request, preLoopOutcome, request.getEpoch());
             return preLoopOutcome;
         }
 
         String systemPrompt = buildSystemPrompt(request);
-        // V0.4.3 Stage C:per-request zone 投影——主驾/副驾看到不同 tool 列表,
-        // V0.4.2 Stage E 加的 toToolDefinitions(VehicleZone) 在 V0.4.3 才真正接入。
+        // per-request zone 投影——主驾/副驾看到不同 tool 列表,
+        // 此前加的 toToolDefinitions(VehicleZone) 才真正接入。
         List<ToolDefinition> tools = registry.toToolDefinitions(request.getOccupantZone());
         List<AgentMessage> conversation = new ArrayList<>();
-        // 第七轮 P2-2:maxMessageChars 限制单条消息长度——system/user 输入过长会撑爆总字符预算,
+        // maxMessageChars 限制单条消息长度——system/user 输入过长会撑爆总字符预算,
         // 也可能直接被模型 API 拒绝。所有进入 conversation 的消息统一过 enforceMessageBudget。
         conversation.add(enforceMessageBudget(AgentMessage.system(systemPrompt)));
         conversation.add(enforceMessageBudget(AgentMessage.user(request.getText())));
@@ -363,7 +363,7 @@ public final class AgentEngine {
                 Log.w(TAG, "[Engine] iter " + iteration + " terminal=" + terminal + " reason=" + stopReason);
                 break;
             }
-            // V0.5.2-rev 评审 P2-3:80% 主动触发压缩——避免被动到 100% 才触发,
+            // 80% 主动触发压缩——避免被动到 100% 才触发,
             // 给本轮 LLM 调用留充足预算。100% 被动路径保留在 appendMessageWithBudget(兜底)。
             tryCompressConversation(conversation, budget, request);
             if (estimateConversationChars(conversation) > budget.getTotalInputChars()) {
@@ -375,7 +375,7 @@ public final class AgentEngine {
                 break;
             }
 
-            // V0.4.1 Stage D:LLM 调用前 drain SteerMailbox。
+            // LLM 调用前 drain SteerMailbox。
             // - REPROMPT:把 payload 作为新 user message 加入 conversation,继续本轮 LLM
             // - FORCE_TOOL:跳过本轮 LLM,直接构造 ToolCall 走 Tool 执行分支(下面 forceToolTurn 分支)
             // - DEFER:StopReason.DEFERRED,跳出 Loop
@@ -419,7 +419,7 @@ public final class AgentEngine {
             Log.d(TAG, "[Engine] iter " + iteration + " <- model turn cost="
                     + elapsedMillis(iterationStarted) + "ms");
 
-            // 第七轮 P2-2:assistant message 加入前同样过预算检查(单条截断 + 条数/字符上限)
+            // assistant message 加入前同样过预算检查(单条截断 + 条数/字符上限)
             if (!appendMessageWithBudget(conversation, turn.getAssistantMessage(), request)) {
                 stopReason = StopReason.BUDGET_EXHAUSTED;
                 stopMessage = "加入 assistant 消息后超过字符或条数预算";
@@ -433,7 +433,7 @@ public final class AgentEngine {
                 break;
             }
 
-            // 第四轮 P2-2:模型输出因 max_tokens 截断时,Observation/答复可能不完整,
+            // 模型输出因 max_tokens 截断时,Observation/答复可能不完整,
             // 不能视为正常完成。无论是否伴随 tool_call 都走异常终止。
             if (turn.getFinishReason() == FinishReason.LENGTH) {
                 stopReason = StopReason.LENGTH_EXCEEDED;
@@ -448,7 +448,7 @@ public final class AgentEngine {
                 break;
             }
 
-            // 第五轮 P2-1:Provider 协议不一致(finish_reason 缺失/未知,或 STOP 但 content 空)
+            // Provider 协议不一致(finish_reason 缺失/未知,或 STOP 但 content 空)
             // 必须终止,不能被错判为 NO_TOOL_CALL → SUCCEEDED。ModelApiClient 解析器侧已把
             // STOP + 空 content 降级为 NONE,这里见到 NONE 就走 PROTOCOL_ERROR。
             if (turn.getFinishReason() == FinishReason.NONE) {
@@ -489,7 +489,7 @@ public final class AgentEngine {
                 break;
             }
 
-            // V0.4.1 Stage C:Tool 执行前显式 cancel 检查——LLM 已返回 tool_calls,
+            // Tool 执行前显式 cancel 检查——LLM 已返回 tool_calls,
             // 但若此时外部 cancel 已触发,不进入 Tool 循环。
             TaskState preToolTerminal = cancellationState(request);
             if (preToolTerminal != null) {
@@ -506,7 +506,7 @@ public final class AgentEngine {
                 break;
             }
 
-            // V0.4.1 Stage D:Tool 执行前 drain SteerMailbox 的 DEFER 指令。
+            // Tool 执行前 drain SteerMailbox 的 DEFER 指令。
             // 这里不再处理 REPROMPT / FORCE_TOOL——模型已决策本轮 tool_calls,
             // 半路塞入会破坏一致性。仅响应 DEFER(用户要求推迟)。
             if (hasDeferredSteer(request)) {
@@ -525,10 +525,10 @@ public final class AgentEngine {
 
             List<ToolObservation> observations = new ArrayList<>();
             List<PolicyDecision> decisions = new ArrayList<>();
-            // V0.4.1 Stage C:label 供 per-tool-call cancel 检查快速跳出 iteration 循环
+            // label 供 per-tool-call cancel 检查快速跳出 iteration 循环
             toolCallLoop:
             for (ToolCall call : turn.getToolCalls()) {
-                // V0.4.1 Stage C:per-tool-call cancel 检查——多 tool_call 序列中,
+                // per-tool-call cancel 检查——多 tool_call 序列中,
                 // 第 N 个完成后第 N+1 个开始前若 cancel 已触发,立即跳出整个 iteration 循环,
                 // 不让后续 tool 继续执行(车控写操作尤其需要)。
                 TaskState perToolTerminal = cancellationState(request);
@@ -545,7 +545,7 @@ public final class AgentEngine {
                     break toolCallLoop;
                 }
                 totalToolCalls++;
-                // 第七轮 P2-4:Tool args 含目的地 / 联系人 / memory value,绝不原文进 logcat。
+                // Tool args 含目的地 / 联系人 / memory value,绝不原文进 logcat。
                 // 旧实现直接打印 call.getArguments()——destination 等业务字段会泄漏。
                 Log.d(TAG, "[Engine]   call #" + totalToolCalls
                         + " cap=" + call.getCapabilityName()
@@ -575,7 +575,7 @@ public final class AgentEngine {
                                 + call.getCapabilityName() + " reason=" + decision.getReason()
                                 + " (model may retry with new args)");
                     }
-                    // V0.5.2 Stage 4:POLICY 增量事件——decision.isAllowed()==false 时落 audit_event。
+                    // POLICY 增量事件——decision.isAllowed()==false 时落 audit_event。
                     // reason 走 AuditRedactor 字段级脱敏(避免 destination / 联系人 / memory value 泄漏)。
                     auditEventRecorder.recordPolicyDecision(request.getRequestId(),
                             ActorUsers.userIdOf(request), auditZone(request), auditActor(request),
@@ -588,7 +588,7 @@ public final class AgentEngine {
                     continue;
                 }
                 Log.d(TAG, "[Engine]   -> policy ALLOW, executing provider");
-                // V0.5.2 Stage 4:PRE_TOOL 增量事件——policy ALLOW 后,toolExecutor.execute 前。
+                // PRE_TOOL 增量事件——policy ALLOW 后,toolExecutor.execute 前。
                 // args 走 AuditRedactor 字段级脱敏,与 TrajectoryEntity snapshots 同保护级别。
                 Map<String, Object> redactedArgsForAudit = auditRedactor.redactArguments(
                         call.getCapabilityName(), call.getArguments());
@@ -598,14 +598,14 @@ public final class AgentEngine {
                         redactedArgsForAudit.toString(), request.getEpoch());
                 CapabilityDefinition definition = policyEngine.findDefinition(call.getCapabilityName());
                 ToolResult toolResult = toolExecutor.execute(provider, definition, request, call);
-                // 第七轮 P2-4:ToolResult message 是 Provider 给的诊断文本,可能含目的地 / 联系人
+                // ToolResult message 是 Provider 给的诊断文本,可能含目的地 / 联系人
                 // (如"导航到北京市某小区失败"),用 SafeLog 占位符包裹。status / verified / durationMs
                 // 是结构性指标可保留。
                 Log.d(TAG, "[Engine]   <- tool result status=" + toolResult.getStatus()
                         + " verified=" + toolResult.isVerified()
                         + " durationMs=" + toolResult.getDurationMillis()
                         + " msg=" + SafeLog.TOOL_RESULT_PLACEHOLDER);
-                // V0.5.2 Stage 4:POST_TOOL 增量事件——toolExecutor 返回后,observation 加入前。
+                // POST_TOOL 增量事件——toolExecutor 返回后,observation 加入前。
                 // result message 走 AuditRedactor 文本脱敏(避免"导航到 XX 失败"等业务字段泄漏)。
                 auditEventRecorder.recordPostTool(request.getRequestId(),
                         ActorUsers.userIdOf(request), auditZone(request), auditActor(request),
@@ -626,11 +626,11 @@ public final class AgentEngine {
                 contextUpdater.onToolCompleted(sessionContext, call, toolResult);
             }
 
-            // 数据边界(P1-2 修复后的正确方向):
+            // 数据边界(修复后的正确方向):
             // - Conversation(喂模型):ModelSanitizer 只脱凭据,保留 memory.preference.* 真实 value
             //   等任务语义,否则模型答不出"我喜欢多少度"。
             // - Trajectory(UI/审计):AuditRedactor 字段级脱敏——memory preference value → <memory>。
-            // 第七轮 P2-2:每条 tool message 加入前过预算检查(单条截断 + 条数/字符上限)。
+            // 每条 tool message 加入前过预算检查(单条截断 + 条数/字符上限)。
             boolean budgetExhausted = false;
             for (ToolObservation observation : observations) {
                 ToolObservation sanitized = modelSanitizer.sanitize(observation);
@@ -646,7 +646,7 @@ public final class AgentEngine {
             }
 
             // 内部可信域:累积原始 ToolResult——业务调用方通过 AgentOutcome.getInternalResults() 取真实值,
-            // 不被 audit 占位符(<memory>)影响(第三轮 P2-1 修复)。
+            // 不被 audit 占位符(<memory>)影响。
             for (ToolObservation observation : observations) {
                 if (observation.getResult() != null) {
                     internalResults.add(observation.getResult());
@@ -683,24 +683,24 @@ public final class AgentEngine {
                 + " successToolCalls=" + trajectory.countSuccessfulToolCalls()
                 + " durationMs=" + elapsedMillis(started)
                 + " msg=\"" + truncate(stopMessage, 120) + "\"");
-        // 第七轮 P2-4:session turn 字符串原保留完整用户输入,改用 SafeLog 占位符。
+        // session turn 字符串原保留完整用户输入,改用 SafeLog 占位符。
         // SessionContext 仍保留语义(USER / RESULT / STOP),但不存原文。
         sessionContext.addTurn("USER: " + SafeLog.USER_INPUT_PLACEHOLDER
                 + " | RESULT: " + finalState + " | STOP: " + stopReason
                 + " | " + stopMessage);
         AgentOutcome mainOutcome = new AgentOutcome(request.getRequestId(), finalState, stopReason,
                 trajectory, elapsedMillis(started), internalResults);
-        // V0.5.0 Stage 3:出口点 4——主路径终态(SUCCEEDED/FAILED/PARTIALLY/CANCELLED/TIMED_OUT 等)
+        // 出口点 4——主路径终态(SUCCEEDED/FAILED/PARTIALLY/CANCELLED/TIMED_OUT 等)
         auditRepository.persist(mainOutcome, request);
-        // V0.5.3 评审 P1-1:Episodic 自动写入——任务终态后写 session_history 表,
+        // Episodic 自动写入——任务终态后写 session_history 表,
         // 供 EpisodicMemorySourceImpl 召回。fail-log(异常仅 Log.w,不向上传播)。
-        // V0.5.4 评审 P1-1:传 request.getEpoch(),RoomMemoryWriter 在 Room 事务内做 epoch gate。
+        // 传 request.getEpoch(),RoomMemoryWriter 在 Room 事务内做 epoch gate。
         memoryWriter.writeEpisodicOnTerminal(request, mainOutcome, request.getEpoch());
         return mainOutcome;
     }
 
     /**
-     * 按 {@link StopReason} 先判终止性质,再算最终状态(P1-3 修复):
+     * 按 {@link StopReason} 先判终止性质,再算最终状态:
      * <ul>
      *   <li>{@code DONE} / {@code NO_TOOL_CALL}:正常结束,按 Tool 结果分 SUCCEEDED / PARTIALLY / FAILED。</li>
      *   <li>{@code CANCELLED} / {@code TIMEOUT}:直接对应 TaskState。</li>
@@ -712,7 +712,7 @@ public final class AgentEngine {
     private static TaskState computeFinalState(Trajectory trajectory, StopReason stopReason) {
         if (stopReason == StopReason.CANCELLED) return TaskState.CANCELLED;
         if (stopReason == StopReason.TIMEOUT) return TaskState.TIMED_OUT;
-        // V0.4.1 Stage D:用户推迟语义——不是失败,被推迟的任务可被重新调度。
+        // 用户推迟语义——不是失败,被推迟的任务可被重新调度。
         if (stopReason == StopReason.DEFERRED) return TaskState.DEFERRED;
 
         int successCount = trajectory.countSuccessfulToolCalls();
@@ -733,18 +733,18 @@ public final class AgentEngine {
     /**
      * Audit Assistant:content 走文本 redact,ToolCall 的 arguments 走字段级 redactArguments。
      *
-     * <p>第四轮 P1-3 修复:旧实现只 redact content,ToolCall 列表原样复制——
+     * <p>旧实现只 redact content,ToolCall 列表原样复制——
      * Trajectory 中 ToolCallSnapshot.arguments 已脱敏,但 AssistantMessage.toolCalls.arguments
      * 是原始值,导致同一 Trajectory 同时存在脱敏与未脱敏两份参数。这里把 ToolCall 也重新构造,
      * 保留 stepId 和 capabilityName(协议层 ID 关联不能丢),但 arguments 全部脱敏。
      *
-     * <p>第四轮 P1-2:用 schema-aware 版本 {@link AuditRedactor#redactArguments(String, Map)}
+     * <p>用 schema-aware 版本 {@link AuditRedactor#redactArguments(String, Map)}
      * 让 navigation.destination / memory.preference.value 等业务敏感字段也走 capability
      * schema 脱敏。
      */
     private AgentMessage auditRedactAssistant(AgentMessage original) {
         if (original == null) return null;
-        // 第七轮 P1.2:assistant content 是模型自由文本,凭据正则识别不出业务 PII
+        // assistant content 是模型自由文本,凭据正则识别不出业务 PII
         // (地址 / 联系人 / 电话) ——审计侧用 redactFreeText 长度 + SHA-8 摘要替代原文,
         // 保留诊断信号 (chars) 与事后比对能力 (sha8),但不可逆推原文。
         // ToolCall arguments 不动,继续走 schema-aware redactArguments(cap, args)。
@@ -788,11 +788,11 @@ public final class AgentEngine {
     }
 
     /**
-     * V0.5.0 Stage 3:terminal outcome 改为 instance method——
+     * terminal outcome 改为 instance method——
      * 内部接入 {@link #auditRepository}.persist(5 个出口点中的 2 个由本方法覆盖)。
      *
-     * <p>原 V0.4.x 是 static,V0.4.x 测试若直接调 static 版本会编译失败——保留 static bridge
-     * delegate 到 instance 版本(V0.4.3 兼容契约)。
+     * <p>原是 static,旧测试若直接调 static 版本会编译失败——保留 static bridge
+     * delegate 到 instance 版本(兼容契约)。
      */
     private AgentOutcome terminalOutcome(AgentRequest request, TaskState state,
             StopReason reason, String message, long started) {
@@ -801,28 +801,28 @@ public final class AgentEngine {
         AgentOutcome outcome = new AgentOutcome(request.getRequestId(), state, reason, trajectory,
                 elapsedMillis(started));
         auditRepository.persist(outcome, request);
-        // V0.5.3 评审 P1-1:Episodic 自动写入——TIMEOUT/CANCELLED/PREEMPTED 终态也写
+        // Episodic 自动写入——TIMEOUT/CANCELLED/PREEMPTED 终态也写
         // session_history 表(供 Episodic 召回失败/取消的历史)。fail-log。
-        // V0.5.4 评审 P1-1:传 request.getEpoch(),RoomMemoryWriter 在 Room 事务内做 epoch gate。
+        // 传 request.getEpoch(),RoomMemoryWriter 在 Room 事务内做 epoch gate。
         memoryWriter.writeEpisodicOnTerminal(request, outcome, request.getEpoch());
         return outcome;
     }
 
     /**
-     * V0.5.0 Stage 3:buildSystemPrompt 改为 instance method,可选注入 memoryRecaller。
+     * buildSystemPrompt 改为 instance method,可选注入 memoryRecaller。
      *
-     * <p>memoryRecaller == null 时退化为 V0.4.3 文案(289 测试兼容);
+     * <p>memoryRecaller == null 时退化为旧文案(289 测试兼容);
      * memoryRecaller != null 时,在末尾拼"已召回的 Memory:"段落(layer + key 列表)。
      * 不拼 value——避免 prompt injection 通过召回 value 注入指令。
      *
-     * <p>P1.2 修复(评审 V0.5.0):memoryRecaller.recall() 异常时**降级到 base prompt**,
+     * <p>memoryRecaller.recall() 异常时**降级到 base prompt**,
      * 不向上传播。记忆是增强能力,不能成为车机任务入口的单点故障。
      * 日志只记错误类型与 requestId,不 dump 异常 stack(snippet value 可能含目的地 / 联系人)。
      */
     private String buildSystemPrompt(AgentRequest request) {
         List<MemorySnippet> recalled = recallSafely(request);
-        // V0.5.2 Stage 6:PromptBuilder 委托路径——AppContainer 注入后走 segmented 拼装。
-        // 字面与 inlineBuildSystemPrompt 等价;V0.5.3 PromptComposer 加入后做 token 截断。
+        // PromptBuilder 委托路径——AppContainer 注入后走 segmented 拼装。
+        // 字面与 inlineBuildSystemPrompt 等价;PromptComposer 加入后做 token 截断。
         if (promptBuilder != null) {
             try {
                 return DefaultPromptBuilder.join(
@@ -836,7 +836,7 @@ public final class AgentEngine {
     }
 
     /**
-     * V0.5.0 Stage 3 P1.2 + V0.5.2 Stage 6:recallSafely 抽出——异常时返回 emptyList,
+     * recallSafely 抽出——异常时返回 emptyList,
      * 不向上传播(记忆是增强能力,不能成为车机任务入口的单点故障)。
      */
     private List<MemorySnippet> recallSafely(AgentRequest request) {
@@ -853,7 +853,7 @@ public final class AgentEngine {
         }
     }
 
-    /** V0.5.2 Stage 6:内联拼装——promptBuilder=null 时的 fallback(289 测试兼容)。 */
+    /** 内联拼装——promptBuilder=null 时的 fallback(289 测试兼容)。 */
     private String inlineBuildSystemPrompt(AgentRequest request, List<MemorySnippet> recalled) {
         String base = "你是车机 AI 助理。当前发起者=" + request.getActor()
                 + ",区域=" + request.getOccupantZone()
@@ -864,13 +864,13 @@ public final class AgentEngine {
                 + "对 PARAMETER_REJECTED 的 Observation 请修正参数后重试;"
                 + "对 CAPABILITY_REJECTED 的 Observation 不要再尝试同一能力。";
         if (recalled == null || recalled.isEmpty()) return base;
-        // V0.5.3 评审 P1-2 / V0.5.4 评审 P1-4:复用 DefaultPromptBuilder.formatRecalledMemory——
+        // 复用 DefaultPromptBuilder.formatRecalledMemory——
         // <memory_context> 边界 + 白名单投影 + Episodic 层 deny value + SensitiveKeys 双重底线,
         // 避免双份实现漂移。
         return base + DefaultPromptBuilder.formatRecalledMemory(recalled);
     }
 
-    /** V0.5.0 Stage 3:buildSystemPrompt 召回 snippet 上限(保守,V0.5.1 调优)。 */
+    /** buildSystemPrompt 召回 snippet 上限(保守,后续调优)。 */
     private static final int RECALL_LIMIT_SYSTEM_PROMPT = 8;
 
     private static int estimateConversationChars(List<AgentMessage> conversation) {
@@ -880,10 +880,10 @@ public final class AgentEngine {
     }
 
     /**
-     * V0.5.2 Stage 3a:conversation 累计 token 估算——双轨统计用,**不参与 budget 决策**。
+     * conversation 累计 token 估算——双轨统计用,**不参与 budget 决策**。
      *
-     * <p>tokenizer=null 时退化为 char/4 估算(与 V0.4.x 一致);AppContainer 注入 JtokkitTokenizer
-     * 后真实 BPE 估算。仅用于日志输出,为 V0.5.3 主路径切换提供精度数据。
+     * <p>tokenizer=null 时退化为 char/4 估算(与旧版一致);AppContainer 注入 JtokkitTokenizer
+     * 后真实 BPE 估算。仅用于日志输出,为主路径切换提供精度数据。
      */
     private int estimateConversationTokens(List<AgentMessage> conversation) {
         if (tokenizer == null) {
@@ -898,7 +898,7 @@ public final class AgentEngine {
     }
 
     /**
-     * 第七轮 P2-2:统一消息入预算入口。
+     * 统一消息入预算入口。
      *
      * <p>单条消息超过 {@code maxMessageChars} → 截断(保留 role / toolCalls,只截 content)。
      * 用于 system/user 等首条加入 conversation 的消息。
@@ -926,7 +926,7 @@ public final class AgentEngine {
     }
 
     /**
-     * V0.5.2-rev 评审 P2-3:每次迭代主动检查 80% 阈值,压缩 conversation。
+     * 每次迭代主动检查 80% 阈值,压缩 conversation。
      *
      * <p>与 {@link #appendMessageWithBudget} 内的 100% 被动压缩互补:
      * <ul>
@@ -954,7 +954,7 @@ public final class AgentEngine {
     }
 
     /**
-     * 第七轮 P2-2:把消息加入 conversation 前检查所有预算维度。
+     * 把消息加入 conversation 前检查所有预算维度。
      *
      * <p>返回 true 表示已加入;返回 false 表示**未加入**且应当走 BUDGET_EXHAUSTED 终止。
      * 检查顺序:
@@ -974,7 +974,7 @@ public final class AgentEngine {
         }
         int projected = estimateConversationChars(conversation) + truncated.estimateChars();
         if (projected > budget.getTotalInputChars()) {
-            // V0.5.2 Stage 8:ConversationCompressor 注入后,先尝试压缩旧 turns 腾预算。
+            // ConversationCompressor 注入后,先尝试压缩旧 turns 腾预算。
             // 压缩成功后重试 append;仍超才返回 false(BUDGET_EXHAUSTED)。
             if (conversationCompressor != null && !conversation.isEmpty()) {
                 List<AgentMessage> compressed = conversationCompressor.compress(
@@ -1007,7 +1007,7 @@ public final class AgentEngine {
 
     /**
      * Trajectory 中 ToolCallSnapshot 的 arguments 必须过 AuditRedactor 字段级脱敏——
-     * 否则导航 destination / 联系人 / memory save 的 value 会原文进 UI/Log(第三轮 P1-3 修复)。
+     * 否则导航 destination / 联系人 / memory save 的 value 会原文进 UI/Log。
      */
     private List<AgentIteration.ToolCallSnapshot> snapshots(List<ToolCall> calls) {
         if (calls.isEmpty()) return Collections.emptyList();
@@ -1034,15 +1034,15 @@ public final class AgentEngine {
     }
 
     /**
-     * V0.4.1 Stage D:Loop 内部 Sentinel——drainSteerBeforeLlm 看到DEFER 时返回此常量,
+     * Loop 内部 Sentinel——drainSteerBeforeLlm 看到DEFER 时返回此常量,
      * 让 caller 用 == 比较(不与 null / 真 Steer 实例混淆)。
      */
     private static final Steer DEFER_SENTINEL = Steer.defer();
 
     /**
-     * V0.4.3 Stage E:Tool 执行前检查 mailbox 中是否有 DEFER。
+     * Tool 执行前检查 mailbox 中是否有 DEFER。
      *
-     * <p>V0.4.1 旧实现调 drain() 把整个队列掏空,即使无 DEFER,REPROMPT/FORCE_TOOL 也被永久丢弃
+     * <p>旧实现调 drain() 把整个队列掏空,即使无 DEFER,REPROMPT/FORCE_TOOL 也被永久丢弃
      * (下一轮 drainSteerBeforeLlm 再 drain 已空)。peek 只看不动,保留非 DEFER 指令给下一轮处理。
      */
     private boolean hasDeferredSteer(AgentRequest request) {
@@ -1055,7 +1055,7 @@ public final class AgentEngine {
     }
 
     /**
-     * V0.4.1 Stage D:在 LLM 调用前 drain SteerMailbox。
+     * 在 LLM 调用前 drain SteerMailbox。
      *
      * <p>语义:
      * <ul>
@@ -1073,7 +1073,7 @@ public final class AgentEngine {
     private Steer drainSteerBeforeLlm(AgentRequest request, List<AgentMessage> conversation,
             int iteration) {
         if (steerMailbox == null) return null;
-        // V0.5.2 Stage 5:epoch-gated drain——stamped.epoch < request.getEpoch() 的 Steer
+        // epoch-gated drain——stamped.epoch < request.getEpoch() 的 Steer
         // 被 drop + audit(STEER_DROPPED_STALE);AgentRequest.epoch 是 Repository.execute
         // 时注入的 memoryStore.currentEpoch()——clearUserData 后旧 epoch 的 Steer 自动失效。
         List<Steer> steers = steerMailbox.drain(request.getSessionId(), request.getEpoch());
@@ -1083,7 +1083,7 @@ public final class AgentEngine {
         for (Steer steer : steers) {
             Log.i(TAG, "[Engine] iter " + iteration + " drain steer type=" + steer.getType()
                     + " payloadChars=" + safeLength(steer.getPayload()));
-            // V0.5.2 Stage 4:STEER 增量事件——只记 type + payloadChars,
+            // STEER 增量事件——只记 type + payloadChars,
             // 不记 payload 内容(REPROMPT payload 可能含用户输入 / 联系人,有 PII 风险)。
             if (steer.getType() == Steer.Type.FORCE_TOOL || steer.getType() == Steer.Type.DEFER) {
                 auditEventRecorder.recordSteer(request.getRequestId(),
@@ -1113,7 +1113,7 @@ public final class AgentEngine {
         return lastForceTool;
     }
 
-    /** V0.5.2 Stage 4:audit_event 行 zone 列——与历史 V0.5.0 行一致用 Actor.name() 大写。 */
+    /** audit_event 行 zone 列——与历史行一致用 Actor.name() 大写。 */
     private static String auditZone(AgentRequest request) {
         return request.getActor() == null ? "" : request.getActor().name();
     }

@@ -9,14 +9,14 @@ import com.matrix.agent.core.identity.Actor;
 import com.matrix.agent.core.identity.AgentRequest;
 
 /**
- * V0.5.4 评审 P1-3 + V0.5.5 P2-A:EpisodicSummary 终态过滤——仅 SUCCEEDED / FAILED 写入。
+ * EpisodicSummary 终态过滤——仅 SUCCEEDED / FAILED 写入。
  *
  * <p>用户硬约束:"仅记录 SUCCEEDED、FAILED... 取消和超时默认不写"。CANCELLED / TIMED_OUT /
  * PREEMPTED / REJECTED / PROTOCOL_ERROR / EXECUTION_UNKNOWN / DEFERRED / PARTIALLY_SUCCEEDED 全部 skip。
  *
- * <p>V0.5.5 P2-A:PARTIALLY_SUCCEEDED 从 persisted 集合移除——V0.5.4 实现时擅自加入,
+ * <p>PARTIALLY_SUCCEEDED 从 persisted 集合移除——实现时擅自加入,
  * 不在用户确认的范围内。语义上部分成功不代表完整意图,且 finalState 字段会让模型误判为
- * "已执行"参考。V0.5.6 若用户确认要写入再加回。
+ * "已执行"参考。若用户确认要写入再加回。
  */
 public final class EpisodicSummarySkipStatesTest {
 
@@ -72,7 +72,7 @@ public final class EpisodicSummarySkipStatesTest {
 
     @Test
     public void partiallySucceededSkipped() {
-        // V0.5.5 P2-A:PARTIALLY_SUCCEEDED 不在用户确认的 persisted 集合内,skip=true
+        // PARTIALLY_SUCCEEDED 不在用户确认的 persisted 集合内,skip=true
         EpisodicSummary s = buildWithState(TaskState.PARTIALLY_SUCCEEDED, StopReason.DONE);
         assertTrue("V0.5.5 后 PARTIALLY_SUCCEEDED 应 skip(与 CANCELLED / TIMED_OUT 同)",
                 s.shouldSkip());

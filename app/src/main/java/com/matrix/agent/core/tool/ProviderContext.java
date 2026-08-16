@@ -9,7 +9,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * V0.4.3 Stage D:capability handler 执行期的不可变上下文。
+ * capability handler 执行期的不可变上下文。
  *
  * <p>封装 handler 需要的全部运行时状态:
  * <ul>
@@ -17,7 +17,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *   <li>{@code observedState} / {@code commandedState} —— Provider 内部业务状态(live ref,
  *       handler 直接读写,无需返回值传递)</li>
  *   <li>{@code memoryStore} —— memory.preference.* 后端</li>
- *   <li>{@code memoryWriter} —— V0.5.3 P1-1 memory.semantic.* 后端(NOOP 时 semantic handler
+ *   <li>{@code memoryWriter} —— memory.semantic.* 后端(NOOP 时 semantic handler
  *       写入失败,fail-log 不影响主路径)</li>
  *   <li>{@code failNextVehicleReadback} —— 测试钩子(live ref,handler 通过
  *       {@link #commandAndApply} 自动消费)</li>
@@ -43,10 +43,10 @@ public final class ProviderContext {
     }
 
     /**
-     * V0.5.3 P1-1:7 参构造器,带 memoryWriter(memory.semantic.* 后端)。
+     * 7 参构造器,带 memoryWriter(memory.semantic.* 后端)。
      *
      * <p>旧 6 参构造器 delegate 到本方法,memoryWriter 默认 {@link MemoryWriter#NOOP}——
-     * 所有 V0.4.x / V0.5.x 测试 fake 调用点不需改,保 654 测试零回归。
+     * 所有测试 fake 调用点不需改,保 654 测试零回归。
      */
     public ProviderContext(AgentRequest request, ToolCall call,
             Map<String, Object> observedState, Map<String, Object> commandedState,

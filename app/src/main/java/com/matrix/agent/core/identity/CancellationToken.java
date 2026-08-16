@@ -9,7 +9,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 /**
  * 取消令牌 + abort hook 监听。
  *
- * <p>V0.4.1 Stage B 扩展:cancel() 时同步调用所有已注册的 abort hook,让上层(ModelCallExecutor)
+ * <p>cancel() 时同步调用所有已注册的 abort hook,让上层(ModelCallExecutor)
  * 能在 cancel 触发的瞬间执行传输层 abort(如 HttpURLConnection.disconnect / OkHttp Call.cancel),
  * 而不依赖 50ms polling 检查周期。
  *

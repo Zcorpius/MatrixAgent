@@ -17,7 +17,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 /**
- * 第七轮 P1-2 回归:strict schema 在执行边界拒绝未声明字段、检查 required/type/range/enum。
+ * 回归:strict schema 在执行边界拒绝未声明字段、检查 required/type/range/enum。
  * 旧实现把 schema 检查委托给 CapabilityValidator,无法识别模型多塞的字段。
  */
 public final class PolicyEngineTest {
@@ -125,7 +125,7 @@ public final class PolicyEngineTest {
     }
 
     /**
-     * 第七轮 P1-1 端到端:多目标用户意图 + 写操作 → CAPABILITY 拒绝(在 strict schema 之前)。
+     * 端到端:多目标用户意图 + 写操作 → CAPABILITY 拒绝(在 strict schema 之前)。
      */
     @Test
     public void multiTargetIntentBlocksBeforeSchemaCheck() {
@@ -139,9 +139,9 @@ public final class PolicyEngineTest {
     }
 
     /**
-     * 第九轮 P2-5:运行时拒绝 reason 字符串不应硬编码版本号。
+     * 运行时拒绝 reason 字符串不应硬编码版本号。
      *
-     * <p>背景:此前 MULTI_TARGET 拒绝文案写"V0.4.0 不支持一句话同时操作多 zone",把开发期版本号
+     * <p>背景:此前 MULTI_TARGET 拒绝文案写"V0.x 不支持一句话同时操作多 zone",把开发期版本号
      * 硬编码进 PolicyDecision.reason —— 该字段会进 ToolObservation 喂给模型、进 Trajectory 渲染到 UI。
      * 版本号会让用户困惑、升级后变成陈年误导、暗示"未来版本会放开"错承诺,且把"安全设计选择"
      * 说成"能力未实现"。改成强调安全的措辞后,本测试断言 reason 永不含 V0.x 子串,防回归。

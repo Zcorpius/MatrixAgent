@@ -41,7 +41,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * V0.5.0 第三轮评审 P1:验证 AgentRuntimeRepository 层兜底 Audit 覆盖
+ * 验证 AgentRuntimeRepository 层兜底 Audit 覆盖
  * <b>不进入 AgentEngine 5 个出口点</b> 的真实调度终态。
  *
  * <p>评审场景:
@@ -60,7 +60,7 @@ public final class AgentRuntimeRepositoryAuditCoverageTest {
     /**
      * ① Repository future.get(timeout) 超时 → catch TimeoutException → 构造 TIMED_OUT outcome
      *    → audit 必须落库。这条路径 Engine.execute 还在 worker 线程跑(gateway 阻塞中),
-     *    Engine 内部 audit 可能后续才触发——但 Repository 兜底 audit 是评审 P1 的核心保证。
+     *    Engine 内部 audit 可能后续才触发——但 Repository 兜底 audit 是核心保证。
      */
     @Test
     public void repositoryFutureTimeoutWritesAudit() throws Exception {
@@ -89,7 +89,7 @@ public final class AgentRuntimeRepositoryAuditCoverageTest {
 
         assertEquals(TaskState.TIMED_OUT, outcome.getFinalState());
         assertEquals(StopReason.TIMEOUT, outcome.getStopReason());
-        // 第四轮评审 P1:outcome.stopReason 必须与 trajectory.stopReason 一致,避免 audit 落库后
+        // outcome.stopReason 必须与 trajectory.stopReason 一致,避免 audit 落库后
         // 结构化列与 trajectoryJson.trajectory.stopReason 矛盾(列表显示 TIMED_OUT 但回放解码不一致)。
         assertEquals("outcome.stopReason 必须与 trajectory.stopReason 一致",
                 outcome.getStopReason(), outcome.getTrajectory().getStopReason());
@@ -106,7 +106,7 @@ public final class AgentRuntimeRepositoryAuditCoverageTest {
         assertNotNull("Repository 兜底 audit 必须落库(TIMED_OUT)", repoAudit);
         assertEquals("Repository audit 必须记录 TIMED_OUT", "TIMED_OUT", repoAudit.getFinalState());
         assertEquals("AuditRecord.stopReason 必须为 TIMEOUT", "TIMEOUT", repoAudit.getStopReason());
-        // 第四轮评审 P1:round-trip 后 AuditRecord.stopReason 与 decodeTrajectory(...).getStopReason() 一致
+        // round-trip 后 AuditRecord.stopReason 与 decodeTrajectory(...).getStopReason() 一致
         Trajectory decodedFromAudit = com.matrix.agent.data.db.TrajectoryCodec.decodeTrajectory(
                 repoAudit.getTrajectoryJson());
         assertEquals("round-trip 后 trajectory.stopReason 必须与 AuditRecord.stopReason 一致",
@@ -154,7 +154,7 @@ public final class AgentRuntimeRepositoryAuditCoverageTest {
         assertNotNull("caller 必须返回 outcome", outcome);
         assertEquals(TaskState.CANCELLED, outcome.getFinalState());
         assertEquals(StopReason.CANCELLED, outcome.getStopReason());
-        // 第四轮评审 P1:outcome.stopReason 必须与 trajectory.stopReason 一致
+        // outcome.stopReason 必须与 trajectory.stopReason 一致
         assertEquals("outcome.stopReason 必须与 trajectory.stopReason 一致",
                 outcome.getStopReason(), outcome.getTrajectory().getStopReason());
 
@@ -167,7 +167,7 @@ public final class AgentRuntimeRepositoryAuditCoverageTest {
         assertEquals("CANCELLED", repoAudit.getFinalState());
         assertEquals("AuditRecord.stopReason 必须为 CANCELLED",
                 "CANCELLED", repoAudit.getStopReason());
-        // 第四轮评审 P1:round-trip 后 AuditRecord.stopReason 与 decodeTrajectory(...).getStopReason() 一致
+        // round-trip 后 AuditRecord.stopReason 与 decodeTrajectory(...).getStopReason() 一致
         Trajectory decodedFromAudit = com.matrix.agent.data.db.TrajectoryCodec.decodeTrajectory(
                 repoAudit.getTrajectoryJson());
         assertEquals("round-trip 后 trajectory.stopReason 必须与 AuditRecord.stopReason 一致",
@@ -228,7 +228,7 @@ public final class AgentRuntimeRepositoryAuditCoverageTest {
         assertEquals("副驾终态必须是 PREEMPTED",
                 TaskState.PREEMPTED, passengerOutcome.getFinalState());
         assertEquals(StopReason.PREEMPTED, passengerOutcome.getStopReason());
-        // 第四轮评审 P1:抢占路径核心断言——outcome.stopReason == trajectory.stopReason == PREEMPTED
+        // 抢占路径核心断言——outcome.stopReason == trajectory.stopReason == PREEMPTED
         // 修复前 trajectory.stopReason 仍是 Engine 写的 CANCELLED,与外层 PREEMPTED 矛盾
         assertEquals("副驾 outcome.stopReason 必须与 trajectory.stopReason 一致(都为 PREEMPTED)",
                 passengerOutcome.getStopReason(), passengerOutcome.getTrajectory().getStopReason());
@@ -246,7 +246,7 @@ public final class AgentRuntimeRepositoryAuditCoverageTest {
         assertEquals("PREEMPTED", passengerAudit.getFinalState());
         assertEquals("AuditRecord.stopReason 必须为 PREEMPTED",
                 "PREEMPTED", passengerAudit.getStopReason());
-        // 第四轮评审 P1:round-trip 后 trajectoryJson.trajectory.stopReason 必须为 PREEMPTED,
+        // round-trip 后 trajectoryJson.trajectory.stopReason 必须为 PREEMPTED,
         // 与 AuditRecord.stopReason(结构化列)一致——否则列表显示"被抢占"但回放解码为"已取消"
         Trajectory decodedPassenger = com.matrix.agent.data.db.TrajectoryCodec.decodeTrajectory(
                 passengerAudit.getTrajectoryJson());
@@ -288,7 +288,7 @@ public final class AgentRuntimeRepositoryAuditCoverageTest {
         SteerMailbox mailbox = new SteerMailbox();
         MockCapabilityProvider provider = new MockCapabilityProvider(new InMemoryMemoryStore());
         TaskScheduler scheduler = new TaskScheduler(2, sessionLockManager);
-        // V0.5.0 第三轮评审 P1:Engine 与 Repository 共享同一 audit 实例(模拟 AppContainer 真实装配)
+        // Engine 与 Repository 共享同一 audit 实例(模拟 AppContainer 真实装配)
         AgentRuntimeRepository.AgentEngineFactory engineFactory = gw -> new AgentEngine(
                 gw, modelCallExecutor, policyEngine, registry, provider, sessionManager,
                 new DefaultContextUpdater(), sessionLockManager, toolExecutor, budget, mailbox,
@@ -324,7 +324,7 @@ public final class AgentRuntimeRepositoryAuditCoverageTest {
                     outcome.getTrajectory().getIterations().size(),
                     outcome.getTrajectory().getTotalToolCalls(),
                     outcome.getTrajectory().countSuccessfulToolCalls(),
-                    // 第四轮评审 P1:存 trajectoryJson 让测试可断言 round-trip 一致性
+                    // 存 trajectoryJson 让测试可断言 round-trip 一致性
                     com.matrix.agent.data.db.TrajectoryCodec.encode(outcome)));
         }
 
@@ -351,7 +351,7 @@ public final class AgentRuntimeRepositoryAuditCoverageTest {
         }
 
         /**
-         * 第四轮评审 P1:Engine + Repository 双重 audit 时序竞态下,findLatestByRequest 可能
+         * Engine + Repository 双重 audit 时序竞态下,findLatestByRequest 可能
          * 拿到 Engine 后写版本(CANCELLED/SUCCEEDED)而非 Repository 兜底版本(TIMED_OUT/CANCELLED)。
          * 本方法按 requestId + finalState 精确选 Repository 版本(由测试调用的 outcome.finalState 决定)。
          */

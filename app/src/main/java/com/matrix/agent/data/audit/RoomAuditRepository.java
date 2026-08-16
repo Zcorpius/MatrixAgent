@@ -18,15 +18,15 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * V0.5.0 Stage 2:Room-backed AuditRepository 实现——APK 主路径。
+ * Room-backed AuditRepository 实现——APK 主路径。
  *
- * <p>P1.3 修复(评审 V0.5.0):persist 改为**同步阻塞**单条 insert——
+ * <p>persist 改为**同步阻塞**单条 insert——
  * 与 README/Code-Review 文档"同步阻塞 insert、所有终态可回放"承诺对齐,
  * 让"任务返回后立即查询"无竞态。
  *
  * <p>fail-open 不变:insert 抛异常时仅 log,不向上传播——保证主任务路径不被 Audit 拖累。
  *
- * <p>V0.5.1 优化为 WAL + batch + 异步队列时再切回 Executor 模型,届时补:
+ * <p>优化为 WAL + batch + 异步队列时再切回 Executor 模型,届时补:
  * <ul>
  *   <li>flush/shutdown 生命周期(Application.onTerminate / CarLifecycleListener);</li>
  *   <li>队列满策略(block / drop-oldest / spill-to-file);</li>
@@ -34,15 +34,15 @@ import java.util.List;
  *   <li>真实异步测试(验证队列入队 + 后台线程消费 + 终态一致性)。</li>
  * </ul>
  *
- * <p><b>V0.5.2 Stage 1 三构造器</b>:
+ * <p><b>三构造器</b>:
  * <ul>
- *   <li>单参 {@code (TrajectoryDao)} —— V0.5.0 兼容,JVM Contract test 验证 trajectory
+ *   <li>单参 {@code (TrajectoryDao)} —— 旧版兼容,JVM Contract test 验证 trajectory
  *       删除语义。clearByUserZone 仅删 trajectory 表(无 database 引用,非原子)。</li>
  *   <li>4 参 {@code (MatrixDatabase, TrajectoryDao, SessionHistoryDao, MemoryRecordDao)}
- *       —— V0.5.1 APK 主路径(已被 V0.5.2 替换为 5 参,但保留作向后兼容)。
+ *       —— 旧版 APK 主路径(已被新版替换为 5 参,但保留作向后兼容)。
  *       clearByUserZone 跨 3 表原子删除,audit_event 不参与(AuditEventDao=null)。</li>
  *   <li>5 参 {@code (MatrixDatabase, TrajectoryDao, SessionHistoryDao, MemoryRecordDao,
- *       AuditEventDao)} —— V0.5.2 APK 主路径,持有 database + 4 DAO,clearByUserZone 在
+ *       AuditEventDao)} —— APK 主路径,持有 database + 4 DAO,clearByUserZone 在
  *       {@code database.runInTransaction} 内跨 4 表原子删除(audit_event userId 列已就位)。</li>
  * </ul>
  */
@@ -50,22 +50,22 @@ public final class RoomAuditRepository implements AuditRepository {
     private static final String TAG = "MatrixAgent";
 
     private final TrajectoryDao trajectoryDao;
-    /** V0.5.1 Stage 6:跨表 transaction 入口;单参构造时为 null。 */
+    /** 跨表 transaction 入口;单参构造时为 null。 */
     private final MatrixDatabase database;
     private final SessionHistoryDao sessionHistoryDao;
     private final MemoryRecordDao memoryRecordDao;
-    /** V0.5.2 Stage 1:audit_event DAO;null 时不参与 clearByUserZone 跨表删除。 */
+    /** audit_event DAO;null 时不参与 clearByUserZone 跨表删除。 */
     private final AuditEventDao auditEventDao;
 
-    /** V0.5.0 兼容路径——仅 trajectoryDao 可用。 */
+    /** 旧版兼容路径——仅 trajectoryDao 可用。 */
     public RoomAuditRepository(TrajectoryDao trajectoryDao) {
         this(null, trajectoryDao, null, null, null);
     }
 
     /**
-     * V0.5.1 Stage 6:4 参构造器——持有 database + 3 DAO。
+     * 4 参构造器——持有 database + 3 DAO。
      *
-     * <p>V0.5.2 保留作向后兼容(V0.5.1 测试 / 装配路径);APK 主路径切 5 参构造。
+     * <p>保留作向后兼容(测试 / 装配路径);APK 主路径切 5 参构造。
      * 不传 AuditEventDao → clearByUserZone 仅跨 3 表。
      */
     public RoomAuditRepository(MatrixDatabase database, TrajectoryDao trajectoryDao,
@@ -74,7 +74,7 @@ public final class RoomAuditRepository implements AuditRepository {
     }
 
     /**
-     * V0.5.2 Stage 1:APK 主路径构造器——持有 database + 4 DAO,
+     * APK 主路径构造器——持有 database + 4 DAO,
      * 让 clearByUserZone 跨 4 表(含 audit_event)原子删除。
      */
     public RoomAuditRepository(MatrixDatabase database, TrajectoryDao trajectoryDao,
@@ -94,7 +94,7 @@ public final class RoomAuditRepository implements AuditRepository {
         try {
             doPersist(outcome, request);
         } catch (Exception ex) {
-            // V0.5.0 fail-open:仅 log,不抛——保证主任务路径不被 Audit 拖累
+            // fail-open:仅 log,不抛——保证主任务路径不被 Audit 拖累
             Log.e(TAG, "[Audit] persist FAILED req=" + outcome.getRequestId()
                     + " cause=" + ex.getClass().getSimpleName() + ": " + ex.getMessage(), ex);
         }
@@ -175,7 +175,7 @@ public final class RoomAuditRepository implements AuditRepository {
     }
 
     /**
-     * V0.5.1 Stage 6 + Stage 6 P1.2 + V0.5.2 Stage 1:clearUserData 内部按 (userId, zone)
+     * clearUserData 内部按 (userId, zone)
      * 批量清理 Audit 数据,返回结构化 {@link ClearOutcome}。
      *
      * <p>路径分支:
@@ -184,12 +184,12 @@ public final class RoomAuditRepository implements AuditRepository {
      *       memory_record / audit_event 4 表在 {@code database.runInTransaction} 内原子删除,
      *       事务回滚视为 PARTIAL_FAILURE。tablesAttempted=4。</li>
      *   <li>4 参构造(database + 3 DAO 非 null,auditEventDao=null):跨 3 表原子删除
-     *       (V0.5.1 兼容),tablesAttempted=3。</li>
-     *   <li>单参构造(database == null):仅删 trajectory 表(V0.5.0 兼容路径,
+     *       (旧版兼容),tablesAttempted=3。</li>
+     *   <li>单参构造(database == null):仅删 trajectory 表(旧版兼容路径,
      *       主要为 JVM Contract test 验证 trajectory 删除语义),tablesAttempted=1。</li>
      * </ul>
      *
-     * <p><b>失败语义</b>(P1.2 修正):仍 try/catch 不抛(主流程已清空偏好 + 会话,不让
+     * <p><b>失败语义</b>:仍 try/catch 不抛(主流程已清空偏好 + 会话,不让
      * audit 失败回滚主流程),但失败信息封装进 {@link ClearOutcome},Repository + ViewModel
      * 据此选择 UI 文案,不再让"audit 仍残留"伪装成"完整成功"。
      */
@@ -216,9 +216,9 @@ public final class RoomAuditRepository implements AuditRepository {
     }
 
     /**
-     * V0.5.2 Stage 1:跨 4 表(或 3 表,auditEventDao=null 时)原子删除。
+     * 跨 4 表(或 3 表,auditEventDao=null 时)原子删除。
      *
-     * <p>audit_event userId 列默认 {@code ""}——历史 V0.5.0/V0.5.1 行 userId='' 按
+     * <p>audit_event userId 列默认 {@code ""}——历史格式行 userId='' 按
      * (userId, zone) 过滤不到,deleteByUserZone 返回 0(不视为失败)。
      */
     private ClearOutcome clearFourTablesAtomic(String userId, String zone) {

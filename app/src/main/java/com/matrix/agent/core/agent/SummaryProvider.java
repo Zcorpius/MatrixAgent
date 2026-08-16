@@ -5,7 +5,7 @@ import com.matrix.agent.core.identity.AgentRequest;
 import java.util.List;
 
 /**
- * V0.5.2 Stage 8:对话摘要 Provider——把旧 turns 摘要为单条 SummaryMessage。
+ * 对话摘要 Provider——把旧 turns 摘要为单条 SummaryMessage。
  *
  * <p>生产实现用 Provider(LLM)总结——质量好;失败时 ConversationCompressor 自动降级
  * heuristic(直接丢老 turns)。摘要本身有 prompt injection 风险,实现必须:

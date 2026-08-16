@@ -24,7 +24,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * V0.5.2 Stage 11:DynamicThreadPool 并发压力测试——8 并发任务同时跑过 3 个共享 executor
+ * DynamicThreadPool 并发压力测试——8 并发任务同时跑过 3 个共享 executor
  * (TaskScheduler + ModelCallExecutor + ToolExecutor),验证无死锁 + 任务不丢。
  *
  * <p>必须 androidTest 跑(JVM 单测的 fake executor 测不出真实 ThreadPoolExecutor 拒绝策略 +

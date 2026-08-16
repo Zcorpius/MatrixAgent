@@ -1,7 +1,7 @@
 package com.matrix.agent.core.tool;
 
 /**
- * V0.4.3 Stage D:capability verify 策略抽象。
+ * capability verify 策略抽象。
  *
  * <p>对应 {@link com.matrix.agent.core.capability.VerifyMethod} 枚举的具体行为:
  * <ul>
@@ -10,7 +10,7 @@ package com.matrix.agent.core.tool;
  *   <li>{@code READBACK_GET} → {@link ReadbackGetStrategy}(memory.preference.save/get)</li>
  * </ul>
  *
- * <p>{@code USER_CONFIRM} / {@code TIMEOUT} 留后续版本实现,V0.4.3 调用方不注册这两个策略。
+ * <p>{@code USER_CONFIRM} / {@code TIMEOUT} 留后续版本实现,调用方不注册这两个策略。
  */
 @FunctionalInterface
 public interface VerifyStrategy {

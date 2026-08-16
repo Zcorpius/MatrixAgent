@@ -23,7 +23,7 @@ import com.matrix.agent.data.db.SessionHistoryDao;
 import com.matrix.agent.data.db.SessionHistoryEntity;
 
 /**
- * V0.5.4 评审 P1-3:RoomMemoryWriter 终态过滤——非 SUCCEEDED / FAILED / PARTIALLY_SUCCEEDED
+ * RoomMemoryWriter 终态过滤——非 SUCCEEDED / FAILED / PARTIALLY_SUCCEEDED
  * 直接 skip,session_history 不新增行。SUCCEEDED 写入 + trajectoryJson 是 summary JSON
  * (不含 "iterations" 字段,确认与 TrajectoryCodec 区分)。
  */

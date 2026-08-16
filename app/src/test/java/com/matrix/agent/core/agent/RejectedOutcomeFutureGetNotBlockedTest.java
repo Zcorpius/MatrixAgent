@@ -16,11 +16,11 @@ import com.matrix.agent.core.identity.VehicleZone;
 import com.matrix.agent.core.session.SessionLockManager;
 
 /**
- * V0.5.3 评审 P1-4:AbortPolicy 触发的 REJECTED future 不应阻塞后续任务的提交与执行。
+ * AbortPolicy 触发的 REJECTED future 不应阻塞后续任务的提交与执行。
  *
  * <p>验证场景:任务 3 被 REJECTED 后,释放任务 1/2 的阻塞,任务 1/2 仍能正常完成——
  * 证明 REJECTED 路径不污染 pool 状态(runningTasks map 清理正确,workers 池没被卡)。
- * 这是 V0.5.2-rev P1-1 加 catch 块时承诺的"REJECTED 不留遗害"行为,本测试在
+ * 这是加 catch 块时承诺的"REJECTED 不留遗害"行为,本测试在
  * 真实队列满路径下回归。
  */
 public final class RejectedOutcomeFutureGetNotBlockedTest {

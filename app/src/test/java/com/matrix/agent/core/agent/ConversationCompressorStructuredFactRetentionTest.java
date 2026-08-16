@@ -13,7 +13,7 @@ import org.junit.Test;
 import com.matrix.agent.core.tool.ToolCall;
 
 /**
- * V0.5.2-rev 评审 P1-3:LLM 摘要不压缩结构化事实——
+ * LLM 摘要不压缩结构化事实——
  *
  * <p>{@code splitStructuredFromNatural} 把 toSummarize 切成 structuredKeep + toSummarizeNatural。
  * 含 tool_call / tool observation / POLICY / EXECUTION_UNKNOWN 的 transaction 整组进 structuredKeep,

@@ -15,7 +15,7 @@ import com.matrix.agent.core.identity.AgentRequest;
 import com.matrix.agent.core.identity.VehicleZone;
 
 /**
- * V0.5.4 评审 P1-3:EpisodicSummary 结构测试——验证 SUCCEEDED 任务的 summary 含
+ * EpisodicSummary 结构测试——验证 SUCCEEDED 任务的 summary 含
  * 安全字段(时间/终态/持续时间/turnCount/successfulCapabilities),且**不含**
  * PII 字段(userText/assistantContent/toolArguments/toolResultContent)。
  *

@@ -18,7 +18,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.junit.Test;
 
 /**
- * 第五轮评审 P1:写操作 timeout / cancel 语义边界测试。
+ * 写操作 timeout / cancel 语义边界测试。
  *
  * <p>评审发现:"ToolExecutor 对所有 capability 一视同仁,超时 / 取消时 future.cancel(true) +
  * 返回 TIMED_OUT / CANCELLED。但 CapabilityProvider 只有同步 execute() 接口,没有 abort /
@@ -27,7 +27,7 @@ import org.junit.Test;
  *
  * <p>本测试覆盖 5 个场景:
  * <ol>
- *   <li>读操作 timeout → TIMED_OUT(现状不退化,V0.4.x 行为兼容)</li>
+ *   <li>读操作 timeout → TIMED_OUT(现状不退化,行为兼容)</li>
  *   <li>写操作 + 不可 abort Provider + timeout → EXECUTION_UNKNOWN(不能宣称"已取消")</li>
  *   <li>写操作 + 不可 abort Provider + token.cancel → EXECUTION_UNKNOWN</li>
  *   <li>写操作 + 可 abort Provider + timeout → abortIfSupported 被调用 + EXECUTION_UNKNOWN</li>
@@ -39,7 +39,7 @@ public final class ToolExecutorWriteSemanticsTest {
     private static final String READ_CAP = "test.read.slow";
     private static final String WRITE_CAP = "test.write.slow";
 
-    /** 读操作超时仍返回 TIMED_OUT,V0.4.x 行为不变。 */
+    /** 读操作超时仍返回 TIMED_OUT,行为不变。 */
     @Test
     public void readOnlyCapabilityTimeoutReturnsTimedOut() {
         CapabilityDefinition definition = CapabilityDefinition.builder(READ_CAP, RiskLevel.R0_READ_ONLY)

@@ -43,7 +43,7 @@ public final class ModelSanitizerTest {
 
     @Test
     public void truncatesLongContentWithinMaxChars() {
-        // 第三轮 P2-2 修复:截断后总长度必须 ≤ maxChars(旧实现会超)
+        // 截断后总长度必须 ≤ maxChars(旧实现会超)
         ModelSanitizer sanitizer = new ModelSanitizer(30);
         String result = sanitizer.sanitize("1234567890123456789012345678901234567890"); // 40 chars
         assertTrue("expected prefix preserved, got: " + result, result.startsWith("123456789"));

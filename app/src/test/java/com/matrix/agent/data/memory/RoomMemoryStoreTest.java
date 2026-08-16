@@ -18,7 +18,7 @@ import com.matrix.agent.data.db.MemoryRecordDao;
 import com.matrix.agent.data.db.MemoryRecordEntity;
 
 /**
- * V0.5.2 Stage 2:RoomMemoryStore 主路径 JVM 契约测试。
+ * RoomMemoryStore 主路径 JVM 契约测试。
  *
  * <p>用 fake in-memory DAO 验证:
  * <ul>

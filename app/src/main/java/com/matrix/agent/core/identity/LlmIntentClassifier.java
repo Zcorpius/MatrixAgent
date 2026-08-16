@@ -10,9 +10,9 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * V0.5.2 Stage 9:LLM-based IntentClassifier——用 Provider(小模型)分类 read-only/write。
+ * LLM-based IntentClassifier——用 Provider(小模型)分类 read-only/write。
  *
- * <p><b>延迟与超时</b>:同步调用 LlmClient.complete;V0.5.2-rev 评审 P2-1 改用 3s 短 deadline,
+ * <p><b>延迟与超时</b>:同步调用 LlmClient.complete;改用 3s 短 deadline,
  * RetryPolicy 退避期间感知 deadline 截断 delay。超时 / 异常由 {@link FallbackIntentClassifier}
  * 捕获后降级 Keyword。
  *
@@ -32,7 +32,7 @@ public final class LlmIntentClassifier implements IntentClassifier {
     /** LRU 缓存 TTL——5 分钟内同 command 复用结果。 */
     static final long CACHE_TTL_MS = 5L * 60L * 1000L;
     /**
-     * V0.5.2-rev 评审 P2-1:IntentClassifier 不在 AgentRequest 主路径——独立 3s 短 deadline,
+     * IntentClassifier 不在 AgentRequest 主路径——独立 3s 短 deadline,
      * 与原 OkHttp call timeout 对齐。RetryPolicy 退避期间按剩余 deadline 截断 delay。
      */
     static final long DEADLINE_MS = 3_000L;
@@ -42,7 +42,7 @@ public final class LlmIntentClassifier implements IntentClassifier {
     private final LinkedHashMap<String, CacheEntry> cache;
 
     /**
-     * V0.5.2-rev 评审 P2-1:依赖 {@link LlmClient} 接口(而非 ModelApiClient 具体类),
+     * 依赖 {@link LlmClient} 接口(而非 ModelApiClient 具体类),
      * 让 JVM 单测可注入 fake 验证 deadline 透传。生产路径继续传 ModelApiClient(实现 LlmClient)。
      */
     public LlmIntentClassifier(LlmClient client, ModelConfig config) {
@@ -73,7 +73,7 @@ public final class LlmIntentClassifier implements IntentClassifier {
 
         IntentResult fresh;
         try {
-            // V0.5.2-rev 评审 P2-1:用 3s 短 deadline,RetryPolicy 退避期间感知 deadline 截断 delay。
+            // 用 3s 短 deadline,RetryPolicy 退避期间感知 deadline 截断 delay。
             String llmResponse = client.complete(config, buildSystemPrompt(), buildUserPrompt(command),
                     /* token */ null, System.currentTimeMillis() + DEADLINE_MS);
             fresh = parseLlmResponse(llmResponse);
@@ -125,7 +125,7 @@ public final class LlmIntentClassifier implements IntentClassifier {
         }
     }
 
-    /** V0.5.2 Stage 9:Provider 失败包装异常——FallbackIntentClassifier catch 后退 Keyword。 */
+    /** Provider 失败包装异常——FallbackIntentClassifier catch 后退 Keyword。 */
     public static final class LlmClassificationException extends RuntimeException {
         public LlmClassificationException(Throwable cause) {
             super(cause);

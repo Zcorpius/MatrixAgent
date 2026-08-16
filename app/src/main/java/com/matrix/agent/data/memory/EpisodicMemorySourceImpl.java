@@ -16,9 +16,9 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * V0.5.2 Stage 7:Episodic Memory 召回源——基于 SessionHistoryDao 的近期会话历史。
+ * Episodic Memory 召回源——基于 SessionHistoryDao 的近期会话历史。
  *
- * <p>替代 V0.5.0/V0.5.1 的 {@link EmptyEpisodicMemorySource}——按 (userId, zone) 召回近期
+ * <p>替代 {@link EmptyEpisodicMemorySource}——按 (userId, zone) 召回近期
  * N 条会话,作为 episodic snippet 给 {@link com.matrix.agent.core.prompt.DefaultPromptBuilder}
  * 拼装到 system prompt "[episodic] sessionId" 段。
  *

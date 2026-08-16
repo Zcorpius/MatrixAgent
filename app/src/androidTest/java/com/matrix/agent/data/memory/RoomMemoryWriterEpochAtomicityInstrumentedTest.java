@@ -33,9 +33,9 @@ import com.matrix.agent.data.db.SessionHistoryEntity;
 import java.util.List;
 
 /**
- * V0.5.6 P2-E:真实 Room + SQLite 写者锁验证"clearUserData 后不可复活"。
+ * 真实 Room + SQLite 写者锁验证"clearUserData 后不可复活"。
  *
- * <p>V0.5.4 P1-1 的 epoch 原子性设计正确,但 JVM fake 测试用 {@code Runnable::run} 模拟事务,
+ * <p>epoch 原子性设计正确,但 JVM fake 测试用 {@code Runnable::run} 模拟事务,
  * 没有验证 SQLite 写者锁的序列化保证。本类在真实 Room(in-memory,绕过 SQLCipher/Keystore)上
  * 验证两个关键不变式:
  *

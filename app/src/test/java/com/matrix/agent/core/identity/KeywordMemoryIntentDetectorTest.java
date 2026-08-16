@@ -6,14 +6,14 @@ import static org.junit.Assert.assertTrue;
 import org.junit.Test;
 
 /**
- * V0.5.4 评审 P1-2:KeywordMemoryIntentDetector 关键词匹配测试。
+ * KeywordMemoryIntentDetector 关键词匹配测试。
  *
  * <p>用户硬约束——"长期记忆仅由用户决定"。Detector 在 Repository.execute 入口判定
  * 用户原文是否含显式记忆动词(记住/保存/以后默认/不要忘记/别忘了/默认用/长期/永远用)。
  * 命中 → memorySaveAllowed=true,memory.semantic.save handler 放行;
  * 未命中 → false,handler 直接 POLICY_REJECTED。
  *
- * <p>V0.5.5 P1-C:否定短语门(用户硬约束——"不要记住 不应作为安全边界的可接受行为")。
+ * <p>否定短语门(用户硬约束——"不要记住 不应作为安全边界的可接受行为")。
  * 含 "不要记住 / 别记住 / 无需保存 / 不用保存 / 不要长期保存 / 删除记忆" 任一 → 优先短路
  * 返回 false,即便命令同时含正向关键词(如"不要记住"含"记住")。
  *
@@ -21,12 +21,12 @@ import org.junit.Test;
  * <ul>
  *   <li>正面 8 例:命中关键词(覆盖 8 个关键词)→ true</li>
  *   <li>负面 6 例:纯查询 / 车控写 / 闲聊,无显式记忆意图 → false</li>
- *   <li>V0.5.5 否定 6 例:含否定短语 → false(即便同时含"记住"/"保存")</li>
+ *   <li>否定 6 例:含否定短语 → false(即便同时含"记住"/"保存")</li>
  *   <li>null / empty 安全 → false</li>
  *   <li>大小写不敏感</li>
  * </ul>
  *
- * <p>已知限制(V0.5.5 仍接受,后续版本升 LLM-based):
+ * <p>已知限制(仍接受,后续版本升 LLM-based):
  * 同义词("给我存下来"/"记牢")、英文 / 方言 / 多语言未覆盖。
  */
 public final class KeywordMemoryIntentDetectorTest {
@@ -103,7 +103,7 @@ public final class KeywordMemoryIntentDetectorTest {
         assertFalse(detector.isExplicitMemorySave("我要听音乐"));
     }
 
-    // V0.5.5 P1-C:否定短语门——优先短路返回 false。
+    // 否定短语门——优先短路返回 false。
 
     @Test
     public void negative_doNotRemember() {

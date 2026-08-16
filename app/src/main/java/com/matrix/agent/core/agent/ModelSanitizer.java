@@ -15,7 +15,7 @@ import java.util.regex.Pattern;
 /**
  * 喂回 LLM conversation 的 Observation 清洗器——**只脱凭据,保留任务语义**。
  *
- * <p>数据边界(P1-2 修复后的正确方向):
+ * <p>数据边界(修复后的正确方向):
  * <ul>
  *   <li>Conversation(模型侧,本类处理):保留 memory.preference.* 的真实 value、
  *       导航地址、联系人等完成任务所需的语义;只 mask API Key / Bearer Token / 凭据。
@@ -71,7 +71,7 @@ public final class ModelSanitizer {
 
     /**
      * 截断 + 追加 {@code [truncated N chars]} 后缀,**确保最终总长度 ≤ maxChars**。
-     * 旧实现 {@code substring(0, maxChars) + suffix} 会让总长 > maxChars(第三轮 P2-2 修复)。
+     * 旧实现 {@code substring(0, maxChars) + suffix} 会让总长 > maxChars。
      */
     static String truncateWithSuffix(String input, int maxChars) {
         int originalLen = input.length();

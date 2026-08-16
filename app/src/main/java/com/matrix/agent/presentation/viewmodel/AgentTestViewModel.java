@@ -35,7 +35,7 @@ public final class AgentTestViewModel extends ViewModel {
     private static final String TAG = "MatrixAgent";
     private final AgentRuntimeRepository repository;
     /**
-     * V0.4.3 Round 3 P2:车辆运动状态源——demo UI 切换 gear 时调 setGear,
+     * 车辆运动状态源——demo UI 切换 gear 时调 setGear,
      * 让 PolicyEngine 的 PARKED_ONLY 等前置约束在 APK 中可手动验证。
      * 后续版本接真车后,此字段移除或保留为只读(真实 state 由 CarPropertyManager 推)。
      */
@@ -45,12 +45,12 @@ public final class AgentTestViewModel extends ViewModel {
     private final AtomicLong operationSequence = new AtomicLong();
 
     /**
-     * V0.4.3 Round 4 P2:按 Actor 维护独立 token / future。
+     * 按 Actor 维护独立 token / future。
      *
-     * <p>Round 3 旧实现 execute() 每次新任务都先 cancelActiveOperation() 取消旧任务——
+     * <p>旧实现 execute() 每次新任务都先 cancelActiveOperation() 取消旧任务——
      * 单 ViewModel 只能保一个活跃任务,主副驾无法并存,demo 中无法手工验证"副驾运行中、主驾抢占"。
      *
-     * <p>Round 4 改为按 Actor 隔离:主驾 execute 不会取消副驾的活跃任务,反过来亦然。
+     * <p>改为按 Actor 隔离:主驾 execute 不会取消副驾的活跃任务,反过来亦然。
      * 这样副驾"查电量"运行中,主驾"查胎压"提交,TaskScheduler 的抢占协议可被肉眼看到——
      * logcat 出现 "[Scheduler] preempt ... by driver",uiState 显示主驾 SUCCEEDED,
      * 副驾的 PREEMPTED outcome 异步 post 时被主驾覆盖(用户可从 logcat 看完整轨迹)。
@@ -70,7 +70,7 @@ public final class AgentTestViewModel extends ViewModel {
     }
 
     /**
-     * V0.4.3 Round 3 P2:demo UI 切换车辆档位,gear=D 时 PARKED_ONLY 车控写被 PolicyEngine 拒绝。
+     * demo UI 切换车辆档位,gear=D 时 PARKED_ONLY 车控写被 PolicyEngine 拒绝。
      * 只在 DefaultVehicleStateSource(以及 MockVehicleStateSource)支持——真实车 后续版本由
      * CarPropertyManager 推送,demo 不再可手动切换。
      */
@@ -88,7 +88,7 @@ public final class AgentTestViewModel extends ViewModel {
     }
 
     /**
-     * V0.4.3 Round 4 P2:按 Actor 提交任务,不再取消另一 Actor 的活跃任务。
+     * 按 Actor 提交任务,不再取消另一 Actor 的活跃任务。
      */
     public void execute(String command, Actor actor) {
         String normalized = command == null ? "" : command.trim();
@@ -97,7 +97,7 @@ public final class AgentTestViewModel extends ViewModel {
             uiState.setValue(new AgentUiState(false, repository.getActiveModelGateway(), "请输入任务。"));
             return;
         }
-        // 第七轮 P2-4:用户输入绝不原文进 logcat,只暴露字符数 + 元数据。
+        // 用户输入绝不原文进 logcat,只暴露字符数 + 元数据。
         Log.i(TAG, "[ViewModel] execute actor=" + actor
                 + " command=" + com.matrix.agent.core.agent.SafeLog.USER_INPUT_PLACEHOLDER
                 + " commandChars=" + normalized.length());
@@ -131,17 +131,17 @@ public final class AgentTestViewModel extends ViewModel {
     }
 
     /**
-     * 第十一轮 P1 + V0.5.1 Stage 6 P1.2:clearData 必须走后台 executor + try/catch,
+     * clearData 必须走后台 executor + try/catch,
      * 并根据 audit 维度清理结果选择"已清空" vs "上下文已清,审计删除失败"文案。
      *
      * <p>原实现 L132-139 直接在调用线程(主线程)调 {@link AgentRuntimeRepository#clearUserData()},
      * 内部最多等 1 秒 in-flight token 收敛 + 同步 SharedPreferences.commit() → UI 卡顿;
      * 更严重的是 SP commit 失败时 Repository 抛 IllegalStateException,UI 主线程直接承接 → App crash。
      *
-     * <p>第十一轮修复:主线程先 bump sequence + cancelActiveOps + 显"正在清空" → 后台 executor 跑
+     * <p>修复:主线程先 bump sequence + cancelActiveOps + 显"正在清空" → 后台 executor 跑
      * clearUserDataDetailed → 成功 postValue "已清空",主流程失败 postValue "清空失败:[原因]"。
      *
-     * <p>V0.5.1 Stage 6 P1.2 修复:V0.5.1 Stage 6 初版让 audit clearByUserZone 内部吞异常,
+     * <p>修复:初版让 audit clearByUserZone 内部吞异常,
      * 主流程已删 / Audit 可能仍在,但 UI 永远显示"已清空"。修正:clearUserDataDetailed 返回
      * {@link ClearUserDataOutcome},audit 维度失败时 ViewModel 显示
      * "上下文与偏好已清空,但审计日志删除失败,请稍后再次点击清空。"——用户重试点按钮即重试。
@@ -266,7 +266,7 @@ public final class AgentTestViewModel extends ViewModel {
         executor.shutdownNow();
     }
 
-    /** V0.4.3 Round 4 P2:per-Actor 活跃任务句柄。 */
+    /** per-Actor 活跃任务句柄。 */
     private static final class ActiveOperation {
         final CancellationToken token;
         final Future<?> future;

@@ -17,7 +17,7 @@ import com.matrix.agent.data.db.AuditEventDao;
 import com.matrix.agent.data.db.AuditEventEntity;
 
 /**
- * V0.5.2 评审附加:SteerMailboxStaleHandler zone 映射契约测试。
+ * SteerMailboxStaleHandler zone 映射契约测试。
  *
  * <p>评审发现旧实现 {@code sessionId.toUpperCase()} 得到 "DEMO-DRIVER",
  * 但 Repository.clearAuditSafe 用 "DRIVER"/"PASSENGER"(Actor.name()),

@@ -3,4 +3,15 @@
     <string name="current_planner">当前 Gateway：%1$s</string>
     <string name="protocol_key_required">协议：%1$s\n需要 API Key</string>
     <string name="protocol_key_optional">协议：%1$s\nAPI Key 可留空</string>
+
+    <!-- Voice Debug(仅 debug 构建可达,release 无入口) -->
+    <string name="voice_debug_title">语音闭环</string>
+    <string name="voice_debug_session_state">会话状态</string>
+    <string name="voice_debug_state_placeholder">—</string>
+    <string name="voice_debug_partial_label">识别中间结果</string>
+    <string name="voice_debug_partial_empty">(无)</string>
+    <string name="voice_debug_start">开始(手动唤醒备用)</string>
+    <string name="voice_debug_stop">停止</string>
+    <string name="voice_debug_debug_only">语音闭环仅 Debug 构建可用(release 不开放)</string>
+    <string name="voice_debug_mic_required">需要麦克风权限才能运行语音闭环</string>
 </resources>

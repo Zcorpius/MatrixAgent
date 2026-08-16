@@ -34,11 +34,11 @@ import com.matrix.agent.core.tool.MockCapabilityProvider;
 import com.matrix.agent.core.tool.ToolExecutor;
 
 /**
- * V0.4.3 Round 3 P1.1:验证 IntentClassifier 保守分类在 APK 路径真正生效——
+ * 验证 IntentClassifier 保守分类在 APK 路径真正生效——
  * 主驾的写操作("打开空调"等)不应该抢占正在运行的副驾任务。
  *
- * <p>Round 2 旧实现把所有 Repository.execute 标为 readOnlyHint=true,导致主驾"打开空调"
- * 也会抢占副驾的写操作,直接违反"车控写不能被半路强制中断"的安全契约。Round 3 引入
+ * <p>旧实现把所有 Repository.execute 标为 readOnlyHint=true,导致主驾"打开空调"
+ * 也会抢占副驾的写操作,直接违反"车控写不能被半路强制中断"的安全契约。引入
  * KeywordIntentClassifier:未知按写,主驾写 → readOnlyHint=false → TaskScheduler
  * 不触发 tryPreemptPassengerReadOnly,主驾请求 FIFO 排队等当前迭代结束。
  */

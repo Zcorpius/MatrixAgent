@@ -1,9 +1,9 @@
 package com.matrix.agent.data.audit;
 
 /**
- * V0.5.0 Stage 2:Audit 只读视图——给 V0.5.1 episodic memory / UI 回放使用。
+ * Audit 只读视图——给 episodic memory / UI 回放使用。
  *
- * <p>V0.5.0 字段对应 TrajectoryEntity;V0.5.1 加 incremental events 后扩展。
+ * <p>字段对应 TrajectoryEntity;加 incremental events 后扩展。
  */
 public final class AuditRecord {
     private final String requestId;

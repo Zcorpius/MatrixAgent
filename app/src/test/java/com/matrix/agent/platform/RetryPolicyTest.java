@@ -9,7 +9,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.Test;
 
 /**
- * V0.5.2 Stage 10:RetryPolicy 测试——重试触发 / 不重试 / 退避时间 / 最大尝试次数。
+ * RetryPolicy 测试——重试触发 / 不重试 / 退避时间 / 最大尝试次数。
  *
  * <p>真实 HTTP 集成由 androidTest 验证;JVM 覆盖:
  * <ul>

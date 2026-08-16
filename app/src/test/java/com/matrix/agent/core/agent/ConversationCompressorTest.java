@@ -18,7 +18,7 @@ import com.matrix.agent.core.identity.InputSource;
 import com.matrix.agent.core.identity.VehicleZone;
 
 /**
- * V0.5.2 Stage 8:ConversationCompressor 测试——触发阈值 / heuristic 降级 / LLM 摘要路径 / injection 前缀。
+ * ConversationCompressor 测试——触发阈值 / heuristic 降级 / LLM 摘要路径 / injection 前缀。
  */
 public final class ConversationCompressorTest {
 

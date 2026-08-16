@@ -5,7 +5,7 @@ import static org.junit.Assert.assertEquals;
 import org.junit.Test;
 
 /**
- * V0.4.3 Round 3 P1.1:KeywordIntentClassifier 行为测试。
+ * KeywordIntentClassifier 行为测试。
  *
  * <p>覆盖 4 个语义分支:只读 / 只写 / 同时含读写 / 未知,验证"未知按写处理"的保守契约。
  * 任意 case 返回 false 都意味着 TaskScheduler 不会抢占——保护车控写操作不被半路强制中断。

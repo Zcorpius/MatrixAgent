@@ -9,7 +9,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
 
 /**
- * V0.5.0 Stage 2 P1.1(评审 V0.5.0 修复):KeyStore 失败时,MasterKeyProvider
+ * KeyStore 失败时,MasterKeyProvider
  * 必须抛 IllegalStateException 而非 return null——否则 MatrixDatabase 会构建明文 Room DB。
  *
  * <p>本测试用 fake MasterKeyProvider 模拟 getPassphrase() 抛异常 + 返回 null + 返回空数组
@@ -78,7 +78,7 @@ public final class MatrixDatabaseKeyFailureContractTest {
             MatrixDatabase.getInstance(null, throwingProvider);
             fail("getPassphrase 抛异常必须向上传播");
         } catch (IllegalStateException expected) {
-            // 评审 P1.1 契约:AndroidKeyStoreMasterKeyProvider.getPassphrase 把 Keystore
+            // AndroidKeyStoreMasterKeyProvider.getPassphrase 把 Keystore
             // 异常包装为 IllegalStateException;fake 实现直接抛 IllegalStateException。
             // 两种路径 MatrixDatabase 都不 catch 在 passphrase 检查前(异常直接向上传播,
             // AppContainer.createAuditRepositorySafely 兜底退化为 NoopAuditRepository)。

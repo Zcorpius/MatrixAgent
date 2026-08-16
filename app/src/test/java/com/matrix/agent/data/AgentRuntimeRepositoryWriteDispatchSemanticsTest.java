@@ -48,11 +48,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * V0.5.0 第六轮评审 P1:验证 Repository 外层超时/中断 + 写操作(intentReadOnly=false)
+ * 验证 Repository 外层超时/中断 + 写操作(intentReadOnly=false)
  * 不再"空轨迹 TIMED_OUT / CANCELLED"——outcome 必须包含 EXECUTION_UNKNOWN 信息
  * (finalState=EXECUTION_UNKNOWN 或 trajectory 含 EXECUTION_UNKNOWN tool observation)。
  *
- * <p>评审场景(第六轮 P1):
+ * <p>评审场景:
  * <ul>
  *   <li>① Repository future.get(timeout) 超时 + 写命令已进入 Tool dispatch
  *       → token.cancel + grace window → ToolExecutor 观察到取消 → 写操作 EXECUTION_UNKNOWN
@@ -62,10 +62,10 @@ import java.util.concurrent.atomic.AtomicReference;
  *       写操作 EXECUTION_UNKNOWN(命令可能已被 Engine 分发到 Provider)。</li>
  * </ul>
  *
- * <p>断言语义(与第六轮 P1 一致):"Outcome 与 Audit 至少包含 EXECUTION_UNKNOWN,
+ * <p>断言语义:"Outcome 与 Audit 至少包含 EXECUTION_UNKNOWN,
  * 不能是空轨迹超时"——既覆盖 Repository fallback 路径,也覆盖 Engine convergence 路径。
  *
- * <p>对比 V0.4.x 行为:Repository catch TimeoutException / InterruptedException
+ * <p>对比旧行为:Repository catch TimeoutException / InterruptedException
  * 直接构造 TIMED_OUT/CANCELLED + 空 trajectory,与 ToolExecutor 写操作 EXECUTION_UNKNOWN
  * 语义冲突——命令可能已下发,Runtime 不能撒谎说"未发生"。
  */
@@ -108,7 +108,7 @@ public final class AgentRuntimeRepositoryWriteDispatchSemanticsTest {
         stateSource.setGear(VehicleState.Gear.P);
 
         CountDownLatch toolDispatched = new CountDownLatch(1);
-        // V0.5.1 Stage 2:用 releaseProvider latch 替代原 2000ms sleep——Provider 阻塞由测试
+        // 用 releaseProvider latch 替代原 2000ms sleep——Provider 阻塞由测试
         // 主线程显式控制(测试结束后 countDown 放行),消除"sleep 总时长 vs budget/grace 总时长"
         // 的相对时序依赖,只剩"budget/grace 触发顺序"需要测;后者是确定的同步语义。
         CountDownLatch releaseProvider = new CountDownLatch(1);
@@ -134,7 +134,7 @@ public final class AgentRuntimeRepositoryWriteDispatchSemanticsTest {
                     "noop", Collections.emptyMap(), true, 0L);
         };
 
-        // V0.5.1 Stage 2:budget=200ms 替代 50ms。原 50ms 让 ToolExecutor(48ms)与 Repository
+        // budget=200ms 替代 50ms。原 50ms 让 ToolExecutor(48ms)与 Repository
         // future.get(50ms)几乎同时触发,谁先到取决于 CPU 调度——Engine 先超时返回时 Repository
         // future.get 立即拿到 outcome 不进 catch → token.cancel 不被调用 → 断言失败。
         // 200ms 给 CPU 调度充足 buffer(单线程 Engine 主路径 + worker Tool dispatch 通常 < 50ms),
@@ -144,7 +144,7 @@ public final class AgentRuntimeRepositoryWriteDispatchSemanticsTest {
         AgentRuntimeRepository repo = buildRepository(gateway, stateSource, budget, audit,
                 uninterruptibleProvider);
 
-        // V0.5.1 Stage 2:把 repo.execute 放 caller 线程,测试主线程可控制时序——
+        // 把 repo.execute 放 caller 线程,测试主线程可控制时序——
         // 等 Provider 真的进入阻塞后,给 Repository future.get(200ms) + grace(500ms) 充分时间
         // 完成 catch TimeoutException → token.cancel → awaitWriteDispatchConvergence 全路径,
         // 不再依赖"测试主线程 sleep 与 budget 同时开始计时"的脆弱时序。
@@ -196,7 +196,7 @@ public final class AgentRuntimeRepositoryWriteDispatchSemanticsTest {
                     + "(finalState=" + repoAudit.getFinalState() + ")",
                     repoAudit.getTrajectoryJson().contains("EXECUTION_UNKNOWN"));
         }
-        // outcome.stopReason 与 trajectory.stopReason 必须一致(第四轮 P1 round-trip 契约)
+        // outcome.stopReason 与 trajectory.stopReason 必须一致(round-trip 契约)
         assertEquals("outcome.stopReason 必须与 trajectory.stopReason 一致",
                 outcome.getStopReason(), outcome.getTrajectory().getStopReason());
     }

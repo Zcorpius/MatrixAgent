@@ -6,7 +6,7 @@ import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 
-/** {@link SpeakableResponse} 值对象测试。Voice V1。 */
+/** {@link SpeakableResponse} 值对象测试。 */
 public final class SpeakableResponseTest {
 
     @Test

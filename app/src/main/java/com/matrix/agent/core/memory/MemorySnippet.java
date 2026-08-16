@@ -1,11 +1,11 @@
 package com.matrix.agent.core.memory;
 
 /**
- * V0.5.0 Stage 1:Memory 召回的最小不可变单元。
+ * Memory 召回的最小不可变单元。
  *
- * <p>{@code score} V0.5.0 不计算(默认 1.0),V0.5.1 由 episodic / semantic 召回器填充
+ * <p>{@code score} 不计算(默认 1.0),由 episodic / semantic 召回器填充
  * 相似度分(如 cosine similarity、BM25)。{@code capturedAtMillis} 与
- * {@code sourceSessionId} V0.5.0 用于调试,V0.5.1 用于排序与去重。
+ * {@code sourceSessionId} 用于调试,后续用于排序与去重。
  */
 public final class MemorySnippet {
     private final MemoryLayer layer;
@@ -30,7 +30,7 @@ public final class MemorySnippet {
         this.sourceSessionId = sourceSessionId;
     }
 
-    /** 简化工厂:score=1.0、capturedAt=0、sourceSession=null(V0.5.0 默认召回)。 */
+    /** 简化工厂:score=1.0、capturedAt=0、sourceSession=null(默认召回)。 */
     public static MemorySnippet of(MemoryLayer layer, MemoryScope scope, String key, String value) {
         return new MemorySnippet(layer, scope, key, value, 1.0, 0L, null);
     }

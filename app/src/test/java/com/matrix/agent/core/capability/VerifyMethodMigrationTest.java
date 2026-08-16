@@ -7,7 +7,7 @@ import static org.junit.Assert.assertTrue;
 import org.junit.Test;
 
 /**
- * V0.4.2 Stage E:VerifyMethod 枚举迁移测试。
+ * VerifyMethod 枚举迁移测试。
  *
  * <p>验证:
  * <ul>
@@ -48,7 +48,7 @@ public final class VerifyMethodMigrationTest {
         assertTrue(def.isVerificationRequired());
     }
 
-    /** V0.4.0 verificationRequired(true) 桥接到 READBACK_FIELD。 */
+    /** verificationRequired(true) 桥接到 READBACK_FIELD。 */
     @Test
     public void verificationRequiredTrueBridgesToReadbackField() {
         CapabilityDefinition def = CapabilityDefinition.builder("cap", RiskLevel.R1_LOW_RISK_WRITE)
@@ -60,7 +60,7 @@ public final class VerifyMethodMigrationTest {
         assertTrue(def.isVerificationRequired());
     }
 
-    /** V0.4.0 verificationRequired(false) 桥接到 NONE。 */
+    /** verificationRequired(false) 桥接到 NONE。 */
     @Test
     public void verificationRequiredFalseBridgesToNone() {
         CapabilityDefinition def = CapabilityDefinition.builder("cap", RiskLevel.R0_READ_ONLY)

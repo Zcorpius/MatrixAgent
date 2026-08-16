@@ -1,7 +1,7 @@
 package com.matrix.agent.core.capability.schema;
 
 /**
- * V0.4.2 Stage A:JSON Schema 2020-12 类型枚举。
+ * JSON Schema 2020-12 类型枚举。
  *
  * <p>覆盖 MatrixAgent 需要的 7 种基本类型:
  * <ul>

@@ -28,10 +28,10 @@ import com.matrix.agent.data.db.SessionHistoryDao;
 import com.matrix.agent.data.db.SessionHistoryEntity;
 
 /**
- * V0.5.3 评审 P1-1:RoomMemoryWriter JVM 测试——验证 episodic 自动写入路径 +
+ * RoomMemoryWriter JVM 测试——验证 episodic 自动写入路径 +
  * semantic save/get 闭环 + invalidateCache 触发。
  *
- * <p>V0.5.4 评审 P1-1:接口加 requestEpoch 参数。RoomMemoryWriter 第 4 参是
+ * <p>接口加 requestEpoch 参数。RoomMemoryWriter 第 4 参是
  * {@link RoomMemoryStore.TransactionRunner},测试传 {@code Runnable::run}
  * (同步执行,生产传 {@code database::runInTransaction})。默认 __system__ epoch 行不存在
  * → readEpochFromSystemRow 返回 0 → requestEpoch=0 → 写入成功。

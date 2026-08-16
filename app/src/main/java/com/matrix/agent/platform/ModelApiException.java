@@ -1,7 +1,7 @@
 package com.matrix.agent.platform;
 
 /**
- * V0.5.2 Stage 10:模型 API 调用异常基类——按 HTTP 状态码 / 错误类型分类,
+ * 模型 API 调用异常基类——按 HTTP 状态码 / 错误类型分类,
  * 让 {@link ModelApiClient} 内部 {@link RetryPolicy} 决策是否重试。
  *
  * <p><b>getMessage() 不泄露 HTTP body / endpoint</b>——API key / 用户 PII 可能被网关回显。
@@ -31,7 +31,7 @@ public abstract class ModelApiException extends RuntimeException {
         this.sanitizedEndpoint = sanitizedEndpoint;
     }
 
-    /** V0.5.2 Stage 10:HTTP 429——服务端限流。 */
+    /** HTTP 429——服务端限流。 */
     public static final class RateLimitException extends ModelApiException {
         public RateLimitException(String sanitizedEndpoint, Throwable cause) {
             super("rate-limit", 429, sanitizedEndpoint, cause);
@@ -40,7 +40,7 @@ public abstract class ModelApiException extends RuntimeException {
         @Override public boolean isRetryable() { return true; }
     }
 
-    /** V0.5.2 Stage 10:HTTP 5xx——服务端临时故障。 */
+    /** HTTP 5xx——服务端临时故障。 */
     public static final class ServerException extends ModelApiException {
         public ServerException(int statusCode, String sanitizedEndpoint, Throwable cause) {
             super("server-error", statusCode, sanitizedEndpoint, cause);
@@ -49,21 +49,21 @@ public abstract class ModelApiException extends RuntimeException {
         @Override public boolean isRetryable() { return true; }
     }
 
-    /** V0.5.2 Stage 10:HTTP 4xx(除 429)——客户端错误,不重试。 */
+    /** HTTP 4xx(除 429)——客户端错误,不重试。 */
     public static final class ClientException extends ModelApiException {
         public ClientException(int statusCode, String sanitizedEndpoint, Throwable cause) {
             super("client-error", statusCode, sanitizedEndpoint, cause);
         }
     }
 
-    /** V0.5.2 Stage 10:网络层异常——不重试,AgentEngine 转 TIMEOUT 终态。 */
+    /** 网络层异常——不重试,AgentEngine 转 TIMEOUT 终态。 */
     public static final class NetworkException extends ModelApiException {
         public NetworkException(String sanitizedEndpoint, Throwable cause) {
             super("network-error", 0, sanitizedEndpoint, cause);
         }
     }
 
-    /** V0.5.2 Stage 10:OkHttp call timeout——不重试,AgentEngine 转 TIMEOUT 终态。 */
+    /** OkHttp call timeout——不重试,AgentEngine 转 TIMEOUT 终态。 */
     public static final class TimeoutException extends ModelApiException {
         public TimeoutException(String sanitizedEndpoint, Throwable cause) {
             super("timeout", 0, sanitizedEndpoint, cause);

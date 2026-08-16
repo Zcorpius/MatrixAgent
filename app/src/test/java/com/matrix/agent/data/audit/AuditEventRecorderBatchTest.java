@@ -16,7 +16,7 @@ import com.matrix.agent.data.db.AuditEventDao;
 import com.matrix.agent.data.db.AuditEventEntity;
 
 /**
- * V0.5.2 Stage 7:AuditEventRecorder batch 队列 JVM 测试。
+ * AuditEventRecorder batch 队列 JVM 测试。
  *
  * <p>验证:
  * <ul>
@@ -27,8 +27,8 @@ import com.matrix.agent.data.db.AuditEventEntity;
  *   <li>队列溢出 QUEUE_CAP 时丢最老 PRE_TOOL,POST_TOOL/POLICY/STEER 优先保留。</li>
  * </ul>
  *
- * <p>NOOP 单例不启用 batch(recordXxx 直接 return);Stage 4 测试构造器(注入 Executor)
- * 仍走"每条独立 submit"语义,Stage 4 单测零回归——见 {@link AuditEventRecorderTest}。
+ * <p>NOOP 单例不启用 batch(recordXxx 直接 return);测试构造器(注入 Executor)
+ * 仍走"每条独立 submit"语义,单测零回归——见 {@link AuditEventRecorderTest}。
  */
 public final class AuditEventRecorderBatchTest {
 

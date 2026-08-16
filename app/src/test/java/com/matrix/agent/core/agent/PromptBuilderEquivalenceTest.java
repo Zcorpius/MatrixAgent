@@ -20,12 +20,12 @@ import com.matrix.agent.core.prompt.PromptBuilder;
 import com.matrix.agent.core.prompt.PromptSegment;
 
 /**
- * V0.5.2 Stage 6:DefaultPromptBuilder.join 输出 vs AgentEngine.inlineBuildSystemPrompt
+ * DefaultPromptBuilder.join 输出 vs AgentEngine.inlineBuildSystemPrompt
  * 字面等价性验证。
  *
  * <p>双轨切换零回归门槛——多组 (actor, zone, inputSource, recalledMemory) 下,
  * DefaultPromptBuilder.join(segments) 必须与 AgentEngine 内联拼装路径**完全相同**(byte 等价),
- * 否则 AppContainer 注入 PromptBuilder 后会破坏 V0.4.x 289 测试断言。
+ * 否则 AppContainer 注入 PromptBuilder 后会破坏既有 289 条测试断言。
  *
  * <p>等价性来源:
  * <ul>
@@ -36,7 +36,7 @@ import com.matrix.agent.core.prompt.PromptSegment;
  *   <li>recalledMemory=null/empty 时两条路径都仅返回 BASE。</li>
  * </ul>
  *
- * <p>V0.5.4 P1-4 更新:recalled memory 段加 {@code <memory_context>} 边界 + 白名单投影规则
+ * <p>recalled memory 段加 {@code <memory_context>} 边界 + 白名单投影规则
  * (preference 非 PII key 附 value,其他 deny)。{@link #inlineBuild} 复刻新格式,
  * 双轨仍字面等价。
  */
@@ -112,7 +112,7 @@ public final class PromptBuilderEquivalenceTest {
     /**
      * 复刻 AgentEngine.inlineBuildSystemPrompt 逻辑,作为等价性对照源。
      *
-     * <p>V0.5.3 P1-2:AgentEngine.inlineBuildSystemPrompt 现在直接调
+     * <p>AgentEngine.inlineBuildSystemPrompt 现在直接调
      * {@link DefaultPromptBuilder#formatRecalledMemory},本方法的字面复刻用于双轨对照。
      */
     private static String inlineBuild(AgentRequest request, List<MemorySnippet> recalled) {
@@ -145,7 +145,7 @@ public final class PromptBuilderEquivalenceTest {
     }
 
     /**
-     * 与 DefaultPromptBuilder.projectValue 字面等价的复刻(V0.5.4 P1-4 白名单投影)。
+     * 与 DefaultPromptBuilder.projectValue 字面等价的复刻(白名单投影)。
      */
     private static String projectValue(MemorySnippet snippet) {
         if (snippet.getLayer() != MemoryLayer.PREFERENCE) return null;

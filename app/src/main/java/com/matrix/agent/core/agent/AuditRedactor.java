@@ -22,7 +22,7 @@ import java.util.regex.Pattern;
 /**
  * 审计侧 Observation 脱敏器——喂 {@link Trajectory} / UI / Log,**字段级脱敏**。
  *
- * <p>数据边界(P1-2 修复后的正确方向):
+ * <p>数据边界(修复后的正确方向):
  * <ul>
  *   <li>Conversation(模型侧):走 {@link ModelSanitizer},保留任务语义。</li>
  *   <li>Trajectory / UI / Log(本类处理):字段级脱敏——memory.preference.* 的 value
@@ -30,7 +30,7 @@ import java.util.regex.Pattern;
  * </ul>
  *
  * <p>"用户看自己的偏好不是隐私"在 AAOS 不是通用假设——主驾副驾可能共用 Android User,
- * UI 查看者未必是数据所有者,V0.5.0 持久化后暴露面更大。
+ * UI 查看者未必是数据所有者,持久化后暴露面更大。
  *
  * <p>本类还做超长截断({@code maxChars})。
  */
@@ -52,7 +52,7 @@ public final class AuditRedactor {
     public static final String MEMORY_MESSAGE_PLACEHOLDER = "[user memory preference redacted]";
 
     /**
-     * 第七轮 P1-3:capability 已声明 Audit Schema(auditMessageTemplate 非空)但未配置
+     * capability 已声明 Audit Schema(auditMessageTemplate 非空)但未配置
      * {@code auditFailureMessageTemplate} 时,失败状态 message 的兜底占位符。
      *
      * <p>不能 fall through 到 {@link #redact(String)} ——通用凭据正则识别不出业务值
@@ -61,10 +61,10 @@ public final class AuditRedactor {
     public static final String FAILURE_MESSAGE_FALLBACK = "[capability failed: details redacted]";
 
     /**
-     * 第四轮 P1-2:即使 schema 没标 sensitive,这些字段名也无条件视为凭据/敏感字段。
+     * 即使 schema 没标 sensitive,这些字段名也无条件视为凭据/敏感字段。
      * 大小写不敏感匹配。这是 schema 元数据缺失时的兜底。
      *
-     * <p>V0.5.3 评审 P1-2:扩充业务 PII key(home_address / contact_phone / id_card 等),
+     * <p>扩充业务 PII key(home_address / contact_phone / id_card 等),
      * 与 {@link com.matrix.agent.core.SensitiveKeys#BUILTIN_PII_KEYS} 共享 denylist。
      * 命中 PII key 时 value 替换为 {@code <memory>}(语义同 preference);
      * key 本身是元数据,不 mask。
@@ -78,7 +78,7 @@ public final class AuditRedactor {
                 "api_key", "apikey", "token", "access_token", "refresh_token", "id_token",
                 "authorization", "auth", "bearer", "secret", "client_secret",
                 "password", "passwd", "credential", "credentials"));
-        // V0.5.3 P1-2:业务 PII key 共享 denylist
+        // 业务 PII key 共享 denylist
         keys.addAll(com.matrix.agent.core.SensitiveKeys.BUILTIN_PII_KEYS);
         BUILTIN_CREDENTIAL_KEYS = keys;
     }
@@ -86,7 +86,7 @@ public final class AuditRedactor {
     private final int maxChars;
     private final CapabilityRegistry capabilityRegistry;
     /**
-     * V0.5.1 Stage 4 + C 路线评审反馈 P2:自由文本摘要策略——volatile 让 AppContainer 装配期
+     * 自由文本摘要策略——volatile 让 AppContainer 装配期
      * {@link #setDigest(AuditDigest)} 注入对其他线程立即可见(AgentEngine 工作线程
      * 可能在注入前已经构造,但实际 digest() 调用在任务执行期,远晚于装配)。
      *
@@ -94,11 +94,11 @@ public final class AuditRedactor {
      * {@code [redacted:chars=N,digest=unavailable]},不暴露"同输入同输出"的稳定性信号,
      * 杜绝 SHA-1 8 位对低熵文本(电话号码 / 地址 / 固定指令)的枚举反推。
      *
-     * <p>V0.5.1 C 路线评审反馈 P2 指出:初版默认 {@link Sha1AuditDigest} + {@code setDigest(null)}
+     * <p>评审指出:初版默认 {@link Sha1AuditDigest} + {@code setDigest(null)}
      * 回退 SHA-1,虽然当前 AppContainer 走 {@code KeystoreHmacAuditDigest} 装配路径不会触发,
      * 但未来遗漏 HMAC 注入(JVM 测试 fake / 新装配路径遗漏 setDigest 调用)时会**静默**降低
-     * 隐私级别——而 SHA-1 8 位正是 Stage 4 升级要修的洞。修复:生产默认与 null 兜底都改 fail-closed,
-     * 仅显式 {@code setDigest(new Sha1AuditDigest())} 时才走 SHA-1(V0.5.0 兼容契约由
+     * 隐私级别——而 SHA-1 8 位正是升级要修的洞。修复:生产默认与 null 兜底都改 fail-closed,
+     * 仅显式 {@code setDigest(new Sha1AuditDigest())} 时才走 SHA-1(旧版兼容契约由
      * {@code AuditFreeTextRedactionTest.sha1DigestOptInViaSetDigest} 显式注入验证)。
      */
     private volatile AuditDigest digest = new UnavailableAuditDigest();
@@ -107,7 +107,7 @@ public final class AuditRedactor {
         this(maxChars, null);
     }
 
-    /** 第四轮 P1-2:注入 CapabilityRegistry 后,redactArguments(cap, args) 可以按 schema 脱敏。 */
+    /** 注入 CapabilityRegistry 后,redactArguments(cap, args) 可以按 schema 脱敏。 */
     public AuditRedactor(int maxChars, CapabilityRegistry registry) {
         if (maxChars <= 0) throw new IllegalArgumentException("maxChars 必须大于 0");
         this.maxChars = maxChars;
@@ -115,14 +115,14 @@ public final class AuditRedactor {
     }
 
     /**
-     * V0.5.1 Stage 4 + C 路线评审反馈 P2:AppContainer 装配期注入 digest 策略。
+     * AppContainer 装配期注入 digest 策略。
      *
      * <p>调用契约:仅在 AgentEngine 构造后立即调用(AppContainer engineFactory lambda 内),
      * 之后任务执行期不再变更。多次调用幂等(后写覆盖前写)。
      *
      * @param digest null 时退化为 {@link UnavailableAuditDigest}(fail-closed,
-     *              不再退回 V0.5.0 SHA-1——避免遗漏 HMAC 注入时静默降低隐私级别)。
-     *              需 V0.5.0 SHA-1 兼容行为的测试请显式传入 {@code new Sha1AuditDigest()}。
+     *              不再退回旧 SHA-1——避免遗漏 HMAC 注入时静默降低隐私级别)。
+     *              需旧 SHA-1 兼容行为的测试请显式传入 {@code new Sha1AuditDigest()}。
      */
     public void setDigest(AuditDigest digest) {
         this.digest = digest == null ? new UnavailableAuditDigest() : digest;
@@ -156,7 +156,7 @@ public final class AuditRedactor {
     }
 
     /**
-     * 第七轮 P1.2:自由文本 fail-closed —— assistant content / 未配置 audit template 的
+     * 自由文本 fail-closed —— assistant content / 未配置 audit template 的
      * capability message 一律用 {@code "[redacted:chars=N,<prefix>=<hex|unavailable>]"}
      * 替代原文。
      *
@@ -164,18 +164,18 @@ public final class AuditRedactor {
      * digest 字段允许事后按已知明文比对 ("这条审计行对应的是否是
      * '把主驾温度调到 24 度'"),但不可逆推原文。
      *
-     * <p>V0.5.1 Stage 4 + C 路线评审反馈 P2:digest 字段三种语义:
+     * <p>digest 字段三种语义:
      * <ul>
      *   <li>{@code hmac=16hex} —— AppContainer 装配 {@link KeystoreHmacAuditDigest} 后的
      *       生产主路径(HMAC-SHA-256 截断 16 位,64-bit 抗碰撞,Keystore 派生密钥)。</li>
      *   <li>{@code sha=8hex} —— 显式 {@code setDigest(new Sha1AuditDigest())} 注入的
-     *       V0.5.0 兼容路径;仅用于历史契约测试,生产不再走。</li>
+     *       旧版兼容路径;仅用于历史契约测试,生产不再走。</li>
      *   <li>{@code digest=unavailable} —— **默认值** + {@code setDigest(null)} + AppContainer
      *       装配失败兜底。fail-closed:任何输入产出相同摘要,杜绝"同输入同输出"枚举反推。</li>
      * </ul>
      *
      * <p>原 {@link #redact(String)} 路径保留——仍是 Tool arguments / ToolResult message
-     * 的默认处理 (凭据正则 + 截断),不破坏 V0.4.3 测试。
+     * 的默认处理 (凭据正则 + 截断),不破坏旧测试。
      */
     public String redactFreeText(String content) {
         if (content == null) return "";
@@ -185,8 +185,8 @@ public final class AuditRedactor {
     }
 
     /**
-     * 递归脱敏 Map——嵌套 Map / List 都会逐层处理,String value 过 secret mask(第三轮 P1-3 修复)。
-     * 不识别业务敏感字段(destination=家 等)——V0.5.0 加 Capability Schema 级敏感字段元数据。
+     * 递归脱敏 Map——嵌套 Map / List 都会逐层处理,String value 过 secret mask。
+     * 不识别业务敏感字段(destination=家 等)——另加 Capability Schema 级敏感字段元数据。
      */
     public Map<String, Object> redactMap(Map<String, Object> observed) {
         return redactMapRecursive(observed);
@@ -202,7 +202,7 @@ public final class AuditRedactor {
     }
 
     /**
-     * 第四轮 P1-2 + 第五轮 P1-3:按 capability schema 脱敏 arguments,fail-closed。
+     * 按 capability schema 脱敏 arguments,fail-closed。
      *
      * <p>处理顺序:
      * <ol>
@@ -229,7 +229,7 @@ public final class AuditRedactor {
         if (capabilityRegistry == null) return redactArguments(args);
         ToolDefinition tool = findToolDefinition(capabilityName);
         if (tool == null) {
-            // 第五轮 P1-3:未注册 / R3 capability → fail-closed,所有 value 一律 mask。
+            // 未注册 / R3 capability → fail-closed,所有 value 一律 mask。
             Log.w(TAG, "[Audit] capability=" + capabilityName
                     + " not in registry (unregistered or R3-blocked) — fail-closed mask all args");
             Map<String, Object> redacted = new LinkedHashMap<>();
@@ -254,7 +254,7 @@ public final class AuditRedactor {
             } else if (isBuiltinCredentialKey(key)) {
                 redacted.put(key, "***");
             } else if (!schemaParameterNames.contains(key)) {
-                // 第五轮 P1-3:schema 外的额外字段 fail-closed。
+                // schema 外的额外字段 fail-closed。
                 Log.w(TAG, "[Audit] capability=" + capabilityName
                         + " arg key=\"" + key + "\" not in schema — fail-closed mask");
                 redacted.put(key, "***");
@@ -313,7 +313,7 @@ public final class AuditRedactor {
         if (FULL_REDACT_CAPABILITIES.contains(observation.getCapabilityName())) {
             return redactMemoryObservation(observation, original);
         }
-        // 第五轮 P1-2:有 AuditSchema 时按 schema 投影——message 用模板,
+        // 有 AuditSchema 时按 schema 投影——message 用模板,
         // observedState 中 sensitiveObservedFields 列出的字段替换为占位符,
         // 其余字段仍走默认 secret mask + 截断。
         com.matrix.agent.core.capability.CapabilityDefinition capDef =
@@ -330,7 +330,7 @@ public final class AuditRedactor {
             }
         }
         ToolResult redacted = new ToolResult(original.getStatus(), original.getCapabilityName(),
-                // 第八轮 P1.2:无 audit template 的 capability (如 knowledge.answer) 的 message
+                // 无 audit template 的 capability (如 knowledge.answer) 的 message
                 // 也是 Provider 自由文本——可能回显用户问题 / 地址 / 联系人。一律走 redactFreeText
                 // (chars + SHA-8 摘要) 而非 redact(message) (仅凭据正则 + 截断),fail-closed。
                 redactFreeText(original.getMessage()), redactMap(original.getObservedState()),
@@ -340,12 +340,12 @@ public final class AuditRedactor {
     }
 
     /**
-     * 第五轮 P1-2 + 第七轮 P1-3:按 AuditSchema 投影 ToolResult。
+     * 按 AuditSchema 投影 ToolResult。
      *
      * <p>Provider 路径不变——MockCapabilityProvider 仍返回真实 message / observedState 给 ModelSanitizer
      * (模型需要真实回读);只在 Audit 视图(Trajectory / UI / Log)替换为模板与占位符。
      *
-     * <p>第七轮 P1-3 修复:message 与 observedState 都走 fail-closed 路径。
+     * <p>message 与 observedState 都走 fail-closed 路径。
      * <ul>
      *   <li>SUCCESS:message 用 {@code messageTemplate}(未配置则 redact 原文)。</li>
      *   <li>FAILURE(EXECUTION_FAILED / VERIFICATION_FAILED):message 优先用
@@ -395,7 +395,7 @@ public final class AuditRedactor {
                 } else if (observedAllowlist.contains(key)) {
                     redactedObserved.put(key, redactValue(value));
                 } else {
-                    // 第七轮 P1-3:schema 外 observedState 字段 fail-closed
+                    // schema 外 observedState 字段 fail-closed
                     redactedObserved.put(key, "***");
                     maskedUnknown++;
                 }

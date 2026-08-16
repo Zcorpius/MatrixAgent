@@ -5,10 +5,10 @@ import static org.junit.Assert.assertEquals;
 import org.junit.Test;
 
 /**
- * V0.5.2 Stage 3a:AgentBudget 9 参构造器(token 维度显式注入)测试。
+ * AgentBudget 9 参构造器(token 维度显式注入)测试。
  *
- * <p>V0.5.0/V0.5.1 char/4 估算的行为由 {@link AgentBudgetTokenApiTest} 覆盖(零回归);
- * V0.5.3 切真实 jtokkit token 时,AppContainer 通过 9 参构造器显式注入 token 维度,
+ * <p>旧版 char/4 估算的行为由 {@link AgentBudgetTokenApiTest} 覆盖(零回归);
+ * 切真实 jtokkit token 时,AppContainer 通过 9 参构造器显式注入 token 维度,
  * 不再派生 char/4。
  *
  * <p>本测试验证 9 参构造器独立字段——传 token 值与 char/4 不一致时仍按显式值返回。
@@ -44,7 +44,7 @@ public final class AgentBudgetTokenExplicitConstructorTest {
 
     @Test
     public void legacySixArgConstructorStillDerivesTokenFromCharDivideByFour() {
-        // 6 参构造器(V0.5.0/V0.5.1 主路径)仍走 char/4 派生——AgentBudgetTokenApiTest 零回归
+        // 6 参构造器(旧版主路径)仍走 char/4 派生——AgentBudgetTokenApiTest 零回归
         AgentBudget budget = new AgentBudget(4, 4, 30_000L, 4_000, 16_000, 32);
 
         assertEquals(1_000, budget.getMaxMessageTokens());

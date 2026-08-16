@@ -1,7 +1,7 @@
 package com.matrix.agent.presentation.state;
 
 /**
- * V0.5.3 评审 P1-3:加 memoryDegraded 字段——AppContainer 装配期检测到 SQLCipher/Room 不可用
+ * 加 memoryDegraded 字段——AppContainer 装配期检测到 SQLCipher/Room 不可用
  * 时 set true,UI 显示"记忆已降级"banner。旧 2 参构造器保留(default false)向后兼容。
  */
 public final class ModelUiState {

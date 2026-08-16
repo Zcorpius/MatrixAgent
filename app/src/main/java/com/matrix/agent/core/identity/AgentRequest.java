@@ -7,7 +7,7 @@ public final class AgentRequest {
     private final String requestId;
     private final String sessionId;
     /**
-     * V0.4.3 Round 3 P1.2:调度仲裁键——同车不同座位的请求共享同一仲裁队列,
+     * 调度仲裁键——同车不同座位的请求共享同一仲裁队列,
      * 让 TaskScheduler 的主驾优先抢占在物理可触达。与 {@link #sessionId} 区分:
      * <ul>
      *   <li>{@code arbitrationKey}——TaskScheduler.runningTasks / SessionLockManager
@@ -27,29 +27,31 @@ public final class AgentRequest {
     private final InputSource inputSource;
     private final String languageTag;
     private final float asrConfidence;
+    /** ASR 置信度是否可用。false 表示未知(语义由 FinalTranscript 归零保证)。 */
+    private final boolean confidenceAvailable;
     private final long createdAtMillis;
     private final long deadlineAtMillis;
     private final CancellationToken cancellationToken;
     private final boolean readOnlyHint;
     /**
-     * V0.4.2 Stage D:当前车辆状态(PolicyEngine 用此判定 requiredVehicleStates 前置约束)。
+     * 当前车辆状态(PolicyEngine 用此判定 requiredVehicleStates 前置约束)。
      * 默认 {@link VehicleState#satisfyAllPredicates()} mock state,保证现有测试不退绿。
      */
     private final VehicleState currentVehicleState;
     /**
-     * 第八轮 P1.3 data epoch——Repository 在 {@code clearUserData()} 时自增的全局版本号。
+     * data epoch——Repository 在 {@code clearUserData()} 时自增的全局版本号。
      *
      * <p>{@code epoch} 在 {@code execute()} 入口捕获,注入 AgentRequest。Provider 调用
      * {@code MemoryStore.putPreferenceChecked(userId, key, value, epoch)} 时由 MemoryStore
      * 校验:若 {@code epoch < currentEpoch} 则拒绝写入 (任务在 clearUserData 之前启动,
      * Provider 完成时数据已被清,不能把陈旧偏好写回)。
      *
-     * <p>默认 {@code 0L}——不参与校验,等价于 V0.5.0 第七轮行为 (best-effort clear)。
-     * 由 Repository 在 build 阶段显式注入,289 V0.4.x 测试默认 0 不破坏。
+     * <p>默认 {@code 0L}——不参与校验,等价于旧版行为 (best-effort clear)。
+     * 由 Repository 在 build 阶段显式注入,289 现有测试默认 0 不破坏。
      */
     private final long epoch;
     /**
-     * V0.5.4 评审 P1-2:用户是否显式要求长期记忆保存(由 MemoryIntentDetector 在
+     * 用户是否显式要求长期记忆保存(由 MemoryIntentDetector 在
      * Repository.execute 入口判定)。
      *
      * <p>true:用户原文含"记住/保存/以后默认/不要忘记"等关键词,memory.semantic.save
@@ -57,7 +59,7 @@ public final class AgentRequest {
      * 杜绝模型在纯查询请求里自由调 save 污染长期记忆。
      *
      * <p>默认 false(保守);与 {@link #readOnlyHint} 同 builder 模式,
-     * V0.4.x 289 测试默认 false 不破坏。
+     * 289 现有测试默认 false 不破坏。
      */
     private final boolean memorySaveAllowed;
 
@@ -74,7 +76,7 @@ public final class AgentRequest {
         actor = builder.actor;
         sessionId = builder.sessionId == null || builder.sessionId.trim().isEmpty()
                 ? requestId : builder.sessionId.trim();
-        // V0.4.3 Round 3:arbitrationKey 默认 = sessionId,向后兼容现有测试
+        // arbitrationKey 默认 = sessionId,向后兼容现有测试
         arbitrationKey = builder.arbitrationKey == null || builder.arbitrationKey.trim().isEmpty()
                 ? sessionId : builder.arbitrationKey.trim();
         occupantZone = builder.occupantZone;
@@ -85,6 +87,7 @@ public final class AgentRequest {
         inputSource = builder.inputSource;
         languageTag = builder.languageTag;
         asrConfidence = builder.asrConfidence;
+        confidenceAvailable = builder.confidenceAvailable;
         createdAtMillis = System.currentTimeMillis();
         deadlineAtMillis = createdAtMillis + builder.timeoutMillis;
         cancellationToken = builder.cancellationToken;
@@ -97,7 +100,7 @@ public final class AgentRequest {
 
     public String getRequestId() { return requestId; }
     public String getSessionId() { return sessionId; }
-    /** V0.4.3 Round 3:调度仲裁键(默认 = sessionId)。TaskScheduler 内部用此 key。 */
+    /** 调度仲裁键(默认 = sessionId)。TaskScheduler 内部用此 key。 */
     public String getArbitrationKey() { return arbitrationKey; }
     public String getText() { return text; }
     public Actor getActor() { return actor; }
@@ -108,6 +111,8 @@ public final class AgentRequest {
     public InputSource getInputSource() { return inputSource; }
     public String getLanguageTag() { return languageTag; }
     public float getAsrConfidence() { return asrConfidence; }
+    /** ASR 置信度是否可用。文本入口默认 true(历史占位),语音入口由 FinalTranscript 透传。 */
+    public boolean isConfidenceAvailable() { return confidenceAvailable; }
     public long getCreatedAtMillis() { return createdAtMillis; }
     public long getDeadlineAtMillis() { return deadlineAtMillis; }
     public CancellationToken getCancellationToken() { return cancellationToken; }
@@ -115,7 +120,7 @@ public final class AgentRequest {
     public boolean isTimedOut() { return System.currentTimeMillis() >= deadlineAtMillis; }
     public long remainingMillis() { return Math.max(0L, deadlineAtMillis - System.currentTimeMillis()); }
     /**
-     * V0.4.1 Stage E:TaskScheduler 抢占判断的关键 hint。
+     * TaskScheduler 抢占判断的关键 hint。
      *
      * <p>true 表示这是查询/问答类请求(读操作),允许被主驾同 hint 的请求抢占;
      * false 表示车控写操作(温度调节 / 导航 / 偏好保存等),不强制中断。
@@ -123,15 +128,15 @@ public final class AgentRequest {
      * <p>由 Builder.readOnlyHint 设置,默认 false(保守——不知是否只读就不抢占)。
      */
     public boolean isReadOnlyHint() { return readOnlyHint; }
-    /** V0.4.2 Stage D:当前车辆状态(PolicyEngine 判定 requiredVehicleStates 用)。 */
+    /** 当前车辆状态(PolicyEngine 判定 requiredVehicleStates 用)。 */
     public VehicleState getCurrentVehicleState() { return currentVehicleState; }
     /**
-     * 第八轮 P1.3:data epoch——Repository clearUserData 时自增的版本号。
+     * data epoch——Repository clearUserData 时自增的版本号。
      * Provider 通过此值与 MemoryStore.currentEpoch() 对比,拒绝陈旧写入。
      */
     public long getEpoch() { return epoch; }
     /**
-     * V0.5.4 评审 P1-2:用户是否显式要求长期记忆保存。
+     * 用户是否显式要求长期记忆保存。
      * memory.semantic.save handler 在 false 时直接 POLICY_REJECTED。
      */
     public boolean isMemorySaveAllowed() { return memorySaveAllowed; }
@@ -152,6 +157,7 @@ public final class AgentRequest {
         private InputSource inputSource = InputSource.TOUCH;
         private String languageTag = "zh-CN";
         private float asrConfidence = 1.0f;
+        private boolean confidenceAvailable = true;
         private long timeoutMillis = 60_000L;
         private CancellationToken cancellationToken = new CancellationToken();
         private boolean readOnlyHint = false;
@@ -168,7 +174,7 @@ public final class AgentRequest {
         }
 
         public Builder sessionId(String value) { sessionId = value; return this; }
-        /** V0.4.3 Round 3:调度仲裁键(默认 = sessionId)。同车不同座位共享,跨 session 隔离。 */
+        /** 调度仲裁键(默认 = sessionId)。同车不同座位共享,跨 session 隔离。 */
         public Builder arbitrationKey(String value) { arbitrationKey = value; return this; }
         public Builder occupantZone(VehicleZone value) { occupantZone = value; return this; }
         public Builder explicitIntent(ExplicitIntentConstraints value) { explicitIntent = value; return this; }
@@ -177,19 +183,21 @@ public final class AgentRequest {
         public Builder inputSource(InputSource value) { inputSource = value; return this; }
         public Builder languageTag(String value) { languageTag = value; return this; }
         public Builder asrConfidence(float value) { asrConfidence = value; return this; }
+        /** 注入 ASR 置信度可用性。默认 true 向后兼容文本入口。 */
+        public Builder confidenceAvailable(boolean value) { confidenceAvailable = value; return this; }
         public Builder timeoutMillis(long value) { timeoutMillis = value; return this; }
         public Builder cancellationToken(CancellationToken value) { cancellationToken = value; return this; }
-        /** V0.4.1 Stage E:标记查询/问答类请求,允许被主驾同 hint 请求抢占。 */
+        /** 标记查询/问答类请求,允许被主驾同 hint 请求抢占。 */
         public Builder readOnlyHint(boolean value) { readOnlyHint = value; return this; }
-        /** V0.4.2 Stage D:注入当前车辆状态(默认 satisfyAllPredicates mock state)。 */
+        /** 注入当前车辆状态(默认 satisfyAllPredicates mock state)。 */
         public Builder vehicleState(VehicleState value) { currentVehicleState = value; return this; }
         /**
-         * 第八轮 P1.3:注入 data epoch——由 Repository 在 execute 入口捕获并传入,
+         * 注入 data epoch——由 Repository 在 execute 入口捕获并传入,
          * Provider 通过 {@link AgentRequest#getEpoch()} 与 MemoryStore.currentEpoch() 对比。
          */
         public Builder epoch(long value) { epoch = value; return this; }
         /**
-         * V0.5.4 评审 P1-2:注入"用户是否显式要求长期记忆"标志——由 Repository 在 execute
+         * 注入"用户是否显式要求长期记忆"标志——由 Repository 在 execute
          * 入口经 {@link MemoryIntentDetector} 判定后传入。memory.semantic.save handler
          * 在 false 时直接 POLICY_REJECTED。默认 false(保守)。
          */

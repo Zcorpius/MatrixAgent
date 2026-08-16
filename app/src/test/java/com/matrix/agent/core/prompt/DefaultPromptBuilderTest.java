@@ -19,17 +19,17 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 /**
- * V0.5.0 Stage 4:DefaultPromptBuilder 契约测试。
+ * DefaultPromptBuilder 契约测试。
  *
  * <p>验证:
  * <ul>
  *   <li>空 memory / 多条 memory 各场景的段落顺序与文案稳定性;</li>
- *   <li>BASE 段不变性(V0.4.3 兼容契约);</li>
+ *   <li>BASE 段不变性(旧版兼容契约);</li>
  *   <li>RECALLED_MEMORY 段格式 ([layer] key,不含 value);</li>
  *   <li>zone=DRIVER/PASSENGER 各自的 BASE 段差异。</li>
  * </ul>
  *
- * <p>不影响 289 V0.4.3 测试——本测试独立,AgentEngine 主路径未切换到 PromptBuilder。
+ * <p>不影响 289 旧版测试——本测试独立,AgentEngine 主路径未切换到 PromptBuilder。
  */
 public final class DefaultPromptBuilderTest {
     private final DefaultPromptBuilder builder = new DefaultPromptBuilder();

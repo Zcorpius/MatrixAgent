@@ -6,23 +6,23 @@ import java.security.NoSuchAlgorithmException;
 import java.util.Locale;
 
 /**
- * V0.5.1 Stage 4:V0.5.0 兼容底座——SHA-1 前 8 位 hex。
+ * 旧版兼容底座——SHA-1 前 8 位 hex。
  *
- * <p>已知限制(V0.5.0 第七轮 P1.2 注释已登记):SHA-1 8 位对低熵文本(电话号码 /
+ * <p>已知限制(注释已登记):SHA-1 8 位对低熵文本(电话号码 /
  * 固定指令 / 短地址)可被枚举比对——攻击者拿到审计 DB 后,枚举常见电话号码计算
  * SHA-1 前 8 位与审计 sha 字段比对,反推原文。
  *
  * <p>本类保留作:
  * <ul>
  *   <li>{@link AuditRedactor} 默认 digest(未注入 {@link AuditDigest} 时),
- *       V0.5.0 JVM 测试 ({@code AuditFreeTextRedactionTest}) 零回归。</li>
+ *       JVM 测试 ({@code AuditFreeTextRedactionTest}) 零回归。</li>
  * </ul>
  *
- * <p><b>V0.5.1 Stage 6 P1.1 重要变更</b>:生产路径不再使用本类作为 HMAC 装配失败的
- * 退化方案——评审指出 SHA-1 8 位低熵枚举正是 Stage 4 要修的风险,HMAC 失败时退回
+ * <p><b>重要变更</b>:生产路径不再使用本类作为 HMAC 装配失败的
+ * 退化方案——评审指出 SHA-1 8 位低熵枚举正是要修的风险,HMAC 失败时退回
  * SHA-1 等于让 Keystore 异常设备重暴露。生产路径 HMAC 装配失败改退回
  * {@link UnavailableAuditDigest}(fail-closed 不可比对)。本类仅在未注入路径
- * (JVM 单元测试)继续作 V0.5.0 行为底座。
+ * (JVM 单元测试)继续作旧版行为底座。
  */
 public final class Sha1AuditDigest implements AuditDigest {
     @Override

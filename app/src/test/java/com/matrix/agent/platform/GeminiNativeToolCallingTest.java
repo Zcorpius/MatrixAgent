@@ -23,7 +23,7 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * V0.5.2 Stage 10:Gemini 原生 Tool Calling 请求构造 / 响应解析 / 多轮 conversation 序列化。
+ * Gemini 原生 Tool Calling 请求构造 / 响应解析 / 多轮 conversation 序列化。
  *
  * <p>覆盖:
  * <ul>

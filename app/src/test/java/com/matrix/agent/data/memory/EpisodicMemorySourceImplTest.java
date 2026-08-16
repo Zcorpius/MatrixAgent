@@ -17,7 +17,7 @@ import com.matrix.agent.data.db.SessionHistoryDao;
 import com.matrix.agent.data.db.SessionHistoryEntity;
 
 /**
- * V0.5.2 Stage 7:EpisodicMemorySourceImpl JVM 测试——用 FakeDao 验证召回 + LRU 缓存 + fail-open。
+ * EpisodicMemorySourceImpl JVM 测试——用 FakeDao 验证召回 + LRU 缓存 + fail-open。
  *
  * <p>真实 Room _Impl.java SQL 验证由 androidTest 负责。
  */

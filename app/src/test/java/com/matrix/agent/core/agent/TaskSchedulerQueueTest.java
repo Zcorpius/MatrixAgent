@@ -15,7 +15,7 @@ import java.util.concurrent.TimeUnit;
 import org.junit.Test;
 
 /**
- * V0.4.3 Stage A:TaskScheduler 排队追踪回归——覆盖 V0.4.1 旧实现 putIfAbsent 语义
+ * TaskScheduler 排队追踪回归——覆盖旧实现 putIfAbsent 语义
  * 导致"排队中 task 不进 runningTasks"的缺陷。
  *
  * <p>4 个验证点:

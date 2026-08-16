@@ -27,18 +27,18 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 /**
- * V0.5.0 Stage 3:LlmPlanner.savedKeysFor 接入 MemoryRecaller 的契约测试。
+ * LlmPlanner.savedKeysFor 接入 MemoryRecaller 的契约测试。
  *
  * <p>注入 fake {@link LlmClient}(捕获 userPrompt)+ MemoryRouter(包装 InMemoryMemoryStore),
  * 断言:
  * <ul>
- *   <li>memoryStore 有偏好 key 时,userPrompt 含 "查询时必须使用这些精确字符串之一" 段(V0.4.3 兼容);</li>
+ *   <li>memoryStore 有偏好 key 时,userPrompt 含 "查询时必须使用这些精确字符串之一" 段(旧版兼容);</li>
  *   <li>memoryRecaller 召回非空时,userPrompt 含 "[layer] key" 列表(非 PREFERENCE 层);</li>
- *   <li>recaller=null 时退化为 V0.4.3 行为(仅 preference key 列表)。</li>
+ *   <li>recaller=null 时退化为旧版行为(仅 preference key 列表)。</li>
  * </ul>
  *
  * <p>LlmPlanner 的 userPrompt 包含用户原话文本,验证仅检查结构化段标题——
- * 不验证用户原话(V0.5.0 SafeLog 治理范围内,不进 fixture)。
+ * 不验证用户原话(SafeLog 治理范围内,不进 fixture)。
  */
 public final class LlmPlannerMemoryIntegrationTest {
     private InMemoryMemoryStore memoryStore;
@@ -52,7 +52,7 @@ public final class LlmPlannerMemoryIntegrationTest {
         sessionManager = new SessionManager();
     }
 
-    /** recaller=null:maintain V0.4.3 行为——仅 preference key 列表。 */
+    /** recaller=null:maintain 旧版行为——仅 preference key 列表。 */
     @Test
     public void nullRecallerKeepsV043Behavior() {
         memoryStore.putPreference("demo-driver", "preferred_temperature", "24");
@@ -75,7 +75,7 @@ public final class LlmPlannerMemoryIntegrationTest {
     public void recallerAppendsNonPreferenceSnippets() {
         memoryStore.putPreference("demo-driver", "preferred_temperature", "24");
         MemoryScope scope = new MemoryScope("demo-driver", VehicleZone.DRIVER);
-        // 用 stub recaller 直接返回非 PREFERENCE snippet(模拟 V0.5.1+ Episodic/Semantic 召回)
+        // 用 stub recaller 直接返回非 PREFERENCE snippet(模拟 Episodic/Semantic 召回)
         MemoryRecaller stub = (s, sid, text, max) -> Arrays.asList(
                 MemorySnippet.of(MemoryLayer.EPISODIC, scope, "session.last_cmd", "导航回家"),
                 MemorySnippet.of(MemoryLayer.WORKING, scope, "turn.last_query", "查电量"));
@@ -96,7 +96,7 @@ public final class LlmPlannerMemoryIntegrationTest {
                 client.capturedUserPrompt.contains("[working] turn.last_query"));
     }
 
-    /** recaller 返回的 PREFERENCE snippet 不重复出现(V0.4.3 preferenceKeysFor 已包含)。 */
+    /** recaller 返回的 PREFERENCE snippet 不重复出现(preferenceKeysFor 已包含)。 */
     @Test
     public void recallerPreferenceLayerIsSkippedToAvoidDuplication() {
         memoryStore.putPreference("demo-driver", "preferred_temperature", "24");

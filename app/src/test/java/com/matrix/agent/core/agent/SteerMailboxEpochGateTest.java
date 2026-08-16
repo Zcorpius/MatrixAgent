@@ -11,14 +11,14 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.Test;
 
 /**
- * V0.5.2 Stage 5:SteerMailbox epoch gate + advanceEpoch 测试。
+ * SteerMailbox epoch gate + advanceEpoch 测试。
  *
  * <p>验证:
  * <ul>
  *   <li>advanceEpoch(newEpoch) 推进 currentEpoch;</li>
  *   <li>drain(sessionId, requestEpoch) 把 stamped.epoch &lt; requestEpoch 的 Steer drop;</li>
  *   <li>drop 的 Steer 通过 StaleSteerHandler.onStaleSteerDropped 回调(走 audit STEER_DROPPED_STALE);</li>
- *   <li>drain(sessionId) 旧 API(不传 epoch)仍全量返回——V0.4.3 测试零回归;</li>
+ *   <li>drain(sessionId) 旧 API(不传 epoch)仍全量返回——既有测试零回归;</li>
  *   <li>offer(sessionId, Steer) 默认用 currentEpoch 标记 stamped。</li>
  * </ul>
  */
@@ -98,7 +98,7 @@ public final class SteerMailboxEpochGateTest {
         mailbox.offer("s1", Steer.reprompt("new"), 3L);
         mailbox.advanceEpoch(3L);
 
-        // 旧 drain(sessionId) 不传 epoch——全量返回,V0.4.3 兼容
+        // 旧 drain(sessionId) 不传 epoch——全量返回,旧版兼容
         List<Steer> all = mailbox.drain("s1");
 
         assertEquals("旧 API 返回全部 2 条(包括 epoch=1 的 stale)", 2, all.size());

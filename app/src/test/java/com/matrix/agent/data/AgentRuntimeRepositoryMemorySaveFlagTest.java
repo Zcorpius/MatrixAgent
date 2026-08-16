@@ -33,7 +33,7 @@ import com.matrix.agent.core.tool.MockCapabilityProvider;
 import com.matrix.agent.core.tool.ToolExecutor;
 
 /**
- * V0.5.4 评审 P1-2:Repository.execute 入口注入 MemoryIntentDetector,
+ * Repository.execute 入口注入 MemoryIntentDetector,
  * 构造的 AgentRequest.isMemorySaveAllowed() 与 detector 返回值一致。
  *
  * <p>用户硬约束——"长期记忆仅由用户决定"。Repository 在 build AgentRequest 前

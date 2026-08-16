@@ -1,7 +1,7 @@
 package com.matrix.agent.core.agent;
 
 /**
- * V0.5.2 Stage 5:Stale Steer 处理器接口——封装 drop + audit 逻辑。
+ * Stale Steer 处理器接口——封装 drop + audit 逻辑。
  *
  * <p>SteerMailbox 看到 stamped.epoch &lt; currentEpoch 的 Steer 时调用
  * {@link #onStaleSteerDropped};AppContainer 注入真实实现(走 AuditEventRecorder

@@ -22,7 +22,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 /**
  * 用请求 deadline + cancel 令牌包裹 ModelGateway 调用。
  *
- * <p>V0.4.1 Stage B 改造:取消 50ms polling,改成 {@code future.get(budget, MILLISECONDS)} 阻塞等。
+ * <p>取消 50ms polling,改成 {@code future.get(budget, MILLISECONDS)} 阻塞等。
  * cancel 触发时,通过 {@link CancellationToken#registerAbortHook(Runnable)} 同步触发
  * {@code future.cancel(true)} + {@link CancellableModelCall#abort()},让传输层 abort
  * 与 cancel 令牌在同一时间点生效——延迟从 50ms 降到接近 0。
@@ -48,7 +48,7 @@ public final class ModelCallExecutor {
     }
 
     /**
-     * V0.5.2 Stage 11:接 {@link DynamicThreadPool}——共享池版本。
+     * 接 {@link DynamicThreadPool}——共享池版本。
      *
      * <p>{@code sharedPool} 非空时忽略 {@code parallelism} 参数。本类无 shutdown() 方法,
      * 池生命周期由外部 DynamicThreadPool 持有者管理。
@@ -91,7 +91,7 @@ public final class ModelCallExecutor {
                 }
             });
         } catch (RejectedExecutionException rejected) {
-            // V0.5.2 评审 P1-1:ioPool 队列满 / Executor 关闭——直接 POLICY_HALT,
+            // ioPool 队列满 / Executor 关闭——直接 POLICY_HALT,
             // AgentEngine 收到 POLICY_HALT 后立刻退出 Loop,不重试。
             Log.w(TAG, "[ModelCall] submit REJECTED req=" + agentRequest.getRequestId()
                     + " (ioPool 队列满 / executor 关闭)");
@@ -141,7 +141,7 @@ public final class ModelCallExecutor {
             return Result.terminal(StopReason.CANCELLED, "模型调用线程已中断");
         } catch (ExecutionException execution) {
             Throwable cause = execution.getCause() == null ? execution : execution.getCause();
-            // P0-C: gateway 抛 CancellationException（端侧 cancel/retire 在途）→ CANCELLED terminal，
+            // gateway 抛 CancellationException（端侧 cancel/retire 在途）→ CANCELLED terminal，
             // 不走 POLICY_HALT（取消不是协议错误）
             if (cause instanceof CancellationException) {
                 Log.w(TAG, "[ModelCall] gateway cancelled (CancellationException), terminal=CANCELLED costMs="

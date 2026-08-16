@@ -17,12 +17,12 @@ import org.junit.runner.RunWith;
 import java.util.List;
 
 /**
- * V0.5.2 Stage 1:AuditEventDao 真实 Room _Impl.java SQL 验证(in-memory,不走 SQLCipher)。
+ * AuditEventDao 真实 Room _Impl.java SQL 验证(in-memory,不走 SQLCipher)。
  *
  * <p>JVM 契约测试 {@code AuditEventDaoContractTest} 用 fake DAO 验证 caller 隔离行为;
  * 真实 SQL 字符串 / 参数绑定 / 索引使用 在 emulator 上首次跑通由本类负责。
  *
- * <p>覆盖 V0.5.2 Stage 1 新增的:
+ * <p>覆盖新增的:
  * <ul>
  *   <li>{@link AuditEventDao#queryByUserZone(String, String)};</li>
  *   <li>{@link AuditEventDao#deleteByUserZone(String, String)}。</li>
@@ -66,10 +66,10 @@ public final class AuditEventDaoInstrumentedTest {
         List<AuditEventEntity> passengerRows = dao.queryByUserZone("demo-passenger", "PASSENGER");
         assertEquals("demo-passenger/PASSENGER 1 行", 1, passengerRows.size());
 
-        // 历史 V0.5.0 行 userId='' —— 主路径查询过滤不到
+        // 历史格式行 userId='' —— 主路径查询过滤不到
         AuditEventEntity legacy = new AuditEventEntity();
         legacy.requestId = "req-legacy";
-        legacy.userId = "";  // 模拟历史 V0.5.0 行
+        legacy.userId = "";  // 模拟历史格式行
         legacy.type = "TERMINAL";
         legacy.actor = "DRIVER";
         legacy.zone = "DRIVER";
@@ -109,7 +109,7 @@ public final class AuditEventDaoInstrumentedTest {
 
     @Test
     public void queryByRequestStillWorksAfterV2Migration() {
-        // 兼容契约:V0.5.0 queryByRequest(String) 不动,V0.5.2 仍可用
+        // 兼容契约:旧版 queryByRequest(String) 不动,新版本仍可用
         AuditEventDao dao = db.auditEventDao();
         dao.insert(newEntity("req-shared", "demo-driver", "DRIVER", "PRE_TOOL"));
         dao.insert(newEntity("req-shared", "demo-passenger", "PASSENGER", "PRE_TOOL"));

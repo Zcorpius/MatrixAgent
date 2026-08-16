@@ -17,11 +17,11 @@ import com.matrix.agent.core.memory.MemoryScope;
 import com.matrix.agent.core.memory.MemorySnippet;
 
 /**
- * V0.5.4 评审 P1-4:DefaultPromptBuilder 白名单 + 类型/范围校验测试。
+ * DefaultPromptBuilder 白名单 + 类型/范围校验测试。
  *
- * <p>用户硬约束:"改为 allowlist,而非 denylist"。V0.5.3 的 denylist("非 PII key 即放行")
+ * <p>用户硬约束:"改为 allowlist,而非 denylist"。旧版 denylist("非 PII key 即放行")
  * 允许任意 preference key 的 value 进 prompt——包括 prompt-injection 文本作为 value 的情形。
- * V0.5.4 改为白名单:仅 3 个数值型偏好 key + 范围合法 value 才投影。
+ * 改为白名单:仅 3 个数值型偏好 key + 范围合法 value 才投影。
  *
  * <p>验证规则:
  * <ul>

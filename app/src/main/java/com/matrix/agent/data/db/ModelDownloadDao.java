@@ -9,7 +9,7 @@ import androidx.room.Update;
 import java.util.List;
 
 /**
- * Stage 3 端侧模型下载管理——ModelDownloadEntity 的 Room DAO。
+ * 端侧模型下载管理——ModelDownloadEntity 的 Room DAO。
  */
 @Dao
 public interface ModelDownloadDao {

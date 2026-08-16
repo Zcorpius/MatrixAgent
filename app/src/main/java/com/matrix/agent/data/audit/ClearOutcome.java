@@ -1,10 +1,10 @@
 package com.matrix.agent.data.audit;
 
 /**
- * V0.5.1 Stage 6 P1.2:{@link AuditRepository#clearByUserZone(String, String)} 的结构化返回值。
+ * {@link AuditRepository#clearByUserZone(String, String)} 的结构化返回值。
  *
- * <p>V0.5.1 Stage 6 初版让 clearByUserZone 内部 try/catch 吞所有异常,UI 永远显示"已清空"——
- * 评审 P1.2 指出"偏好和会话已删、Audit 可能仍在,但用户得到完整成功提示"的语义错位。
+ * <p>初版让 clearByUserZone 内部 try/catch 吞所有异常,UI 永远显示"已清空"——
+ * 指出"偏好和会话已删、Audit 可能仍在,但用户得到完整成功提示"的语义错位。
  *
  * <p>本类把"删了几张表 / 部分失败 / 完全失败 / 不适用"四态显式化,让 Repository
  * 能组合出 {@link com.matrix.agent.data.ClearUserDataOutcome} 透传给 ViewModel,
@@ -19,7 +19,7 @@ package com.matrix.agent.data.audit;
  *       ViewModel 显示"上下文已清,审计删除失败,请稍后重试点击清空"。fail-reporting。</li>
  * </ul>
  *
- * <p><b>V0.5.1 C 路线评审反馈 P2(计数语义拆字段)</b>:初版 {@code success(int tablesCleared)}
+ * <p><b>计数语义拆字段</b>:初版 {@code success(int tablesCleared)}
  * 把参数同时写进"尝试表数"和"清除表数",而 RoomAuditRepository 传入的其实是删除行数
  * (trajectory 1 行 + session 1 行 + memory 1 行 = 3,不是 3 张表);同一字段在不同调用点
  * 语义不同,UI 后续若按计数渲染就会有歧义。本版拆为 3 个独立字段:
@@ -41,7 +41,7 @@ public final class ClearOutcome {
         PARTIAL_FAILURE,
         /** 全部表删除失败(database 不可用 / 全部 DAO 抛异常)。 */
         FAILURE,
-        /** 实现不支持清理(NoopAuditRepository / V0.5.0 单参 RoomAuditRepository 路径)。 */
+        /** 实现不支持清理(NoopAuditRepository / 旧版单参 RoomAuditRepository 路径)。 */
         NOT_APPLICABLE
     }
 

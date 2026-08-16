@@ -23,12 +23,12 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * V0.5.0 Stage 2:RoomAuditRepository 契约测试——用 fake TrajectoryDao
+ * RoomAuditRepository 契约测试——用 fake TrajectoryDao
  * 验证字段写入 / query 等价 / fail-open 行为。
  *
  * <p>不依赖真 Room(JVM 单测无 SQLite native),只验证 Repository ↔ DAO 接口契约。
  *
- * <p>P1.3 修复(评审 V0.5.0):RoomAuditRepository 改为同步阻塞 persist,
+ * <p>RoomAuditRepository 改为同步阻塞 persist,
  * 不再注入 Executor。本测试同步路径下"任务返回后立即查询"无竞态。
  */
 public final class RoomAuditRepositoryContractTest {
@@ -119,7 +119,7 @@ public final class RoomAuditRepositoryContractTest {
             repo.persist(outcome, request);
         }
 
-        // 第二轮评审 P2.2:访问域 (userId, zone) 强制传入
+        // 访问域 (userId, zone) 强制传入
         List<AuditRecord> records = repo.queryBySession(
                 "demo-driver", "DRIVER", "session-z", 10);
 
@@ -130,7 +130,7 @@ public final class RoomAuditRepositoryContractTest {
     }
 
     /**
-     * 第二轮评审 P2.2 新增:同 sessionId 但访问域不匹配时,必须返回空。
+     * 新增:同 sessionId 但访问域不匹配时,必须返回空。
      * 防 UI 层仅凭 sessionId 跨 user/zone 取记录。
      */
     @Test
@@ -199,7 +199,7 @@ public final class RoomAuditRepositoryContractTest {
     }
 
     /**
-     * P1.3(评审 V0.5.0)新增:persist 同步阻塞契约——
+     * 新增:persist 同步阻塞契约——
      * persist 返回时,query 必须立即看到记录(无竞态)。
      */
     @Test

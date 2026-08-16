@@ -18,7 +18,7 @@ import com.matrix.agent.core.identity.VehicleZone;
 import com.matrix.agent.core.memory.InMemoryMemoryStore;
 
 /**
- * V0.5.3 评审 P1-1:MockCapabilityProvider 注册 memory.semantic.save / get 后,
+ * MockCapabilityProvider 注册 memory.semantic.save / get 后,
  * handler 调用 ctx.getMemoryWriter() 写入 / 读取,并按结果返回 SUCCESS / EXECUTION_FAILED。
  *
  * <p>验证:
@@ -45,7 +45,7 @@ public final class MockCapabilityProviderSemanticHandlerTest {
                 AgentRequest.builder("记住我对花生过敏", Actor.DRIVER)
                         .sessionId("sess-001")
                         .occupantZone(VehicleZone.DRIVER)
-                        // V0.5.4 P1-2:Repository 入口由 KeywordMemoryIntentDetector 命中关键词置 true;
+                        // Repository 入口由 KeywordMemoryIntentDetector 命中关键词置 true;
                         // 单测直接 build request,需显式置 true 才能跨过 handler POLICY_REJECTED gate。
                         .memorySaveAllowed(true)
                         .build(),

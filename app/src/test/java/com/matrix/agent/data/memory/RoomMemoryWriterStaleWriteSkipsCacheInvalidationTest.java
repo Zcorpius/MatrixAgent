@@ -24,14 +24,14 @@ import com.matrix.agent.data.db.SessionHistoryDao;
 import com.matrix.agent.data.db.SessionHistoryEntity;
 
 /**
- * V0.5.5 P2-B 顺手优化:stale reject / fail-closed reject 不应触发
+ * 顺手优化:stale reject / fail-closed reject 不应触发
  * {@link EpisodicMemorySourceImpl#invalidateCache()}——避免无意义 cache miss。
  *
- * <p>V0.5.4 老代码 writeEpisodicOnTerminal 的 try/catch 内无论事务是否真写入,
+ * <p>老代码 writeEpisodicOnTerminal 的 try/catch 内无论事务是否真写入,
  * 都调 episodicSource.invalidateCache()。stale reject / fail-closed reject 没改 db 内容,
  * 失效 cache 后下次召回会重新 SELECT,产生无意义 IO。
  *
- * <p>V0.5.5 用 {@code boolean[] written = {false}} flag 区分"真写入"与"reject",
+ * <p>用 {@code boolean[] written = {false}} flag 区分"真写入"与"reject",
  * 仅在 written[0]=true 时失效。
  *
  * <p>测试用间接行为验证:stale reject 后再 recallEpisodic,DAO queryByUserZone 计数不应增加

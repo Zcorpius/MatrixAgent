@@ -10,7 +10,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * V0.5.2 Stage 11:可弹性扩缩的共享线程池,供 TaskScheduler / ModelCallExecutor / ToolExecutor 复用。
+ * 可弹性扩缩的共享线程池,供 TaskScheduler / ModelCallExecutor / ToolExecutor 复用。
  *
  * <p><b>设计</b>:
  * <ul>
@@ -21,7 +21,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  *   <li>守护线程 + 命名 matrix-pool-N,便于 logcat / dumpsys 排查。</li>
  * </ul>
  *
- * <p><b>为什么不直接 Executors.newFixedThreadPool</b>:V0.5.1 之前 TaskScheduler / ModelCallExecutor /
+ * <p><b>为什么不直接 Executors.newFixedThreadPool</b>:早期 TaskScheduler / ModelCallExecutor /
  * ToolExecutor 各自维护一个 fixed 池(2-4 线程),3 个池子在车机 4 核 SoC 上总 6-12 线程,峰值压力下
  * 互相竞争 CPU。DynamicThreadPool 单池共享 + 弹性扩缩,统一监控 + 收敛线程数。
  *
@@ -49,9 +49,9 @@ public final class DynamicThreadPool {
     }
 
     /**
-     * V0.5.2 评审 P1-1:构造器重载,允许指定 RejectedExecutionHandler。
+     * 构造器重载,允许指定 RejectedExecutionHandler。
      *
-     * <p>默认重载仍用 CallerRunsPolicy(向后兼容);P1-1 测试用 AbortPolicy 让队列满时
+     * <p>默认重载仍用 CallerRunsPolicy(向后兼容);测试用 AbortPolicy 让队列满时
      * 显式抛 RejectedExecutionException,验证 TaskScheduler / ModelCallExecutor / ToolExecutor
      * 的 catch + REJECTED / POLICY_HALT / EXECUTION_UNKNOWN 兜底路径。
      *
@@ -78,7 +78,7 @@ public final class DynamicThreadPool {
     }
 
     /**
-     * V0.5.2 Stage 11:暴露底层 ThreadPoolExecutor 给 TaskScheduler / ModelCallExecutor /
+     * 暴露底层 ThreadPoolExecutor 给 TaskScheduler / ModelCallExecutor /
      * ToolExecutor 的现有 {@code ExecutorService workers} 字段。签名不变,只是底层换成共享池。
      */
     public ExecutorService asExecutorService() {

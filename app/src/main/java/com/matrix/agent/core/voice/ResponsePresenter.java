@@ -7,7 +7,7 @@ import com.matrix.agent.core.agent.Trajectory;
 import com.matrix.agent.core.agent.ToolObservation;
 
 /**
- * 把 {@link AgentOutcome} 转成可 TTS 播报的 {@link SpeakableResponse}。Voice V1。
+ * 把 {@link AgentOutcome} 转成可 TTS 播报的 {@link SpeakableResponse}。
  *
  * <p>规则模板生成(非 LLM 改写),终态一次播报——避免现有非流式 ModelGateway 中途输出或被取消时
  * "说半句"。

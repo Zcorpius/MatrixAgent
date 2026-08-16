@@ -12,12 +12,12 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * V0.5.2 Stage 2:SharedPreferences 历史 preference → Room memory_record 一次性迁移。
+ * SharedPreferences 历史 preference → Room memory_record 一次性迁移。
  *
  * <p>启动期由 AppContainer.createMemoryStoreSafely 调用一次,迁移完成后清空 SP 文件
  * (避免双源失步)。迁移幂等——已迁移(SP 为空)直接跳过。
  *
- * <p><b>迁移策略</b>(V0.5.2 评审 P1-2:原子 transaction + 条件 clear SP):
+ * <p><b>迁移策略</b>(原子 transaction + 条件 clear SP):
  * <ul>
  *   <li>SP key 格式 {@code userId + "." + key}——切分出 userId / prefKey,写入 Room
  *       memory_record(userId, zone="global", layer="preference", key=prefKey, value)。</li>
@@ -78,7 +78,7 @@ public final class RoomMemoryMigrator {
     /**
      * 执行 SP → Room 迁移——幂等,失败 best-effort 不抛,SP 保留供下次重试。
      *
-     * <p>V0.5.2 评审 P1-2:全部 entities 收集后用同一次 Room transaction 写入,任一失败 transaction
+     * <p>全部 entities 收集后用同一次 Room transaction 写入,任一失败 transaction
      * rollback + SP 不清空,杜绝"部分写入成功后 SP 被清空"的数据丢失窗口。
      */
     public void migrate() {

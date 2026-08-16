@@ -22,7 +22,7 @@ public final class ToolExecutor {
     private static final String TAG = "MatrixAgent";
     private static final long CANCELLATION_POLL_MILLIS = 50L;
     private final ExecutorService workers;
-    /** V0.5.2 Stage 11:true 时 shutdown() 才真正关闭池;共享池由外部统一关闭。 */
+    /** true 时 shutdown() 才真正关闭池;共享池由外部统一关闭。 */
     private final boolean ownsPool;
 
     public ToolExecutor(int parallelism) {
@@ -30,7 +30,7 @@ public final class ToolExecutor {
     }
 
     /**
-     * V0.5.2 Stage 11:接 {@link com.matrix.agent.core.agent.DynamicThreadPool}——共享池版本,
+     * 接 {@link com.matrix.agent.core.agent.DynamicThreadPool}——共享池版本,
      * 让 ToolExecutor / ModelCallExecutor / TaskScheduler 复用同一池。
      */
     public ToolExecutor(int parallelism, com.matrix.agent.core.agent.DynamicThreadPool sharedPool) {
@@ -47,7 +47,7 @@ public final class ToolExecutor {
         }
     }
 
-    /** 测试 / shutdown 钩子:优雅关闭 worker 线程池。V0.5.2 Stage 11:共享池不在此处关闭。 */
+    /** 测试 / shutdown 钩子:优雅关闭 worker 线程池。共享池不在此处关闭。 */
     public void shutdown() {
         if (ownsPool) {
             workers.shutdown();
@@ -74,7 +74,7 @@ public final class ToolExecutor {
         try {
             future = workers.submit(() -> provider.execute(request, call));
         } catch (RejectedExecutionException rejected) {
-            // V0.5.2 评审 P1-1:ioPool 队列满 / Executor 关闭时,submit 抛 RejectedExecutionException。
+            // ioPool 队列满 / Executor 关闭时,submit 抛 RejectedExecutionException。
             // 写操作走 EXECUTION_UNKNOWN(命令可能未下发,但保守按"未知"提示用户二次确认);
             // 读操作走 CANCELLED(语义同 TIMED_OUT 但显式标 REJECTED)。
             Log.w(TAG, "[Tool] submit REJECTED cap=" + call.getCapabilityName()
@@ -138,7 +138,7 @@ public final class ToolExecutor {
     }
 
     /**
-     * 第五轮评审 P1:写操作 timeout / cancel 时尽量 abort 已下发的命令。
+     * 写操作 timeout / cancel 时尽量 abort 已下发的命令。
      *
      * <p>调用 {@link CapabilityProvider#abortIfSupported(String)} + 记录 log,但<b>不依赖</b>
      * abort 是否成功——Provider 可能在 abort 到达前已执行,或 ECU 拒绝中断。最终状态语义
@@ -161,14 +161,14 @@ public final class ToolExecutor {
     }
 
     /**
-     * 第五轮评审 P1:按 capability 类型决定终态语义。
+     * 按 capability 类型决定终态语义。
      *
      * <ul>
      *   <li>读操作(默认 writeOperation=false):继续返回 TIMED_OUT / CANCELLED——读被中断
-     *       等于未发生,V0.4.x 行为不变。</li>
+     *       等于未发生,行为不变。</li>
      *   <li>写操作(writeOperation=true):Java {@code future.cancel(true)} 中断线程
      *       <b>不保证</b>撤销已发出的 IPC 命令,Runtime 不能宣称"已取消",一律返回
-     *       {@link ToolResult.Status#EXECUTION_UNKNOWN};V0.5.1 / 后续版本由 readback
+     *       {@link ToolResult.Status#EXECUTION_UNKNOWN};后续版本由 readback
      *       / queryCommandState 异步更新为 SUCCESS / VERIFICATION_FAILED / UNKNOWN。</li>
      * </ul>
      */
@@ -198,7 +198,7 @@ public final class ToolExecutor {
         TIMED_OUT,
         CANCELLED,
         INTERRUPTED,
-        /** V0.5.2 评审 P1-1:ioPool 队列满 / Executor 拒绝——任务未真正下发。 */
+        /** ioPool 队列满 / Executor 拒绝——任务未真正下发。 */
         REJECTED
     }
 

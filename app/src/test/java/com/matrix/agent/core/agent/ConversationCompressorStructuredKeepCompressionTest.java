@@ -16,19 +16,19 @@ import com.matrix.agent.core.identity.Actor;
 import com.matrix.agent.core.tool.ToolCall;
 
 /**
- * V0.5.2-rev 评审 P1-3 端到端 + P2-4 分批摘要 + P1-4 heuristic 降级测试。
+ * 端到端 + 分批摘要 + heuristic 降级测试。
  *
  * <p>用 fake SummaryProvider 验证 compress 行为:
  * <ul>
- *   <li>P1-3:structured transactions 不进 Provider.summarize,原样保留到 compressed 列表;</li>
- *   <li>P1-4:request.remainingMillis < 2s 直接 heuristic,Provider 不被调;</li>
- *   <li>P2-4:toSummarizeNatural > MAX_TURNS_TO_SUMMARIZE 分批,保留全历史。</li>
+ *   <li>structured transactions 不进 Provider.summarize,原样保留到 compressed 列表;</li>
+ *   <li>request.remainingMillis < 2s 直接 heuristic,Provider 不被调;</li>
+ *   <li>toSummarizeNatural > MAX_TURNS_TO_SUMMARIZE 分批,保留全历史。</li>
  * </ul>
  */
 public final class ConversationCompressorStructuredKeepCompressionTest {
 
     /**
-     * P1-3:compress 后 compressed 列表包含 [summary, ...structuredKeep, ...recent],
+     * compress 后 compressed 列表包含 [summary, ...structuredKeep, ...recent],
      * structuredKeep 原样保留(含 tool_call + observation)。
      */
     @Test
@@ -63,7 +63,7 @@ public final class ConversationCompressorStructuredKeepCompressionTest {
     }
 
     /**
-     * P1-4:request.remainingMillis < 2s → 直接 heuristic,Provider 不被调。
+     * request.remainingMillis < 2s → 直接 heuristic,Provider 不被调。
      */
     @Test
     public void compressFallsBackHeuristicWhenRemainingBudgetBelow2s() {
@@ -88,7 +88,7 @@ public final class ConversationCompressorStructuredKeepCompressionTest {
     }
 
     /**
-     * P2-4 单 batch 路径:toSummarizeNatural 在 MAX_TURNS_TO_SUMMARIZE 内 → 1 次 Provider.summarize。
+     * 单 batch 路径:toSummarizeNatural 在 MAX_TURNS_TO_SUMMARIZE 内 → 1 次 Provider.summarize。
      * 需构造 ≥ 4 个 transaction(后 3 个进 recent,其余进 toSummarize)。
      */
     @Test
@@ -119,7 +119,7 @@ public final class ConversationCompressorStructuredKeepCompressionTest {
     }
 
     /**
-     * P2-4:heuristic 降级文本含"已省略" + "更早上下文",不静默。
+     * heuristic 降级文本含"已省略" + "更早上下文",不静默。
      */
     @Test
     public void heuristicFallbackNotSilent() {

@@ -9,10 +9,10 @@ import com.matrix.agent.core.identity.VehicleZone;
 import org.junit.Test;
 
 /**
- * V0.5.0 Stage 1:MemoryScope 双维度隔离键契约测试。
+ * MemoryScope 双维度隔离键契约测试。
  *
- * <p>storageKey 格式稳定性是关键——V0.5.1 持久化层 MemoryRecordEntity 主键依赖此格式,
- * 变更需要 Room Migration。ofLegacy 是 V0.4.3 兼容入口,zone 必须为 GLOBAL。
+ * <p>storageKey 格式稳定性是关键——持久化层 MemoryRecordEntity 主键依赖此格式,
+ * 变更需要 Room Migration。ofLegacy 是旧版兼容入口,zone 必须为 GLOBAL。
  */
 public final class MemoryScopeTest {
 

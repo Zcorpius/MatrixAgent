@@ -28,7 +28,7 @@ import com.matrix.agent.data.db.AuditEventDao;
 import com.matrix.agent.data.db.AuditEventEntity;
 
 /**
- * V0.5.2 评审 P2-1:audit_event.userId 必须用 ActorUsers.userIdOf,而非 sessionId。
+ * audit_event.userId 必须用 ActorUsers.userIdOf,而非 sessionId。
  *
  * <p>评审发现 AgentEngine 4 处 recordXxx 都用 request.getSessionId()。
  * demo 中 sessionId 默认 = "demo-driver" 与 userId 字面量相等,掩盖了问题。

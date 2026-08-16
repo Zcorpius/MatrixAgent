@@ -30,8 +30,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.junit.Test;
 
 /**
- * V0.4.3 Stage B:验证 Repository.execute 把 {@link com.matrix.agent.core.identity.VehicleStateSource#snapshot()}
- * 真正注入到 AgentRequest.currentVehicleState,而不是走 V0.4.2 默认 satisfyAllPredicates。
+ * 验证 Repository.execute 把 {@link com.matrix.agent.core.identity.VehicleStateSource#snapshot()}
+ * 真正注入到 AgentRequest.currentVehicleState,而不是走旧版默认 satisfyAllPredicates。
  *
  * <p>构造 CapturingGateway 在 decide() 中捕获 AgentRequest,验证其 vehicleState 与
  * stateSource.snapshot() 一致;切换 stateSource 后再次 execute,验证捕获的 vehicleState 同步变化。

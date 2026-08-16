@@ -7,7 +7,7 @@ import static org.junit.Assert.assertTrue;
 import org.junit.Test;
 
 /**
- * V0.4.3 Stage B:MockVehicleStateSource setter / snapshot 单元测试。
+ * MockVehicleStateSource setter / snapshot 单元测试。
  */
 public final class MockVehicleStateSourceTest {
 

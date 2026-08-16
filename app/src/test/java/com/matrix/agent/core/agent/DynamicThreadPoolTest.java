@@ -17,7 +17,7 @@ import org.junit.Test;
 import com.matrix.agent.core.tool.ToolExecutor;
 
 /**
- * V0.5.2 Stage 11:DynamicThreadPool 共享线程池测试——弹性扩缩 / 队列上限 / CallerRunsPolicy
+ * DynamicThreadPool 共享线程池测试——弹性扩缩 / 队列上限 / CallerRunsPolicy
  * 反压 / 共享给多 executor 时的 shutdown 语义。
  */
 public final class DynamicThreadPoolTest {

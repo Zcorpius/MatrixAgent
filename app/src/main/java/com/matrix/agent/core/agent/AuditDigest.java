@@ -1,29 +1,29 @@
 package com.matrix.agent.core.agent;
 
 /**
- * V0.5.1 Stage 4:审计侧自由文本摘要策略——core 内接口,不依赖 Android Keystore,
+ * 审计侧自由文本摘要策略——core 内接口,不依赖 Android Keystore,
  * JVM 与 Android 都可注入。
  *
  * <p>实现方:
  * <ul>
- *   <li>{@link Sha1AuditDigest} —— JVM 测试默认,V0.5.0 行为底座;V0.5.1 仅在
+ *   <li>{@link Sha1AuditDigest} —— JVM 测试默认,历史行为底座;仅在
  *       {@link AuditRedactor} 未注入路径使用(JVM 单元测试零回归)。</li>
  *   <li>{@code com.matrix.agent.platform.KeystoreHmacAuditDigest} —— Android 实现,
  *       HMAC-SHA-256 (AndroidKeyStore 派生密钥) 截断 16 位 hex,生产主路径。</li>
- *   <li>{@link UnavailableAuditDigest} —— V0.5.1 Stage 6 P1.1 fail-closed 路径,
+ *   <li>{@link UnavailableAuditDigest} —— fail-closed 路径,
  *       KeystoreHmacAuditDigest 装配失败时退回,输出固定
  *       {@code [redacted:chars=N,digest=unavailable]},不暴露任何可比对信号。</li>
  * </ul>
  *
  * <p>注入方式:{@link AuditRedactor} 持有可变 {@code digest} 字段,
  * {@link AgentEngine#setAuditDigest(AuditDigest)} 在 AppContainer 装配期注入;
- * 未注入时退化 {@link Sha1AuditDigest}(V0.5.0 测试零回归)。
+ * 未注入时退化 {@link Sha1AuditDigest}(旧测试零回归)。
  *
- * <p><b>HMAC 失败 = fail-closed(V0.5.1 Stage 6 P1.1 修正)</b>:V0.5.1 Stage 4 初版
- * 让 HMAC 装配失败时退回 {@link Sha1AuditDigest}(fail-degrade);评审 P1.1 指出这等于
- * 让 Keystore 异常设备重暴露于 Stage 4 要修的"SHA-1 8 位低熵枚举"风险。修正:
+ * <p><b>HMAC 失败 = fail-closed</b>:初版
+ * 让 HMAC 装配失败时退回 {@link Sha1AuditDigest}(fail-degrade);评审指出这等于
+ * 让 Keystore 异常设备重暴露于要修的"SHA-1 8 位低熵枚举"风险。修正:
  * HMAC 失败时退回 {@link UnavailableAuditDigest}——审计数据继续 SQLCipher 加密落盘
- * (可用性优先),但摘要字段固定不可比对(隐私优先)。与 V0.5.0 P1.1 master_key 失败时
+ * (可用性优先),但摘要字段固定不可比对(隐私优先)。与 master_key 失败时
  * SQLCipher 不可用 = 数据落不下去 = fail-closed 不同:前者是"诊断字段降级",后者是
  * "数据落盘 fail"。
  */

@@ -9,7 +9,7 @@ import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 
 /**
- * V0.5.0 Stage 5:JtokkitTokenizer 契约测试。
+ * JtokkitTokenizer 契约测试。
  *
  * <p>验证 BPE 真分词行为——jtokkit 1.1.0 已在生产 JVM 工程大量验证,本测试关注:
  * <ul>
@@ -19,8 +19,8 @@ import static org.junit.Assert.assertTrue;
  *   <li>null / empty 边界。</li>
  * </ul>
  *
- * <p>V0.5.0 默认装配 CharFallbackTokenizer,JtokkitTokenizer 仅在测试 / debug 用;
- * V0.5.1 切换主路径后,本测试升级为 AgentEngine token 预算回归测试。
+ * <p>默认装配 CharFallbackTokenizer,JtokkitTokenizer 仅在测试 / debug 用;
+ * 切换主路径后,本测试升级为 AgentEngine token 预算回归测试。
  */
 public final class JtokkitTokenizerTest {
     @Test
@@ -100,7 +100,7 @@ public final class JtokkitTokenizerTest {
         int tokenCount = jtokkit.count(text);
         // char-based 算 9 chars(含数字 "24");BPE 通常给出更少 token(BPE 合并)
         // 中文 BPE 通常每字 1 token,与 char 接近。这里仅断言二者都给出正值,
-        // V0.5.1 切主路径时再校准 char/token 比率。
+        // 切主路径时再校准 char/token 比率。
         assertTrue("char 和 BPE 对典型中文 input 都应给出正值",
                 charCount > 0 && tokenCount > 0);
         assertNotEquals("char 与 BPE token 数有差异(至少在某些场景)",

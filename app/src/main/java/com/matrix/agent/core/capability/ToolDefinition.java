@@ -12,10 +12,10 @@ public final class ToolDefinition {
     private final String description;
     private final List<ToolParameterDefinition> parameters;
     /**
-     * V0.4.2 Stage C:Provider-neutral JSON Schema 2020-12 参数视图。
+     * Provider-neutral JSON Schema 2020-12 参数视图。
      * 由 {@link CapabilityRegistry#toToolDefinitions()} 填充。
      * ModelApiClient 优先用此字段走 SchemaJsonWriter;若 null(测试或兼容场景),
-     * fallback 到 {@link #parameters} 的 V0.4.0 路径。
+     * fallback 到 {@link #parameters} 的旧版路径。
      */
     private final CanonicalSchema parametersSchema;
 

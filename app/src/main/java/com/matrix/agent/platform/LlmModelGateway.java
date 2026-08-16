@@ -15,14 +15,14 @@ import com.matrix.agent.core.session.SessionContext;
 import java.util.List;
 
 /**
- * V0.4.0 ModelGateway 的 LLM 实现。
+ * ModelGateway 的 LLM 实现。
  *
  * 路由策略:
  * - NATIVE_TOOL_CALLING + ANTHROPIC_MESSAGES:走 {@link ModelApiClient#callAnthropicWithTools}
  *   多轮原生 Tool Calling(连续 tool_result 合并到同一 user message,Tool Call ID 透传)。
  * - NATIVE_TOOL_CALLING + OPENAI_CHAT:走 {@link ModelApiClient#callOpenAiWithTools}
  *   多轮原生 Tool Calling(每个 tool_call 一条独立 tool message,tool_call_id 透传)。
- * - NATIVE_TOOL_CALLING + GEMINI_GENERATE_CONTENT(V0.5.2 Stage 10):走
+ * - NATIVE_TOOL_CALLING + GEMINI_GENERATE_CONTENT:走
  *   {@link ModelApiClient#callGeminiWithTools} 多轮原生 Tool Calling
  *   (functionResponse 合并到 user message,name 关联,Gemini 协议无 id 字段)。
  * - 其他组合(STRUCTURED_JSON_COMPATIBILITY 或不支持原生 Tool Calling 的协议):
@@ -64,15 +64,15 @@ public final class LlmModelGateway implements ModelGateway {
                 + " memoryStore=" + (memoryStore == null ? "null" : memoryStore.getClass().getSimpleName()));
     }
 
-    /** V0.5.0 Stage 3:把 Memory 召回器透传给内部 LlmPlanner(结构化 JSON 兼容路径)。 */
+    /** 把 Memory 召回器透传给内部 LlmPlanner(结构化 JSON 兼容路径)。 */
     public void setMemoryRecaller(com.matrix.agent.core.memory.MemoryRecaller recaller) {
         this.legacy.setMemoryRecaller(recaller);
     }
 
     @Override
     public ModelTurn decide(ModelTurnRequest request) {
-        // V0.4.3 Stage C:per-request zone 投影——主驾/副驾看到不同 tool 列表,
-        // V0.4.2 Stage E 加的 toToolDefinitions(VehicleZone) 在 V0.4.3 才真正接入。
+        // per-request zone 投影——主驾/副驾看到不同 tool 列表,
+        // 早期加的 toToolDefinitions(VehicleZone) 在后续版本才真正接入。
         java.util.List<ToolDefinition> tools = registry.toToolDefinitions(
                 request.getAgentRequest().getOccupantZone());
         Log.d(TAG, "[LlmGateway] decide req=" + request.getAgentRequest().getRequestId()

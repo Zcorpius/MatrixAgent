@@ -10,7 +10,7 @@ import java.util.Collections;
 import org.junit.Test;
 
 /**
- * 第五轮 P2-1:ModelTurn 工厂方法严格化回归。
+ * ModelTurn 工厂方法严格化回归。
  *
  * <p>历史 bug:旧 {@code ModelTurn.of(content, TOOL_CALLS)} 静默降级为 STOP,
  * {@code of("", STOP)} 也接受 —— Provider 协议错误被掩盖成正常完成,

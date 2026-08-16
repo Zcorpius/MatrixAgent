@@ -10,7 +10,7 @@ import org.json.JSONObject;
 import org.junit.Test;
 
 /**
- * V0.4.2 Stage C:OpenAI strict 模式 schema 投影契约测试。
+ * OpenAI strict 模式 schema 投影契约测试。
  *
  * <p>覆盖 OpenAI strict 兼容降级策略:
  * <ul>

@@ -23,7 +23,7 @@ import com.matrix.agent.data.db.SessionHistoryDao;
 import com.matrix.agent.data.db.SessionHistoryEntity;
 
 /**
- * V0.5.4 评审 P1-1:RoomMemoryWriter epoch 原子性测试。
+ * RoomMemoryWriter epoch 原子性测试。
  *
  * <p>验证用户硬约束——"epoch 检查必须与数据库写操作同事务":
  * <ul>

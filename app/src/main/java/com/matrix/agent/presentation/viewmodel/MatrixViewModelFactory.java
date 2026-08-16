@@ -29,13 +29,17 @@ public final class MatrixViewModelFactory implements ViewModelProvider.Factory {
                     (android.app.Application) container.getAppContext(),
                     container.getModelDownloadManager(),
                     container.getModelDownloadDao());
-        } else if (modelClass.isAssignableFrom(VoiceDebugViewModel.class)) {
-            viewModel = new VoiceDebugViewModel(
-                    (android.app.Application) container.getAppContext(),
-                    container.getAgentRuntimeRepository(),
-                    container.getModelDownloadDao());
         } else {
-            throw new IllegalArgumentException("Unknown ViewModel: " + modelClass.getName());
+            // Voice ViewModel 经 VoiceEntryProvider 解耦(仅 debug 构建有实现);main 不引用 VoiceDebugViewModel。
+            VoiceEntryProvider voiceProvider = VoiceEntryProviders.get();
+            if (voiceProvider != null && voiceProvider.voiceViewModelClass().isAssignableFrom(modelClass)) {
+                viewModel = voiceProvider.createVoiceViewModel(
+                        (android.app.Application) container.getAppContext(),
+                        container.getAgentRuntimeRepository(),
+                        container.getModelDownloadDao());
+            } else {
+                throw new IllegalArgumentException("Unknown ViewModel: " + modelClass.getName());
+            }
         }
         return modelClass.cast(viewModel);
     }

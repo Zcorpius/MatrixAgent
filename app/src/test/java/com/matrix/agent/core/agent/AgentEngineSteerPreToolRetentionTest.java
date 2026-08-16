@@ -22,10 +22,10 @@ import com.matrix.agent.core.tool.ToolExecutor;
 import com.matrix.agent.core.tool.ToolResult;
 
 /**
- * V0.4.3 Stage E:AgentEngine.pre-tool Steer 保留测试。
+ * AgentEngine.pre-tool Steer 保留测试。
  *
- * <p>V0.4.1 旧 hasDeferredSteer 调 drain() 掏空队列,即使队列里只有 REPROMPT / FORCE_TOOL(无 DEFER),
- * 这些指令也永久丢失。V0.4.3 改用 peek,非 DEFER 指令保留给下一轮 drain。
+ * <p>旧 hasDeferredSteer 调 drain() 掏空队列,即使队列里只有 REPROMPT / FORCE_TOOL(无 DEFER),
+ * 这些指令也永久丢失。改用 peek,非 DEFER 指令保留给下一轮 drain。
  *
  * <p>测试场景:
  * <ol>

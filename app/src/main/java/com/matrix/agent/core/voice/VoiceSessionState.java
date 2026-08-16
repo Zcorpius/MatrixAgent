@@ -3,7 +3,7 @@ package com.matrix.agent.core.voice;
 import android.util.Log;
 
 /**
- * 语音会话状态机。Voice V1。
+ * 语音会话状态机。
  *
  * <p>Demo 与量产共享的统一会话状态机。外部组件(ASR / VAD / Agent / TTS)只投递不可变
  * {@link VoiceEvent},由本类唯一负责状态迁移;禁止其它组件直接 start/stop AudioRecord 或 TTS。
@@ -37,7 +37,7 @@ public final class VoiceSessionState {
         RECOGNIZING,
         /** 已提交 Agent,等待终态。 */
         THINKING,
-        /** Demo V1 不进入(遇 NEEDS_CONFIRM 直接回 IDLE);保留以与量产状态机一致。 */
+        /** Demo 不进入(遇 NEEDS_CONFIRM 直接回 IDLE);保留以与量产状态机一致。 */
         CONFIRMING,
         /** 播报 SpeakableResponse。 */
         SPEAKING,
@@ -104,8 +104,9 @@ public final class VoiceSessionState {
                 switch (type) {
                     case PARTIAL:
                     case SPEECH: return State.LISTENING;
-                    case SILENCE_TIMEOUT:
-                    case FINAL: return State.ENDPOINTING;
+                    // FINAL 在 LISTENING 不迁移——Controller 缓存为 pendingFinal,
+                    // 由 VAD 的 SILENCE_TIMEOUT(端点)驱动 LISTENING→ENDPOINTING,再消费 final。
+                    case SILENCE_TIMEOUT: return State.ENDPOINTING;
                     case ASR_ERROR:
                     case ERROR: return State.ERROR_ANNOUNCING;
                     case CANCEL: return State.CANCELLED;
@@ -139,7 +140,7 @@ public final class VoiceSessionState {
                     default: return null;
                 }
             case CONFIRMING:
-                // Demo V1 不可达;量产才进入。保守:任何事件都不迁移。
+                // Demo 不可达;量产才进入。保守:任何事件都不迁移。
                 return null;
             case SPEAKING:
                 switch (type) {
@@ -154,6 +155,7 @@ public final class VoiceSessionState {
                 switch (type) {
                     case CAPTURE_STARTED: return State.LISTENING;
                     case CANCEL: return State.CANCELLED;
+                    case ERROR: return State.ERROR_ANNOUNCING; // barge-in 中 ASR start 失败,经 error→ERROR_ANNOUNCING→reset→IDLE
                     default: return null;
                 }
             case CANCELLED:

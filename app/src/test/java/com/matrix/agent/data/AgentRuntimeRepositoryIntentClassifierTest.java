@@ -12,7 +12,7 @@ import com.matrix.agent.core.identity.KeywordIntentClassifier;
 import com.matrix.agent.core.identity.LlmIntentClassifier;
 
 /**
- * V0.5.2 评审 P1-5:Repository.setIntentClassifier + Fallback 装配契约测试。
+ * Repository.setIntentClassifier + Fallback 装配契约测试。
  *
  * <p>评审发现 AppContainer 装的是 KeywordIntentClassifier.INSTANCE,LlmIntentClassifier /
  * FallbackIntentClassifier 类已存在但完全没用上。本测试验证 Repository 接受任意 IntentClassifier

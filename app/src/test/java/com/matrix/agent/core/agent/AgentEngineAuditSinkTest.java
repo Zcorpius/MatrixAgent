@@ -32,7 +32,7 @@ import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
 /**
- * V0.5.0 Stage 3:AgentEngine 5 个出口点的 Audit 持久化契约测试。
+ * AgentEngine 5 个出口点的 Audit 持久化契约测试。
  *
  * <p>注入 {@link CapturingAuditRepository} 捕获每次 persist(outcome, request) 调用,
  * 分别触发:

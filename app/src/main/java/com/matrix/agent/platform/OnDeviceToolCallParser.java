@@ -27,7 +27,7 @@ import java.util.regex.Pattern;
  *   <li><b>OpenAI 风格</b>：{@code {"tool_calls":[{id,type,function:{name,arguments}}]}}。</li>
  * </ul>
  *
- * <p><b>fail-closed（P0-4）</b>：任一 call 校验失败（未知工具名 / 重复 ID / arguments JSON 损坏）
+ * <p><b>fail-closed</b>：任一 call 校验失败（未知工具名 / 重复 ID / arguments JSON 损坏）
  * 即判<b>整轮</b> protocolError，<b>不执行剩余有效 call</b>。
  *
  * <p>{@code LENGTH/CANCELLED/FAILED} 已由 OnDeviceModelGateway 过滤，不进本方法。
@@ -78,8 +78,8 @@ final class OnDeviceToolCallParser {
     static ParseResult parse(String output, Map<String, String> modelToCapability) {
         if (output == null || output.trim().isEmpty()) return ParseResult.text("");
 
-        // P0-4: 检测未闭合 <tool_call>（截断/畸形）→ 整轮 fail-closed，不当文本跳过让后续有效 call 执行
-        // P0-3: 开闭标签数量不匹配（含多余 </tool_call>）→ 整轮 fail-closed，不让有效 call 绕过校验
+        // 检测未闭合 <tool_call>（截断/畸形）→ 整轮 fail-closed，不当文本跳过让后续有效 call 执行
+        // 开闭标签数量不匹配（含多余 </tool_call>）→ 整轮 fail-closed，不让有效 call 绕过校验
         if (countStr(output, "<tool_call>") != countStr(output, "</tool_call>")) {
             return ParseResult.error(stripCallSegments(output));
         }
@@ -128,7 +128,7 @@ final class OnDeviceToolCallParser {
                 String id = o.optString("id", ""); // Qwen3 通常无 id
                 list.add(new RawCall(name, args, id.isEmpty() ? null : id));
             } catch (JSONException e) {
-                // P0-B: 成对标签但内容非法（非 JSON / 缺字段）→ fail-closed，不跳过让后续有效 call 执行
+                // 成对标签但内容非法（非 JSON / 缺字段）→ fail-closed，不跳过让后续有效 call 执行
                 list.add(new RawCall("", null, null));
             }
         }
@@ -172,7 +172,7 @@ final class OnDeviceToolCallParser {
             if (s.isEmpty()) return new LinkedHashMap<>();
             return toMap(new JSONObject(s));
         }
-        // P2-7: 非对象/字符串（JSONArray/Number/Boolean）→ fail-closed（不接受畸形 + 丢参数）
+        // 非对象/字符串（JSONArray/Number/Boolean）→ fail-closed（不接受畸形 + 丢参数）
         throw new JSONException("arguments 必须是 JSON object 或 string，实际: " + raw.getClass().getSimpleName());
     }
 
@@ -242,7 +242,7 @@ final class OnDeviceToolCallParser {
     private static String stableId(String name, Map<String, Object> args, int index) {
         String base = name + ":" + args.toString();
         int h = base.hashCode();
-        // P2-10: Math.abs(Integer.MIN_VALUE) 溢出仍负——用无符号转换避免畸形 id
+        // Math.abs(Integer.MIN_VALUE) 溢出仍负——用无符号转换避免畸形 id
         return "call_" + Integer.toUnsignedString(h, 36) + "_" + index;
     }
 

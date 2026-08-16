@@ -1,9 +1,9 @@
 package com.matrix.agent.core.agent;
 
 /**
- * V0.5.1 Stage 6 P1.1:KeystoreHmacAuditDigest 装配失败时的 fail-closed digest。
+ * KeystoreHmacAuditDigest 装配失败时的 fail-closed digest。
  *
- * <p><b>为何不退回 {@link Sha1AuditDigest}</b>:V0.5.1 Stage 4 把审计侧自由文本摘要从
+ * <p><b>为何不退回 {@link Sha1AuditDigest}</b>:审计侧自由文本摘要从
  * SHA-1 8 位升级到 HMAC-SHA-256 截断 16 位,根本原因是 SHA-1 8 位对低熵文本(电话号码 /
  * 短地址 / 固定指令)可被枚举比对——攻击者拿到审计 DB 后枚举常见电话号码 SHA-1 前 8 位
  * 反推原文。若 Keystore 异常设备仍退回 SHA-1,等于让那些设备重暴露于已识别的隐私风险。

@@ -20,7 +20,7 @@ import org.junit.runner.RunWith;
 import java.security.KeyStore;
 
 /**
- * V0.5.1 Stage 5:androidTest smoke —— APK 装到 emulator 后第一次端到端验证
+ * androidTest smoke —— APK 装到 emulator 后第一次端到端验证
  * SQLCipher + AndroidKeyStore 链路。
  *
  * <p>3 个 case 不依赖 AppContainer 自动装配(测试 Application 是默认 android.app.Application),

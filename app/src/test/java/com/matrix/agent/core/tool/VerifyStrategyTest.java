@@ -18,7 +18,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.Test;
 
 /**
- * V0.4.3 Stage D:3 个 VerifyStrategy 行为单元测试。
+ * 3 个 VerifyStrategy 行为单元测试。
  *
  * <p>使用 fake ProviderContext(直接构造 observedState / memoryStore)避免依赖完整 Provider。
  */

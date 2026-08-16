@@ -1,7 +1,7 @@
 package com.matrix.agent.core.tool;
 
 /**
- * V0.4.3 Stage D:单个 capability 的执行器。
+ * 单个 capability 的执行器。
  *
  * <p>替换 MockCapabilityProvider 既有 7 个 if-else 分支——每个 capability 一个 handler 实现,
  * 在 Provider 构造期注册到 {@code Map<String, CapabilityHandler>} 路由表,

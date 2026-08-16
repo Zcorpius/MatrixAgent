@@ -20,7 +20,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.Test;
 
 /**
- * V0.4.1 Stage B:CancellableModelCall 抽象测试。
+ * CancellableModelCall 抽象测试。
  *
  * <p>验证三个安全保证:
  * <ol>

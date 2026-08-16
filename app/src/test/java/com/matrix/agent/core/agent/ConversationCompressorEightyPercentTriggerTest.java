@@ -14,7 +14,7 @@ import com.matrix.agent.core.identity.AgentRequest;
 import com.matrix.agent.core.identity.Actor;
 
 /**
- * V0.5.2-rev 评审 P2-3:80% 主动触发阈值边界测试。
+ * 80% 主动触发阈值边界测试。
  *
  * <p>AgentEngine.tryCompressConversation 在循环顶部检查 chars > budget.totalInputChars × 0.8,
  * 触发后调用 ConversationCompressor.compress。本测试直接验证 compress 的阈值行为:

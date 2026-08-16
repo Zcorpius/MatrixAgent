@@ -20,7 +20,7 @@ public final class GatewayLifecycleManager {
 
     private final DynamicThreadPool ioPool;
     /**
-     * P2-24: drain 任务专用单线程 executor——避免 retireAsync 的 awaitDrained(30s) 长时间占用
+     * drain 任务专用单线程 executor——避免 retireAsync 的 awaitDrained(30s) 长时间占用
      * 共享 ioPool（会阻塞 ModelCallExecutor / ToolExecutor 等 I/O 任务排队）。daemon 线程，进程退出时回收。
      */
     private final java.util.concurrent.ExecutorService drainExecutor =
@@ -47,7 +47,7 @@ public final class GatewayLifecycleManager {
             return;
         }
         try {
-            // P2-24: drain 跑在专用单线程 executor，不占用共享 ioPool（awaitDrained 最长 30s 会堵 I/O 任务）
+            // drain 跑在专用单线程 executor，不占用共享 ioPool（awaitDrained 最长 30s 会堵 I/O 任务）
             drainExecutor.execute(new Runnable() {
                 @Override
                 public void run() {
@@ -67,14 +67,14 @@ public final class GatewayLifecycleManager {
                 }
             });
         } catch (java.util.concurrent.RejectedExecutionException rejected) {
-            // P1: ioPool 关闭/队列满——不在调用方线程阻塞（ANR 风险）。
+            // ioPool 关闭/队列满——不在调用方线程阻塞（ANR 风险）。
             // retire 已同步完成（gateway.retire() 在 L34 已执行，新请求被拒），
             // native 资源等进程退出回收——维持 retired 状态比阻塞 main thread 安全。
             Log.w(TAG, "[Lifecycle] ioPool rejected retire task — gateway retired, native defers to process exit");
         }
     }
 
-    /** P2-24: 关闭 drain 专用 executor（由 AppContainer.shutdown 调用）。 */
+    /** 关闭 drain 专用 executor（由 AppContainer.shutdown 调用）。 */
     public void shutdown() {
         drainExecutor.shutdown();
     }

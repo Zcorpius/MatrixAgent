@@ -11,14 +11,14 @@ import java.util.Map;
 import org.junit.Test;
 
 /**
- * V0.5.0 第二轮评审 P2.1:MemoryRecordDao / SessionHistoryDao 查询接口必须以
+ * MemoryRecordDao / SessionHistoryDao 查询接口必须以
  * (userId, zone) 作访问域——避免同一 Android User 不同 zone 的记忆被一并取出。
  *
- * <p>V0.5.0 没有真 Room 集成(走 APK 手动验证),用 fake in-memory DAO 实现验证
+ * <p>没有真 Room 集成(走 APK 手动验证),用 fake in-memory DAO 实现验证
  * SQL WHERE 条件包含 zone 字段——SQL 语句通过反射拿 @Query annotation 检查,
  * fake 实现按 (userId, zone) 过滤保证 caller 行为正确。
  *
- * <p>V0.5.1 引入 src/androidTest + inMemoryDatabaseBuilder 时,本测试可迁移到真 Room
+ * <p>引入 src/androidTest + inMemoryDatabaseBuilder 时,本测试可迁移到真 Room
  * 验证 SQL 实际生效;接口签名契约由 JVM 单测保底。
  */
 public final class MemoryRecordDaoZoneIsolationContractTest {
@@ -71,7 +71,7 @@ public final class MemoryRecordDaoZoneIsolationContractTest {
 
     /**
      * queryBySession 保留 sessionId-only 查询——sessionId 是主键一部分,
-     * 唯一即可定位行;V0.5.1 接入 UI 回放时调用方仍需校验 sessionId 归属。
+     * 唯一即可定位行;接入 UI 回放时调用方仍需校验 sessionId 归属。
      */
     @Test
     public void sessionHistoryQueryBySessionRemainsSessionIdOnly() {

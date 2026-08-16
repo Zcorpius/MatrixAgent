@@ -11,9 +11,9 @@ import java.util.Map;
 import org.junit.Test;
 
 /**
- * V0.4.3 Stage E:SteerMailbox.peekDeferred 回归测试。
+ * SteerMailbox.peekDeferred 回归测试。
  *
- * <p>V0.4.1 旧 hasDeferredSteer 调 drain() 把整个队列掏空,导致无 DEFER 时
+ * <p>旧的 hasDeferredSteer 调 drain() 把整个队列掏空,导致无 DEFER 时
  * REPROMPT/FORCE_TOOL 也被永久丢弃。peekDeferred 只看不动,保留非 DEFER 给下一轮 drain。
  */
 public final class SteerMailboxPeekTest {

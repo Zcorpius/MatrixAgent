@@ -16,8 +16,8 @@ import com.matrix.agent.core.identity.VehicleZone;
 import com.matrix.agent.core.session.SessionLockManager;
 
 /**
- * V0.5.3 评审 P1-4:CallerRunsPolicy 配置下,schedulerPool 队列满时不抛 RejectedExecutionException,
- * 而是让 caller 线程同步执行任务——证明 V0.5.3 之前(默认 3 参 CallerRunsPolicy)
+ * CallerRunsPolicy 配置下,schedulerPool 队列满时不抛 RejectedExecutionException,
+ * 而是让 caller 线程同步执行任务——证明此前(默认 3 参 CallerRunsPolicy)
  * TaskScheduler.submit 的 catch (RejectedExecutionException) 是死代码。
  *
  * <p>对比测试:同配置(core=1/max=1/queue=1),CallerRunsPolicy 永远不进 REJECTED 路径;

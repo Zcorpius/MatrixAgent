@@ -12,9 +12,9 @@ import org.json.JSONObject;
 import com.matrix.agent.core.identity.AgentRequest;
 
 /**
- * V0.5.4 评审 P1-3:Episodic 写入的安全摘要值对象——替代 {@code TrajectoryCodec.encode(outcome)}。
+ * Episodic 写入的安全摘要值对象——替代 {@code TrajectoryCodec.encode(outcome)}。
  *
- * <p>问题背景:V0.5.3 把 {@code TrajectoryCodec.encode(outcome)} 整段 JSON 塞进
+ * <p>问题背景:此前把 {@code TrajectoryCodec.encode(outcome)} 整段 JSON 塞进
  * {@code session_history.trajectoryJson} 列——完整 requestId / iterations / assistant.content /
  * tool arguments / tool observation result 全部落表。完整用户原文 echo、地址/电话 PII、
  * 命令执行结果,既无大小限制也无脱敏策略。
@@ -41,9 +41,9 @@ import com.matrix.agent.core.identity.AgentRequest;
  * 等其他终态全部 shouldSkip=true,RoomMemoryWriter 不写新行。用户指定——这些终态对 Episodic 召回
  * 价值低,且 CANCELLED 可能含用户隐私意图("取消去医院的导航")。
  *
- * <p>V0.5.5 P2-A:PARTIALLY_SUCCEEDED 也归 shouldSkip=true。V0.5.4 计划与用户确认的是仅
- * SUCCEEDED / FAILED,V0.5.4 实现时擅自加入 PARTIALLY_SUCCEEDED(语义上部分成功不代表完整意图,
- * 且 finalState 字段会让模型误判为"已执行"参考)。V0.5.6 若用户确认要写入再加回。
+ * <p>PARTIALLY_SUCCEEDED 也归 shouldSkip=true。原计划与用户确认的是仅
+ * SUCCEEDED / FAILED,实现时擅自加入 PARTIALLY_SUCCEEDED(语义上部分成功不代表完整意图,
+ * 且 finalState 字段会让模型误判为"已执行"参考)。若用户确认要写入再加回。
  *
  * <p><b>大小限制</b>:summaryJson.length() ≤ 2048(2KB)——超长截断 successfulCapabilities
  * 至 0 个,仍超长则返回最小 stub。EpisodicMemorySourceImpl.toSnippets 不读 trajectoryJson
@@ -61,8 +61,8 @@ public final class EpisodicSummary {
     private static final Set<TaskState> PERSISTED_STATES;
     static {
         // 用户指定:仅 SUCCEEDED / FAILED 写入。
-        // V0.5.4 曾擅自加入 PARTIALLY_SUCCEEDED;V0.5.5 P2-A 移除——不在用户确认的范围内,
-        // 且语义上部分成功不代表完整意图。V0.5.6 若用户确认要写入再加回。
+        // 曾擅自加入 PARTIALLY_SUCCEEDED;后续移除——不在用户确认的范围内,
+        // 且语义上部分成功不代表完整意图。若用户确认要写入再加回。
         Set<TaskState> states = new LinkedHashSet<>();
         states.add(TaskState.SUCCEEDED);
         states.add(TaskState.FAILED);

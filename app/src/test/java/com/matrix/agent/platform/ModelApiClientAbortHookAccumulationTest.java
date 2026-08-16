@@ -7,9 +7,9 @@ import org.junit.Test;
 import com.matrix.agent.core.identity.CancellationToken;
 
 /**
- * V0.4.3 Round 2:验证 ModelApiClient.post 的 abort hook 不会因 Runnable 实例不同而累积。
+ * 验证 ModelApiClient.post 的 abort hook 不会因 Runnable 实例不同而累积。
  *
- * <p>P2.1 修复:旧实现两次 {@code connection::disconnect} 求值产生两个不同 Runnable
+ * <p>旧实现两次 {@code connection::disconnect} 求值产生两个不同 Runnable
  * (绑定实例方法引用每次评估都新建实例),CopyOnWriteArrayList.remove() 用 equals 比对,
  * 移除失败 → 已结束请求的 hook 永远累积在 token.abortHooks 中,长期运行内存泄漏。
  *

@@ -16,9 +16,9 @@ public final class MatrixAgentApplication extends Application {
     }
 
     /**
-     * V0.4.3 Round 2:释放 scheduler workers。
+     * 释放 scheduler workers。
      *
-     * <p>V0.5.2-rev 评审 P2-5:统一调用 {@link AppContainer#shutdown()},按顺序关闭
+     * <p>统一调用 {@link AppContainer#shutdown()},按顺序关闭
      * Repository / schedulerPool / ioPool / auditEventRecorder。
      *
      * <p>注意:Android 真机不保证调用 onTerminate,该方法仅给模拟器 / 集成测试使用。

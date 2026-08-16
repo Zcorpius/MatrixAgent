@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Debug 语音调试专用:Vosk 采音(运行时权限,AudioRecord 实际申请)。Release 不声明。 -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+</manifest>

@@ -1,9 +1,9 @@
 package com.matrix.agent.core.identity;
 
 /**
- * V0.4.3 Round 3 P1.1:模型调用前的查询/写意图分类器。
+ * 模型调用前的查询/写意图分类器。
  *
- * <p>问题背景:V0.4.3 Round 2 把 Repository 所有请求都标为 {@code readOnlyHint=true}
+ * <p>问题背景:早期把 Repository 所有请求都标为 {@code readOnlyHint=true}
  * 让主驾优先调度可触发,但这违反了"车控写操作不能被半路强制中断"的安全规则——
  * 主驾"打开空调""设座椅加热"等写操作也会抢占副驾的写操作。
  *
@@ -15,26 +15,26 @@ package com.matrix.agent.core.identity;
  *   <li>未知 / 模糊 / 同时含读写关键词 → {@code false}(保守,按写操作处理)</li>
  * </ul>
  *
- * <p>V0.4.3 提供默认实现 {@link KeywordIntentClassifier}——简单关键词匹配。
- * V0.5.0 可替换为 LLM-based classifier / Embedding classifier,接口签名不变。
+ * <p>提供默认实现 {@link KeywordIntentClassifier}——简单关键词匹配。
+ * 后续可替换为 LLM-based classifier / Embedding classifier,接口签名不变。
  *
- * <p><b>V0.5.2 Stage 9</b>:新增 {@link #classify(String)} 返回结构化
+ * <p>新增 {@link #classify(String)} 返回结构化
  * {@link IntentResult}(read-only/write/unknown + 置信度 + 理由)。旧 {@link #isReadOnly(String)}
- * 保留 default 实现(转发 {@code classify(...).isReadOnly()}),V0.4.3 调用方零回归——
+ * 保留 default 实现(转发 {@code classify(...).isReadOnly()}),调用方零回归——
  * Repository 主路径同时切换为 classify,在 confidence<0.7 时按写操作保守处理。
  */
 public interface IntentClassifier {
     /**
-     * V0.4.3 旧 API——boolean 形式的意图判定。
+     * 旧 API——boolean 形式的意图判定。
      *
-     * <p>V0.5.2 Stage 9 起默认实现转发 {@link #classify(String)};实现方应优先实现 classify。
+     * <p>默认实现转发 {@link #classify(String)};实现方应优先实现 classify。
      */
     default boolean isReadOnly(String command) {
         return classify(command).isReadOnly();
     }
 
     /**
-     * V0.5.2 Stage 9 新 API——结构化意图分类(支持 LLM-based classifier 输出模糊判定)。
+     * 新 API——结构化意图分类(支持 LLM-based classifier 输出模糊判定)。
      *
      * @param command 用户原始 command 文本
      * @return IntentResult(非 null,unknown 情况下 readOnly=false confidence<0.7)

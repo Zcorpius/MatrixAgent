@@ -9,7 +9,7 @@ import java.util.List;
 /**
  * Agent Loop 单次 execute 的对外结果。
  *
- * <p>第三轮复审 P2-1 修复:数据分两层,避免 Audit Trajectory 成为真实 ToolResult 的唯一数据源。
+ * <p>数据分两层,避免 Audit Trajectory 成为真实 ToolResult 的唯一数据源。
  * <ul>
  *   <li>{@link #getTrajectory()} —— Audit 视图,字段级脱敏。UI/Log/未来持久化用。</li>
  *   <li>{@link #getInternalResults()} —— Runtime 内部可信域,保留真实 ToolResult。

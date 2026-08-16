@@ -18,7 +18,7 @@ import com.matrix.agent.core.tool.ToolCall;
 import com.matrix.agent.core.tool.ToolResult;
 
 /**
- * V0.5.4 评审 P1-3:EpisodicSummary.successfulCapabilities 去重 + ≤3 截断测试。
+ * EpisodicSummary.successfulCapabilities 去重 + ≤3 截断测试。
  *
  * <p>用户硬约束:"最多 3 个能力"。任务调 10 个工具也只记前 3 个(去重),
  * 防止大表撑爆。EpisodicMemorySourceImpl.toSnippets 不读 trajectoryJson,所以截断不影响召回。

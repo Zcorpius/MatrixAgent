@@ -6,7 +6,7 @@ import java.util.Set;
 import java.util.regex.Pattern;
 
 /**
- * 第七轮 P2-4:统一安全日志入口——所有受治理日志(用户输入、Tool 参数、ToolResult message、
+ * 统一安全日志入口——所有受治理日志(用户输入、Tool 参数、ToolResult message、
  * HTTP 错误响应、模型 raw response)必须过本类,**禁止**在业务代码直接调 {@link android.util.Log}
  * 打印这些字段。
  *

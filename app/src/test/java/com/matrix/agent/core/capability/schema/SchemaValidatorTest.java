@@ -12,10 +12,10 @@ import java.util.Map;
 import org.junit.Test;
 
 /**
- * V0.4.2 Stage B:SchemaValidator 单元测试。
+ * SchemaValidator 单元测试。
  *
  * <p>覆盖所有 {@link SchemaErrorCode}、嵌套 array/object、composition、
- * 以及 V0.4.0 quirks 兼容性(必须保留):
+ * 以及旧版 quirks 兼容性(必须保留):
  * <ol>
  *   <li>enum 字符串大小写不敏感匹配</li>
  *   <li>integer enum 用 {@code String.valueOf((int)v)} 比对</li>
@@ -97,7 +97,7 @@ public final class SchemaValidatorTest {
                 .build();
         ValidationResult r = validate(schema, args("temperature", 24.5));
         assertFalse(r.isOk());
-        // 24.5 不是整数值 → type 校验失败(TYPE_MISMATCH),V0.4.0 行为
+        // 24.5 不是整数值 → type 校验失败(TYPE_MISMATCH),历史行为
         assertEquals(SchemaErrorCode.TYPE_MISMATCH, r.firstErrorCode());
     }
 
@@ -136,7 +136,7 @@ public final class SchemaValidatorTest {
         assertEquals(SchemaErrorCode.ENUM_VIOLATION, r.firstErrorCode());
     }
 
-    /** V0.4.0 quirk:STRING enum 大小写不敏感匹配。 */
+    /** 旧版 quirk:STRING enum 大小写不敏感匹配。 */
     @Test
     public void enumStringMatchIsCaseInsensitive() {
         CanonicalSchema schema = CanonicalSchema.object()
@@ -144,12 +144,12 @@ public final class SchemaValidatorTest {
                         .enumValues("Driver", "Passenger").build())
                 .additionalProperties(false)
                 .build();
-        // "driver" 小写应匹配 "Driver"——V0.4.0 equalsIgnoreCase 行为
+        // "driver" 小写应匹配 "Driver"——equalsIgnoreCase 行为
         ValidationResult r = validate(schema, args("zone", "driver"));
         assertTrue("enum 大小写不敏感匹配应通过:" + r.getErrors(), r.isOk());
     }
 
-    /** V0.4.0 quirk:INTEGER enum 用 String.valueOf((int)v) 比对。 */
+    /** 旧版 quirk:INTEGER enum 用 String.valueOf((int)v) 比对。 */
     @Test
     public void integerEnumUsesStringValueOfComparison() {
         CanonicalSchema schema = CanonicalSchema.object()
@@ -157,7 +157,7 @@ public final class SchemaValidatorTest {
                         .enumValues("0", "1", "2").build())
                 .additionalProperties(false)
                 .build();
-        // 传 Integer 1,enum 是字符串 "1"——V0.4.0 用 String.valueOf((int)v) 比对
+        // 传 Integer 1,enum 是字符串 "1"——用 String.valueOf((int)v) 比对
         ValidationResult r = validate(schema, args("level", 1));
         assertTrue("integer enum String.valueOf 比对应通过:" + r.getErrors(), r.isOk());
     }
@@ -203,7 +203,7 @@ public final class SchemaValidatorTest {
                 .additionalProperties(false)
                 .build();
         ValidationResult r = validate(schema, args("destination", "   "));
-        // V0.4.0 quirk:trim().isEmpty() 拒绝
+        // 旧版 quirk:trim().isEmpty() 拒绝
         assertEquals(SchemaErrorCode.EMPTY_STRING, r.firstErrorCode());
     }
 

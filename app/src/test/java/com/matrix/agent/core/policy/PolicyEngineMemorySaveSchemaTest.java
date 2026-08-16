@@ -17,7 +17,7 @@ import com.matrix.agent.core.identity.VehicleZone;
 import com.matrix.agent.core.tool.ToolCall;
 
 /**
- * V0.5.5 P2-B:PolicyEngine 必须用 CapabilityRegistry.memory.semantic.save 的 schema
+ * PolicyEngine 必须用 CapabilityRegistry.memory.semantic.save 的 schema
  * (pattern + maxLength)拒绝非法 key / value,作为模型可见 + 模型可修正的第一道关。
  *
  * <p>用户硬约束:"memory.semantic.save 只接受明确支持的 key namespace,例如 family.* /
@@ -46,7 +46,7 @@ public final class PolicyEngineMemorySaveSchemaTest {
     private static AgentRequest allowSaveRequest() {
         return AgentRequest.builder("记住我对花生过敏", Actor.DRIVER)
                 .occupantZone(VehicleZone.DRIVER)
-                .memorySaveAllowed(true)  // P1-A gate 放行,专注 schema 校验
+                .memorySaveAllowed(true)  // gate 放行,专注 schema 校验
                 .build();
     }
 

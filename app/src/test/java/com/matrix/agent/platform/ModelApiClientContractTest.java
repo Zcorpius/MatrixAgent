@@ -91,7 +91,7 @@ public final class ModelApiClientContractTest {
 
     @Test(expected = IllegalArgumentException.class)
     public void nativeModeRejectsUnsupportedProviderProtocol() {
-        // V0.5.2 Stage 10:Gemini 已支持 NATIVE_TOOL_CALLING,改用 OLLAMA_CHAT 作不支持协议。
+        // Gemini 已支持 NATIVE_TOOL_CALLING,改用 OLLAMA_CHAT 作不支持协议。
         new ModelConfig("ollama", "Ollama", ApiProtocol.OLLAMA_CHAT,
                 "http://10.0.2.2:11434/api/chat", "llama3", "", false,
                 PlannerMode.NATIVE_TOOL_CALLING).validate();
@@ -99,7 +99,7 @@ public final class ModelApiClientContractTest {
 
     @Test
     public void geminiNativeModeIsAllowedAndBuildsCanonicalRequest() throws Exception {
-        // V0.5.2 Stage 10:Gemini 加入 NATIVE_TOOL_CALLING 白名单。
+        // Gemini 加入 NATIVE_TOOL_CALLING 白名单。
         ModelConfig gemini = new ModelConfig("gemini", "Gemini",
                 ApiProtocol.GEMINI_GENERATE_CONTENT,
                 "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
@@ -162,7 +162,7 @@ public final class ModelApiClientContractTest {
                 .put("name", "vehicle_climate_set_temperature")
                 .put("input", new JSONObject().put("zone", "driver").put("temperature", 24)));
         response.put("content", content);
-        // 第七轮 P2-1:tool_use 出现时 stop_reason 必须为 tool_use,否则 PROTOCOL_ERROR
+        // tool_use 出现时 stop_reason 必须为 tool_use,否则 PROTOCOL_ERROR
         response.put("stop_reason", "tool_use");
 
         ModelTurn turn = ModelApiClient.parseAnthropicToolResponse(response, tools);
@@ -220,7 +220,7 @@ public final class ModelApiClientContractTest {
                 toolResults.getJSONObject(1).getString("tool_use_id"));
     }
 
-    // ===== OpenAI-Compatible 原生多轮 Tool Calling 契约测试(V0.4.0 第四轮 P1-1) =====
+    // ===== OpenAI-Compatible 原生多轮 Tool Calling 契约测试 =====
 
     /**
      * 多轮 conversation 序列化为 OpenAI messages 时,四种 role 都要按协议正确转:
@@ -380,7 +380,7 @@ public final class ModelApiClientContractTest {
         ModelApiClient.parseOpenAiToolResponse(response, tools);
     }
 
-    /** 第四轮 P2-1:OpenAI 响应缺失 tool_calls[].id 必须显式失败,不能静默补 UUID。 */
+    /** OpenAI 响应缺失 tool_calls[].id 必须显式失败,不能静默补 UUID。 */
     @Test(expected = IllegalStateException.class)
     public void openAiNativeResponseRejectsMissingToolCallId() throws Exception {
         JSONObject function = new JSONObject()
@@ -395,7 +395,7 @@ public final class ModelApiClientContractTest {
         ModelApiClient.parseOpenAiToolResponse(response, tools);
     }
 
-    /** 第四轮 P2-1:同一 assistant message 中重复 id 必须显式失败。 */
+    /** 同一 assistant message 中重复 id 必须显式失败。 */
     @Test(expected = IllegalStateException.class)
     public void openAiNativeResponseRejectsDuplicateToolCallIds() throws Exception {
         JSONObject toolCall1 = openAiToolCall("call_dup",
@@ -410,7 +410,7 @@ public final class ModelApiClientContractTest {
         ModelApiClient.parseOpenAiToolResponse(response, tools);
     }
 
-    /** 第四轮 P2-1:Anthropic 响应缺失 tool_use.id 必须显式失败。 */
+    /** Anthropic 响应缺失 tool_use.id 必须显式失败。 */
     @Test(expected = IllegalStateException.class)
     public void anthropicNativeResponseRejectsMissingToolUseId() throws Exception {
         JSONObject block = new JSONObject()
@@ -423,7 +423,7 @@ public final class ModelApiClientContractTest {
         ModelApiClient.parseAnthropicToolResponse(response, tools);
     }
 
-    /** 第四轮 P2-1:Anthropic 响应重复 tool_use.id 必须显式失败。 */
+    /** Anthropic 响应重复 tool_use.id 必须显式失败。 */
     @Test(expected = IllegalStateException.class)
     public void anthropicNativeResponseRejectsDuplicateToolUseIds() throws Exception {
         JSONArray content = new JSONArray();
@@ -444,7 +444,7 @@ public final class ModelApiClientContractTest {
     }
 
     /**
-     * 第四轮 P2-2:OpenAI finish_reason=length 必须映射为 FinishReason.LENGTH,
+     * OpenAI finish_reason=length 必须映射为 FinishReason.LENGTH,
      * 而不是被错判为正常 STOP。AgentEngine 据此走 LENGTH_EXCEEDED,不会 SUCCEEDED。
      */
     @Test
@@ -461,7 +461,7 @@ public final class ModelApiClientContractTest {
     }
 
     /**
-     * 第五轮 P1-4:LENGTH 即使伴随 tool_calls 也必须短路——max_tokens 截断发生在生成过程中,
+     * LENGTH 即使伴随 tool_calls 也必须短路——max_tokens 截断发生在生成过程中,
      * 无法保证 arguments JSON 完整。旧实现只在无 tool_calls 分支映射 LENGTH,
      * 导致 LENGTH + tool_calls 被强制为 TOOL_CALLS 执行半截参数。
      */
@@ -479,7 +479,7 @@ public final class ModelApiClientContractTest {
     }
 
     /**
-     * 第五轮 P1-4:Anthropic stop_reason=max_tokens 即使伴随 tool_use block 也必须短路——
+     * Anthropic stop_reason=max_tokens 即使伴随 tool_use block 也必须短路——
      * 与 OpenAI 路径同样理由:max_tokens 截断发生时 input JSON 可能不完整。
      */
     @Test
@@ -502,7 +502,7 @@ public final class ModelApiClientContractTest {
         assertEquals(FinishReason.LENGTH, turn.getFinishReason());
     }
 
-    /** 第四轮 P2-2:OpenAI finish_reason 缺失/未知 → NONE(协议不一致,AgentEngine 不据此判定成功)。 */
+    /** OpenAI finish_reason 缺失/未知 → NONE(协议不一致,AgentEngine 不据此判定成功)。 */
     @Test
     public void openAiNativeUnknownFinishReasonMapsToNone() throws Exception {
         JSONObject response = new JSONObject()
@@ -515,7 +515,7 @@ public final class ModelApiClientContractTest {
         assertEquals(FinishReason.NONE, turn.getFinishReason());
     }
 
-    /** 第四轮 P2-2:Anthropic stop_reason=max_tokens → LENGTH。 */
+    /** Anthropic stop_reason=max_tokens → LENGTH。 */
     @Test
     public void anthropicNativeMaxTokensStopReasonMapsToLength() throws Exception {
         JSONObject response = new JSONObject()
@@ -529,7 +529,7 @@ public final class ModelApiClientContractTest {
         assertEquals(FinishReason.LENGTH, turn.getFinishReason());
     }
 
-    /** 第四轮 P2-2:Anthropic stop_reason=end_turn → STOP(正常完成)。 */
+    /** Anthropic stop_reason=end_turn → STOP(正常完成)。 */
     @Test
     public void anthropicNativeEndTurnStopReasonMapsToStop() throws Exception {
         JSONObject response = new JSONObject()
@@ -543,10 +543,10 @@ public final class ModelApiClientContractTest {
         assertEquals(FinishReason.STOP, turn.getFinishReason());
     }
 
-    // ===== 第七轮 P2-1:ToolCall 与 Provider FinishReason 一致性校验 =====
+    // ===== ToolCall 与 Provider FinishReason 一致性校验 =====
 
     /**
-     * 第七轮 P2-1:OpenAI 返回 tool_calls 但 finish_reason=stop → PROTOCOL_ERROR,不得执行工具。
+     * OpenAI 返回 tool_calls 但 finish_reason=stop → PROTOCOL_ERROR,不得执行工具。
      * 不规范本地服务或被篡改响应可能产生这种组合,核心解析器不能无条件放宽。
      */
     @Test
@@ -563,7 +563,7 @@ public final class ModelApiClientContractTest {
     }
 
     /**
-     * 第七轮 P2-1:OpenAI 返回 tool_calls 但 finish_reason 缺失 → PROTOCOL_ERROR。
+     * OpenAI 返回 tool_calls 但 finish_reason 缺失 → PROTOCOL_ERROR。
      */
     @Test
     public void openAiNativeToolCallsWithMissingFinishReasonIsProtocolError() throws Exception {
@@ -584,7 +584,7 @@ public final class ModelApiClientContractTest {
     }
 
     /**
-     * 第七轮 P2-1:OpenAI 返回 tool_calls 但 finish_reason=未知值(如 content_filter)→ PROTOCOL_ERROR。
+     * OpenAI 返回 tool_calls 但 finish_reason=未知值(如 content_filter)→ PROTOCOL_ERROR。
      */
     @Test
     public void openAiNativeToolCallsWithUnknownFinishReasonIsProtocolError() throws Exception {
@@ -600,7 +600,7 @@ public final class ModelApiClientContractTest {
     }
 
     /**
-     * 第七轮 P2-1:Anthropic 返回 tool_use 但 stop_reason=end_turn → PROTOCOL_ERROR。
+     * Anthropic 返回 tool_use 但 stop_reason=end_turn → PROTOCOL_ERROR。
      */
     @Test
     public void anthropicNativeToolUseWithEndTurnStopReasonIsProtocolError() throws Exception {
@@ -621,7 +621,7 @@ public final class ModelApiClientContractTest {
     }
 
     /**
-     * 第七轮 P2-1:Anthropic 返回 tool_use 但 stop_reason 缺失 → PROTOCOL_ERROR。
+     * Anthropic 返回 tool_use 但 stop_reason 缺失 → PROTOCOL_ERROR。
      */
     @Test
     public void anthropicNativeToolUseWithMissingStopReasonIsProtocolError() throws Exception {
@@ -680,7 +680,7 @@ public final class ModelApiClientContractTest {
     }
 
     /**
-     * 第七轮 P2-1:OpenAI 协议规定返回 tool_calls 时 finish_reason 必须为 "tool_calls"。
+     * OpenAI 协议规定返回 tool_calls 时 finish_reason 必须为 "tool_calls"。
      * 测试辅助方法默认带上正确 finish_reason;需要测试不一致组合的用例显式覆盖。
      */
     private static JSONObject openAiResponseWithToolCall(String id, String modelName,

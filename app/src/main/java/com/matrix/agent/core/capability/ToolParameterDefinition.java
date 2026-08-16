@@ -68,7 +68,7 @@ public final class ToolParameterDefinition {
         }
         public Builder range(double min, double max) { minimum = min; maximum = max; return this; }
         /**
-         * 标记此参数为业务敏感字段(第四轮 P1-2)——AuditRedactor 会把 value 替换为占位符,
+         * 标记此参数为业务敏感字段——AuditRedactor 会把 value 替换为占位符,
          * 不进 Trajectory / UI / 日志。模型仍能看到真实值(ModelSanitizer 不脱敏业务字段)。
          */
         public Builder sensitive(boolean value) { sensitive = value; return this; }

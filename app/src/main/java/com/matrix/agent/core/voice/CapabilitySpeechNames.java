@@ -5,13 +5,13 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * capabilityName → 中文友好播报名映射。Voice V1。
+ * capabilityName → 中文友好播报名映射。
  *
  * <p>代码库目前没有 capability 的用户可读名({@code CapabilityDefinition} 只有 id 和自由文本
  * description,无 displayName)。{@link ResponsePresenter} 用本表把 capability id 翻译成
  * 口语短语;命中返回友好名,未命中返回兜底 {@link #FALLBACK}。
  *
- * <p>V1 硬编码核心能力,后续可按需扩展或改为配置。前缀 {@code memory.preference.} 走通配:
+ * <p>硬编码核心能力,后续可按需扩展或改为配置。前缀 {@code memory.preference.} 走通配:
  * 任何以该前缀开头的能力都映射为"记下你的偏好"。
  */
 public final class CapabilitySpeechNames {

@@ -17,7 +17,7 @@ import com.matrix.agent.data.db.AuditEventDao;
 import com.matrix.agent.data.db.AuditEventEntity;
 
 /**
- * V0.5.2 Stage 4:AuditEventRecorder JVM 契约测试。
+ * AuditEventRecorder JVM 契约测试。
  *
  * <p>用 fake in-memory DAO + 同步 Executor 验证:
  * <ul>

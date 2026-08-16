@@ -16,7 +16,7 @@ import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
 
 /**
- * V0.5.1 Stage 4:审计侧自由文本 HMAC-SHA-256 摘要——AndroidKeyStore 派生密钥,
+ * 审计侧自由文本 HMAC-SHA-256 摘要——AndroidKeyStore 派生密钥,
  * 截断 16 位 hex,杜绝 SHA-1 8 位的低熵枚举比对攻击。
  *
  * <p><b>选型理由</b>:
@@ -29,14 +29,14 @@ import javax.crypto.spec.SecretKeySpec;
  * </ul>
  *
  * <p><b>密钥生命周期</b>:别名 {@code matrix_audit_hmac_key} 在 AndroidKeyStore 内,
- * 与 V0.5.0 {@code matrix_db_master_key} 独立。KeyStore 不导出原始密钥材料,
+ * 与旧版 {@code matrix_db_master_key} 独立。KeyStore 不导出原始密钥材料,
  * 非 debuggable 设备上其他进程无法读取。
  *
  * <p><b>失败语义</b>:构造失败(KeyStore 不可用 / KEY_ALIAS 已存在但类型不匹配)
  * 抛 {@link IllegalStateException}——{@code AppContainer} 捕获后退回
  * {@code com.matrix.agent.core.agent.UnavailableAuditDigest}(fail-closed 不可比对)。
- * V0.5.1 Stage 6 P1.1 修正:不再退回 {@link Sha1AuditDigest}——评审指出 SHA-1 8 位
- * 低熵枚举正是 Stage 4 要修的风险,Keystore 异常设备上不能重暴露。
+ * 修正:不再退回 {@link Sha1AuditDigest}——评审指出 SHA-1 8 位
+ * 低熵枚举正是本实现要修的风险,Keystore 异常设备上不能重暴露。
  *
  * <p><b>设计选择:为何不在构造期预生成密钥</b>:首次调用 digest() 时 lazy 创建,
  * 避免 APK 冷启动多一个 Keystore 操作(Keystore 在 emulator 上 100~300ms)。
@@ -110,7 +110,7 @@ public final class KeystoreHmacAuditDigest implements AuditDigest {
     }
 
     /**
-     * V0.5.1 Stage 4 测试钩子:用 in-memory key 直接构造,绕过 AndroidKeyStore。
+     * 测试钩子:用 in-memory key 直接构造,绕过 AndroidKeyStore。
      * 仅单元测试用(KeystoreHmacAuditDigestTest androidTest 真路径验证)。
      */
     KeystoreHmacAuditDigest(byte[] rawKeyForTesting) {

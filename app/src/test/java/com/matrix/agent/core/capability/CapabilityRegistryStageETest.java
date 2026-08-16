@@ -15,11 +15,11 @@ import java.util.List;
 import org.junit.Test;
 
 /**
- * V0.4.2 Stage E:CapabilityRegistry zone 过滤 + readOnlyHint 派生测试。
+ * CapabilityRegistry zone 过滤 + readOnlyHint 派生测试。
  */
 public final class CapabilityRegistryStageETest {
 
-    /** 默认 toToolDefinitions() 不过滤——10 个 capability 都暴露(V0.5.3 P1-1 加 memory.semantic.* 2 个)。 */
+    /** 默认 toToolDefinitions() 不过滤——10 个 capability 都暴露(新增 memory.semantic.* 2 个)。 */
     @Test
     public void toToolDefinitionsNoZoneReturnsAll() {
         List<ToolDefinition> tools = CapabilityRegistry.createDemoRegistry().toToolDefinitions();
@@ -101,7 +101,7 @@ public final class CapabilityRegistryStageETest {
         assertFalse(registry.deriveReadOnlyHint(Collections.emptyList()));
     }
 
-    /** V0.4.3 Stage C:deriveReadOnlyHint(VehicleZone) overload——demo registry 任一 zone 都含写 → false。 */
+    /** deriveReadOnlyHint(VehicleZone) overload——demo registry 任一 zone 都含写 → false。 */
     @Test
     public void deriveReadOnlyHintByZoneReturnsFalseForWriteableZone() {
         CapabilityRegistry registry = CapabilityRegistry.createDemoRegistry();

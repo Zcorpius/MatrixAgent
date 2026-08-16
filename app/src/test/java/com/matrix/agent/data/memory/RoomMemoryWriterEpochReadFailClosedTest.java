@@ -23,20 +23,20 @@ import com.matrix.agent.data.db.SessionHistoryDao;
 import com.matrix.agent.data.db.SessionHistoryEntity;
 
 /**
- * V0.5.5 P1-B:RoomMemoryWriter epoch 查询失败 fail-closed 测试。
+ * RoomMemoryWriter epoch 查询失败 fail-closed 测试。
  *
  * <p>用户硬约束:"系统 epoch 行不存在与查询失败不能用同一个 0L 表示... DAO 异常、
  * 格式错误、事务异常必须直接拒绝写入。写入路径遵循 fail-closed"。
  *
- * <p>V0.5.4 老代码 {@code readEpochFromSystemRow} catch 所有异常返回 0L——把"读取失败"
+ * <p>老代码 {@code readEpochFromSystemRow} catch 所有异常返回 0L——把"读取失败"
  * 伪装成"epoch=0"。若旧任务 requestEpoch=0 + clearUserData 后真实 epoch 已 bump +
  * 此刻 epoch 行 SELECT 临时抛(SQLite locked / disk I/O / parse error)→ currentEpoch=0
  * == requestEpoch=0 → 事务通过 → 陈旧写入被持久化。
  *
- * <p>V0.5.5 改 fail-closed:
+ * <p>改 fail-closed:
  * <ul>
  *   <li>row 存在 + value 合法 long → 返回包装值</li>
- *   <li>row 不存在 / value null → 返回 0L(合法初始 epoch,等价 V0.5.4)</li>
+ *   <li>row 不存在 / value null → 返回 0L(合法初始 epoch,等价旧版)</li>
  *   <li>DAO 异常 / parse 失败 / dao==null → null(事务内 return,拒绝写入)</li>
  * </ul>
  *
@@ -88,7 +88,7 @@ public final class RoomMemoryWriterEpochReadFailClosedTest {
     @Test
     public void missingEpochRowWithZeroRequestEpochStillWrites() {
         // row 缺失(不 seedEpoch) → readEpochFromSystemRow 返回 0L(合法初始,与 fail-closed 区分)
-        // requestEpoch=0 + currentEpoch=0 → 写入允许,与 V0.5.4 行为等价
+        // requestEpoch=0 + currentEpoch=0 → 写入允许,与旧版行为等价
         CountingSessionDao sessionDao = new CountingSessionDao();
         FakeEmptyMemoryDao memoryDao = new FakeEmptyMemoryDao();  // store 空,queryByKey 返回 null
         RoomMemoryWriter writer = new RoomMemoryWriter(sessionDao, memoryDao, null, syncRunner());

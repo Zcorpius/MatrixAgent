@@ -44,7 +44,7 @@ public final class ModelApiClient implements LlmClient {
     private static final int READ_TIMEOUT_MS = 90_000;
 
     /**
-     * V0.5.2 Stage 10:重试策略——对 RateLimitException(429)/ ServerException(5xx)
+     * 重试策略——对 RateLimitException(429)/ ServerException(5xx)
      * 指数退避重试 3 次;ClientException(4xx)/ NetworkException / TimeoutException 不重试。
      *
      * <p>主路径 complete / callAnthropicWithTools / callOpenAiWithTools / callGemini
@@ -52,22 +52,22 @@ public final class ModelApiClient implements LlmClient {
      */
     private final RetryPolicy retryPolicy = new RetryPolicy();
 
-    /** V0.5.2 Stage 10:测试可见——暴露当前 RetryPolicy(只读,不替换)。 */
+    /** 测试可见——暴露当前 RetryPolicy(只读,不替换)。 */
     RetryPolicy getRetryPolicy() {
         return retryPolicy;
     }
 
     /**
-     * V0.5.2 Stage 10:统一重试入口——业务调用包装在 lambda 中,RetryPolicy 自动重试。
+     * 统一重试入口——业务调用包装在 lambda 中,RetryPolicy 自动重试。
      *
-     * <p>V0.5.2-rev 评审 P2-1:旧重载转发到新 cancel+deadline 重载,默认 token=null + 不限 deadline。
+     * <p>旧重载转发到新 cancel+deadline 重载,默认 token=null + 不限 deadline。
      */
     private <T> T invokeWithRetry(RetryPolicy.CallableWithRetry<T> action) throws Exception {
         return invokeWithRetry(action, null, Long.MAX_VALUE);
     }
 
     /**
-     * V0.5.2-rev 评审 P2-1:cancel + deadline 感知的重试入口——直接转发给 RetryPolicy 新重载。
+     * cancel + deadline 感知的重试入口——直接转发给 RetryPolicy 新重载。
      */
     private <T> T invokeWithRetry(RetryPolicy.CallableWithRetry<T> action, CancellationToken token,
             long deadlineAtMillis) throws Exception {
@@ -80,7 +80,7 @@ public final class ModelApiClient implements LlmClient {
     }
 
     /**
-     * V0.5.2-rev 评审 P2-1:cancel + deadline 感知的 complete 重载。
+     * cancel + deadline 感知的 complete 重载。
      *
      * <p>LlmModelGateway 从 AgentRequest 取 token+deadline 透传过来;LlmIntentClassifier 用 3s 短 deadline;
      * LlmSummaryProvider 用 min(10s, request.remainingMillis())。
@@ -94,7 +94,7 @@ public final class ModelApiClient implements LlmClient {
                 + " userChars=" + userPrompt.length()
                 + " abortable=" + (token != null)
                 + " deadlineMs=" + (deadlineAtMillis == Long.MAX_VALUE ? "none" : deadlineAtMillis));
-        // V0.5.2-rev 评审 P2-1:走 RetryPolicy 新重载——退避期间感知 cancel + 按剩余 deadline 截断 delay。
+        // 走 RetryPolicy 新重载——退避期间感知 cancel + 按剩余 deadline 截断 delay。
         return invokeWithRetry(() -> {
             switch (config.protocol) {
                 case ANTHROPIC_MESSAGES:
@@ -151,7 +151,7 @@ public final class ModelApiClient implements LlmClient {
             String finishReason = response.getJSONArray("choices").getJSONObject(0)
                     .optString("finish_reason", "(missing)");
             String content = message.optString("content", "");
-            // 第七轮 P2-4:content 是模型 raw response,可能含回显的用户输入 / API Key。
+            // content 是模型 raw response,可能含回显的用户输入 / API Key。
             // body 字段也按 provider raw 治理。contentChars / respBytes 是元数据,保留。
             com.matrix.agent.core.agent.SafeLog.e(TAG, "[Http] no tool_calls in response. finish_reason="
                     + finishReason
@@ -199,7 +199,7 @@ public final class ModelApiClient implements LlmClient {
     }
 
     /**
-     * V0.4.3 Stage E:接 {@link CancellationToken}——cancel() 时通过 abortHook 触发
+     * 接 {@link CancellationToken}——cancel() 时通过 abortHook 触发
      * connection.disconnect(),无需等待 read timeout(90s)。
      */
     public ModelTurn callAnthropicWithTools(ModelConfig config, String system,
@@ -209,7 +209,7 @@ public final class ModelApiClient implements LlmClient {
     }
 
     /**
-     * V0.5.2-rev 评审 P2-1:cancel + deadline 感知的 Anthropic 原生 Tool Calling。
+     * cancel + deadline 感知的 Anthropic 原生 Tool Calling。
      *
      * <p>从 AgentRequest.deadlineAtMillis 透传——RetryPolicy 退避期间按剩余 deadline 截断 delay。
      */
@@ -225,7 +225,7 @@ public final class ModelApiClient implements LlmClient {
                 + " tools=" + tools.size() + " systemChars=" + system.length()
                 + " abortable=" + (token != null)
                 + " deadlineMs=" + (deadlineAtMillis == Long.MAX_VALUE ? "none" : deadlineAtMillis));
-        // V0.5.2-rev 评审 P2-1:走 RetryPolicy 新重载——退避期间感知 cancel + 按剩余 deadline 截断 delay。
+        // 走 RetryPolicy 新重载——退避期间感知 cancel + 按剩余 deadline 截断 delay。
         return invokeWithRetry(() -> {
             JSONObject request = buildAnthropicToolRequest(config, system, conversation, tools);
             JSONObject response = post(config.endpoint, request, "x-api-key", config.apiKey,
@@ -259,7 +259,7 @@ public final class ModelApiClient implements LlmClient {
     }
 
     /**
-     * V0.4.3 Stage E:接 {@link CancellationToken}——cancel() 时通过 abortHook 触发
+     * 接 {@link CancellationToken}——cancel() 时通过 abortHook 触发
      * connection.disconnect(),无需等待 read timeout(90s)。
      */
     public ModelTurn callOpenAiWithTools(ModelConfig config, String system,
@@ -269,7 +269,7 @@ public final class ModelApiClient implements LlmClient {
     }
 
     /**
-     * V0.5.2-rev 评审 P2-1:cancel + deadline 感知的 OpenAI-Compatible 原生 Tool Calling。
+     * cancel + deadline 感知的 OpenAI-Compatible 原生 Tool Calling。
      */
     public ModelTurn callOpenAiWithTools(ModelConfig config, String system,
             java.util.List<AgentMessage> conversation, java.util.List<ToolDefinition> tools,
@@ -284,7 +284,7 @@ public final class ModelApiClient implements LlmClient {
                 + " tools=" + tools.size() + " systemChars=" + system.length()
                 + " abortable=" + (token != null)
                 + " deadlineMs=" + (deadlineAtMillis == Long.MAX_VALUE ? "none" : deadlineAtMillis));
-        // V0.5.2-rev 评审 P2-1:走 RetryPolicy 新重载——退避期间感知 cancel + 按剩余 deadline 截断 delay。
+        // 走 RetryPolicy 新重载——退避期间感知 cancel + 按剩余 deadline 截断 delay。
         return invokeWithRetry(() -> {
             JSONObject request = buildOpenAiToolRequest(config, system, conversation, tools);
             JSONObject response = post(config.endpoint, request, "Authorization",
@@ -297,7 +297,7 @@ public final class ModelApiClient implements LlmClient {
     }
 
     /**
-     * V0.5.2 Stage 10:Gemini 原生 Tool Calling。每轮把完整 conversation(含上轮 functionCall /
+     * Gemini 原生 Tool Calling。每轮把完整 conversation(含上轮 functionCall /
      * functionResponse)一次性发出,Gemini 自行决定本轮还要不要再调 tool。
      *
      * <p>Gemini 协议与 Anthropic / OpenAI 的关键差异:
@@ -316,7 +316,7 @@ public final class ModelApiClient implements LlmClient {
     }
 
     /**
-     * V0.5.2 Stage 10:接 {@link CancellationToken}——cancel() 时通过 abortHook 触发
+     * 接 {@link CancellationToken}——cancel() 时通过 abortHook 触发
      * connection.disconnect(),无需等待 read timeout(90s)。
      */
     public ModelTurn callGeminiWithTools(ModelConfig config, String system,
@@ -326,7 +326,7 @@ public final class ModelApiClient implements LlmClient {
     }
 
     /**
-     * V0.5.2-rev 评审 P2-1:cancel + deadline 感知的 Gemini 原生 Tool Calling。
+     * cancel + deadline 感知的 Gemini 原生 Tool Calling。
      */
     public ModelTurn callGeminiWithTools(ModelConfig config, String system,
             java.util.List<AgentMessage> conversation, java.util.List<ToolDefinition> tools,
@@ -341,7 +341,7 @@ public final class ModelApiClient implements LlmClient {
                 + " tools=" + tools.size() + " systemChars=" + system.length()
                 + " abortable=" + (token != null)
                 + " deadlineMs=" + (deadlineAtMillis == Long.MAX_VALUE ? "none" : deadlineAtMillis));
-        // V0.5.2-rev 评审 P2-1:走 RetryPolicy 新重载——退避期间感知 cancel + 按剩余 deadline 截断 delay。
+        // 走 RetryPolicy 新重载——退避期间感知 cancel + 按剩余 deadline 截断 delay。
         return invokeWithRetry(() -> {
             JSONObject request = buildGeminiToolRequest(config, system, conversation, tools);
             String endpoint = config.endpoint.replace("{model}", config.model);
@@ -395,7 +395,7 @@ public final class ModelApiClient implements LlmClient {
         String content = message.optString("content", "");
         String rawFinishReason = response.getJSONArray("choices").getJSONObject(0)
                 .optString("finish_reason", "");
-        // 第五轮 P1-4:LENGTH 必须在解析 tool_calls 之前判定——max_tokens 截断发生在生成过程中,
+        // LENGTH 必须在解析 tool_calls 之前判定——max_tokens 截断发生在生成过程中,
         // 即使部分 tool_calls 已出现也无法保证 arguments JSON 完整。执行截断的 tool_calls 会
         // 让模型基于半截 destination / 半截 value 操作,极其危险。
         if (mapOpenAiFinishReason(rawFinishReason) == FinishReason.LENGTH) {
@@ -407,10 +407,10 @@ public final class ModelApiClient implements LlmClient {
             return ModelTurn.of(content, FinishReason.LENGTH);
         }
         if (toolCalls == null || toolCalls.length() == 0) {
-            // 第四轮 P2-2:无 tool_call 时按 finish_reason 决定 FinishReason,
+            // 无 tool_call 时按 finish_reason 决定 FinishReason,
             // 不能一律 directAnswer(STOP)——LENGTH 截断会被错判为正常完成。
             FinishReason mapped = mapOpenAiFinishReason(rawFinishReason);
-            // 第五轮 P2-1:STOP + 空 content → 协议不一致,降级为 NONE。
+            // STOP + 空 content → 协议不一致,降级为 NONE。
             // ModelTurn.of(STOP, "") 会抛异常,这里在抛之前先清洗。
             if (mapped == FinishReason.STOP && (content == null || content.trim().isEmpty())) {
                 Log.w(TAG, "[Http] openai-native finish_reason=stop but content empty -> NONE");
@@ -423,7 +423,7 @@ public final class ModelApiClient implements LlmClient {
         java.util.Map<String, ToolDefinition> definitionsByModelName = new LinkedHashMap<>();
         for (ToolDefinition tool : tools) definitionsByModelName.put(tool.getModelName(), tool);
 
-        // 第七轮 P2-1:ToolCall 与 finish_reason 一致性校验。
+        // ToolCall 与 finish_reason 一致性校验。
         // OpenAI 协议规定:返回 tool_calls 时 finish_reason 必须为 "tool_calls"。
         // 不一致组合(finish_reason=stop/missing/unknown + tool_calls)→ PROTOCOL_ERROR,
         // 不得执行工具——可能来自不规范的本地 OpenAI-Compatible 服务或被篡改响应,
@@ -439,7 +439,7 @@ public final class ModelApiClient implements LlmClient {
         java.util.Set<String> seenIds = new java.util.HashSet<>();
         for (int index = 0; index < toolCalls.length(); index++) {
             JSONObject toolCall = toolCalls.getJSONObject(index);
-            // 第四轮 P2-1:缺失/空 ID 不能静默补 UUID,必须显式失败
+            // 缺失/空 ID 不能静默补 UUID,必须显式失败
             String id = toolCall.optString("id", "");
             if (id == null || id.trim().isEmpty()) {
                 throw new IllegalStateException(
@@ -535,7 +535,7 @@ public final class ModelApiClient implements LlmClient {
     }
 
     /**
-     * V0.5.2 Stage 10:Gemini 多轮 Tool Calling 请求体。
+     * Gemini 多轮 Tool Calling 请求体。
      *
      * <p>结构与 OpenAI / Anthropic 的差异:
      * <ul>
@@ -565,7 +565,7 @@ public final class ModelApiClient implements LlmClient {
     }
 
     /**
-     * V0.5.2 Stage 10:解析 Gemini 多轮 Tool Calling 响应。
+     * 解析 Gemini 多轮 Tool Calling 响应。
      *
      * <p>Gemini 响应结构:
      * <ul>
@@ -646,7 +646,7 @@ public final class ModelApiClient implements LlmClient {
     }
 
     /**
-     * V0.5.2 Stage 10:把 Agent Loop conversation 序列化为 Gemini contents 数组。
+     * 把 Agent Loop conversation 序列化为 Gemini contents 数组。
      *
      * <p>规则:
      * <ul>
@@ -717,7 +717,7 @@ public final class ModelApiClient implements LlmClient {
         return contents;
     }
 
-    /** V0.5.2 Stage 10:把 ToolDefinition 转 Gemini functionDeclaration。
+    /** 把 ToolDefinition 转 Gemini functionDeclaration。
      *
      * <p>Gemini functionDeclaration 结构:{@code {name, description, parameters}}。
      * 参数 schema 用 OPENAI_STRICT 投影(Gemini 支持的 schema 子集与 OpenAI strict 高度重合)。
@@ -737,7 +737,7 @@ public final class ModelApiClient implements LlmClient {
     }
 
     /**
-     * V0.5.2 Stage 10:把 Gemini finishReason 字符串映射为 {@link FinishReason}。
+     * 把 Gemini finishReason 字符串映射为 {@link FinishReason}。
      *
      * <p>Gemini 的 finishReason 取值:STOP / MAX_TOKENS / SAFETY / RECITATION / LANGUAGE / OTHER
      * 等。STOP / OTHER 视为正常完成;MAX_TOKENS → LENGTH(截断);SAFETY / RECITATION / LANGUAGE 等
@@ -790,7 +790,7 @@ public final class ModelApiClient implements LlmClient {
                 text.append(block.optString("text", ""));
             } else if ("tool_use".equals(type)) {
                 toolUseBlocks++;
-                // 第四轮 P2-1:缺失/空 ID 不能静默补 UUID,必须显式失败
+                // 缺失/空 ID 不能静默补 UUID,必须显式失败
                 String id = block.optString("id", "");
                 if (id == null || id.trim().isEmpty()) {
                     throw new IllegalStateException(
@@ -816,7 +816,7 @@ public final class ModelApiClient implements LlmClient {
                 + " text=" + textBlocks + " tool_use=" + toolUseBlocks
                 + " textChars=" + text.length());
         String rawStopReason = response.optString("stop_reason", "");
-        // 第五轮 P1-4:LENGTH 必须在返回 ofToolCalls 之前判定——max_tokens 截断发生在生成过程中,
+        // LENGTH 必须在返回 ofToolCalls 之前判定——max_tokens 截断发生在生成过程中,
         // 即使部分 tool_use block 已出现也无法保证 input JSON 完整。执行截断的 tool_calls 会
         // 让模型基于半截 destination / 半截 value 操作,极其危险。
         if (mapAnthropicStopReason(rawStopReason) == FinishReason.LENGTH) {
@@ -827,11 +827,11 @@ public final class ModelApiClient implements LlmClient {
             return ModelTurn.of(text.toString(), FinishReason.LENGTH);
         }
         if (calls.isEmpty()) {
-            // 第四轮 P2-2:无 tool_use 时按 stop_reason 决定 FinishReason,
+            // 无 tool_use 时按 stop_reason 决定 FinishReason,
             // max_tokens 截断不能被错判为正常完成。
             FinishReason mapped = mapAnthropicStopReason(rawStopReason);
             String textStr = text.toString();
-            // 第五轮 P2-1:STOP + 空 content → 协议不一致,降级为 NONE。
+            // STOP + 空 content → 协议不一致,降级为 NONE。
             if (mapped == FinishReason.STOP && textStr.trim().isEmpty()) {
                 Log.w(TAG, "[Http] anthropic stop_reason=end_turn but content empty -> NONE");
                 mapped = FinishReason.NONE;
@@ -840,7 +840,7 @@ public final class ModelApiClient implements LlmClient {
                     + " mapped=" + mapped);
             return ModelTurn.of(textStr, mapped);
         }
-        // 第七轮 P2-1:tool_use 与 stop_reason 一致性校验。
+        // tool_use 与 stop_reason 一致性校验。
         // Anthropic 协议规定:返回 tool_use 时 stop_reason 必须为 "tool_use"。
         // 不一致组合(stop_reason=end_turn/missing/unknown + tool_use blocks)→ PROTOCOL_ERROR,
         // 不得执行工具。
@@ -927,8 +927,8 @@ public final class ModelApiClient implements LlmClient {
     }
 
     /**
-     * V0.4.0 兼容路径——ToolDefinition 未带 parametersSchema 时手写 input_schema。
-     * Stage C 重写后,V0.4.2 全部 capability 已带 parametersSchema,此方法仅作 fallback。
+     * 旧版兼容路径——ToolDefinition 未带 parametersSchema 时手写 input_schema。
+     * 重写后,全部 capability 已带 parametersSchema,此方法仅作 fallback。
      */
     private static JSONObject legacyAnthropicInputSchema(ToolDefinition tool)
             throws org.json.JSONException {
@@ -984,8 +984,8 @@ public final class ModelApiClient implements LlmClient {
     }
 
     /**
-     * V0.4.0 兼容路径——ToolDefinition 未带 parametersSchema 时手写 parameters。
-     * Stage C 重写后,V0.4.2 全部 capability 已带 parametersSchema,此方法仅作 fallback。
+     * 旧版兼容路径——ToolDefinition 未带 parametersSchema 时手写 parameters。
+     * 重写后,全部 capability 已带 parametersSchema,此方法仅作 fallback。
      */
     private static JSONObject legacyOpenAiParameters(ToolDefinition tool)
             throws org.json.JSONException {
@@ -1094,9 +1094,9 @@ public final class ModelApiClient implements LlmClient {
     }
 
     /**
-     * V0.4.3 Stage E:HTTP 入口接 {@link CancellationToken}。
+     * HTTP 入口接 {@link CancellationToken}。
      *
-     * <p>V0.4.1 旧实现只检查 {@code Thread.currentThread().isInterrupted()},取消只走逻辑中断,
+     * <p>旧实现只检查 {@code Thread.currentThread().isInterrupted()},取消只走逻辑中断,
      * HTTP 连接在 read 阻塞时无法被强制 abort——LLM 长响应取消后 socket 仍占用 read timeout(90s)。
      * 现在把 connection.disconnect 注册到 token.abortHook,token.cancel() 触发后立即断开 socket,
      * read 抛 IOException 提前出 finally。
@@ -1113,7 +1113,7 @@ public final class ModelApiClient implements LlmClient {
                 + " auth=" + (hasAuth ? "yes" : "no")
                 + " abortable=" + (token != null));
         HttpURLConnection connection = (HttpURLConnection) new URL(endpoint).openConnection();
-        // V0.4.3 Round 2:必须把 abortHook 提取为局部变量,让 register/remove 用同一个 Runnable 实例。
+        // 必须把 abortHook 提取为局部变量,让 register/remove 用同一个 Runnable 实例。
         // 旧实现两次 connection::disconnect 求值会产生两个不同 Runnable 对象
         // (绑定实例方法引用每次评估都新建实例),CopyOnWriteArrayList.remove() 用 equals 比对,
         // 移除失败 → 已结束请求的 hook 永远累积在 token.abortHooks 中,长期运行内存泄漏。
@@ -1145,11 +1145,11 @@ public final class ModelApiClient implements LlmClient {
             Log.d(TAG, "[Http] <- HTTP " + code + " respBytes=" + response.length()
                     + " costMs=" + elapsedMs);
             if (code < 200 || code >= 300) {
-                // 第七轮 P2-4:HTTP 错误响应可能回显请求参数(API Key、目的地等),
+                // HTTP 错误响应可能回显请求参数(API Key、目的地等),
                 // 或含厂商网关诊断信息。整段用占位符包裹,绝不原文进 logcat / exception message。
                 com.matrix.agent.core.agent.SafeLog.wProviderRaw(TAG, "[Http] HTTP error ",
                         code, truncate(response, 500));
-                // V0.5.2 Stage 10:错误分类——按 HTTP 状态码抛 ModelApiException 子类,
+                // 错误分类——按 HTTP 状态码抛 ModelApiException 子类,
                 // 让 RetryPolicy 决策重试。endpoint 已 mask(去 query string)。
                 String masked = maskEndpoint(endpoint);
                 RuntimeException ex = new IllegalStateException("HTTP " + code
@@ -1208,7 +1208,7 @@ public final class ModelApiClient implements LlmClient {
     /**
      * 把 OpenAI finish_reason 字符串映射为 {@link FinishReason}。
      *
-     * <p>第四轮 P2-2:LENGTH 必须独立识别——模型输出因 max_tokens 截断时,
+     * <p>LENGTH 必须独立识别——模型输出因 max_tokens 截断时,
      * content 可能不完整,AgentEngine 必须据此走异常终止,不能 SUCCEEDED。
      *
      * <ul>

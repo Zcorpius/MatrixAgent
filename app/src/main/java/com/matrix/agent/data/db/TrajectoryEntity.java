@@ -7,14 +7,14 @@ import androidx.room.PrimaryKey;
 import androidx.annotation.NonNull;
 
 /**
- * V0.5.0 Stage 2:Agent 单次 execute 的完整 Trajectory 持久化记录。
+ * Agent 单次 execute 的完整 Trajectory 持久化记录。
  *
  * <p>主键 requestId(UUID 字符串),整段 trajectory 序列化为 JSON 单行存储。
- * 索引 (sessionId, startedMs) 支持按 session 倒序查询历史(V0.5.1 episodic memory 召回用)。
+ * 索引 (sessionId, startedMs) 支持按 session 倒序查询历史(episodic memory 召回用)。
  *
  * <p>trajectoryJson 已经过 AgentEngine 内部 auditRedact 字段级脱敏
  * (climate.destination / memory.preference.value 等业务敏感字段已替换),
- * 可安全落盘;V0.5.0 不做二次脱敏。
+ * 可安全落盘;不做二次脱敏。
  */
 @Entity(tableName = "trajectory",
         indices = {@Index(value = {"sessionId", "startedMs"}, name = "idx_trajectory_session_started")})

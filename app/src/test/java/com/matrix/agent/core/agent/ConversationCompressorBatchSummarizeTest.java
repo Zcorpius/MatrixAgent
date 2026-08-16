@@ -14,7 +14,7 @@ import com.matrix.agent.core.identity.AgentRequest;
 import com.matrix.agent.core.identity.Actor;
 
 /**
- * V0.5.2-rev 评审 P2-4:toSummarizeNatural > MAX_TURNS_TO_SUMMARIZE 分批摘要,
+ * toSummarizeNatural > MAX_TURNS_TO_SUMMARIZE 分批摘要,
  * Provider 多次被调,前一批 summary 拼到下一批 batch 头部。
  */
 public final class ConversationCompressorBatchSummarizeTest {

@@ -9,7 +9,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.Test;
 
 /**
- * V0.5.2 Stage 9:IntentResult / KeywordIntentClassifier.classify / FallbackIntentClassifier 测试。
+ * IntentResult / KeywordIntentClassifier.classify / FallbackIntentClassifier 测试。
  *
  * <p>LlmIntentClassifier 的 Provider 调用由 androidTest 真实 HTTP 跑;JVM 单测覆盖:
  * <ul>

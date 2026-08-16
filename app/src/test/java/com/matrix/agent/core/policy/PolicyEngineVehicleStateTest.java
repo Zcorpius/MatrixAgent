@@ -18,7 +18,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 /**
- * V0.4.2 Stage D:PolicyEngine vehicle state 前置约束测试。
+ * PolicyEngine vehicle state 前置约束测试。
  *
  * <p>验证:
  * <ol>

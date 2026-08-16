@@ -11,7 +11,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * 第七轮 P2-4:SafeLog 日志治理入口测试。
+ * SafeLog 日志治理入口测试。
  *
  * <p>验证三个安全保证:
  * <ol>

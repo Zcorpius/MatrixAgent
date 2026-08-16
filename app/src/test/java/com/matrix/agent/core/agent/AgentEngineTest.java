@@ -68,7 +68,7 @@ public final class AgentEngineTest {
     }
 
     /**
-     * V0.4.1 Stage A:OpenAI Native 多轮 Tool Calling 端到端 happy path。
+     * OpenAI Native 多轮 Tool Calling 端到端 happy path。
      *
      * <p>模拟 OpenAI Native LLM 在 Agent Loop 中的典型多轮行为——区别于 {@link DemoModelGateway}
      * 的"一次性返回所有 tool_calls",本测试模拟真 LLM 每轮看 observation 后才决定下一步:
@@ -85,7 +85,7 @@ public final class AgentEngineTest {
      *   <li>StopReason.NO_TOOL_CALL + FinalState.SUCCEEDED</li>
      * </ul>
      *
-     * <p>本测试是 V0.4.1 Stage A 的核心可执行文档——证明 LlmModelGateway.useOpenAiNative 路径
+     * <p>本测试是核心可执行文档——证明 LlmModelGateway.useOpenAiNative 路径
      * (production code 已存在)在 Agent Loop 中跑多轮端到端正确。
      */
     @Test
@@ -115,7 +115,7 @@ public final class AgentEngineTest {
     }
 
     /**
-     * V0.4.1 Stage C 测试 1:第 2 轮 LLM 调用前(L161 cancel 检查点)触发 cancel。
+     * 测试 1:第 2 轮 LLM 调用前(L161 cancel 检查点)触发 cancel。
      *
      * <p>场景:第 1 轮 tool_call 已成功执行,然后外部 cancel。第 2 轮 iteration 开始时
      * L161 检查到 cancel,直接跳出——不调 LLM,不进入 Tool 循环。
@@ -158,7 +158,7 @@ public final class AgentEngineTest {
     }
 
     /**
-     * V0.4.1 Stage C 测试 2:per-tool-call checkpoint(L269 内循环顶部)触发 cancel。
+     * 测试 2:per-tool-call checkpoint(L269 内循环顶部)触发 cancel。
      *
      * <p>场景:gateway 第 1 轮返回 2 个 tool_call,Provider mock 在第 1 个 tool 执行完成后
      * 触发 cancel。第 2 个 tool 开始前 per-tool checkpoint 检查到 cancel,break toolCallLoop,
@@ -245,7 +245,7 @@ public final class AgentEngineTest {
         assertEquals(TaskState.SUCCEEDED, saved.getFinalState());
         assertEquals("24", memoryStore.getPreference("demo-driver", "preferred_temperature"));
         assertEquals(TaskState.SUCCEEDED, read.getFinalState());
-        // P1-2 修复后 Trajectory 走 AuditRedactor,memory.preference.* 的 message 被替换为占位符——
+        // 修复后 Trajectory 走 AuditRedactor,memory.preference.* 的 message 被替换为占位符——
         // getResults() 派生自 trajectory,看到的也是脱敏版。原始值校验走 memoryStore 即可。
         assertEquals(AuditRedactor.MEMORY_MESSAGE_PLACEHOLDER,
                 read.getResults().get(0).getMessage());
@@ -458,7 +458,7 @@ public final class AgentEngineTest {
         assertEquals(ToolResult.Status.POLICY_REJECTED, outcome.getResults().get(0).getStatus());
     }
 
-    // ===== V0.4.0 Agent Loop 专属 =====
+    // ===== Agent Loop 专属 =====
 
     @Test
     public void agentLoopTerminatesOnMaxIterations() {
@@ -581,7 +581,7 @@ public final class AgentEngineTest {
     }
 
     /**
-     * 第七轮 P2-2:maxMessageChars 限制单条消息长度——超长 system prompt 会撑爆总字符预算。
+     * maxMessageChars 限制单条消息长度——超长 system prompt 会撑爆总字符预算。
      * 旧实现只把 maxMessageChars 喂给 ModelSanitizer/AuditRedactor,system/user 消息原样进 conversation。
      */
     @Test
@@ -606,7 +606,7 @@ public final class AgentEngineTest {
     }
 
     /**
-     * 第七轮 P2-2:maxMessageCount 限制 conversation 消息条数——模型在字符预算内
+     * maxMessageCount 限制 conversation 消息条数——模型在字符预算内
      * 通过海量短消息无限堆叠的场景必须终止。旧实现无条数预算。
      */
     @Test
@@ -750,7 +750,7 @@ public final class AgentEngineTest {
     }
 
     /**
-     * 副驾越权 zone(P1-4 修复):MODEL_INFERRED 的 zone=DRIVER 应该归 PARAMETER 拒绝,
+     * 副驾越权 zone(修复):MODEL_INFERRED 的 zone=DRIVER 应该归 PARAMETER 拒绝,
      * 可让模型换 zone=passenger 重试。模型/Demo 脑补的 zone 不代表用户明确意图,
      * 让模型重新推断是合理的。
      */
@@ -790,7 +790,7 @@ public final class AgentEngineTest {
     }
 
     /**
-     * 副驾越权 zone(P1-4 修复):USER_EXPLICIT 的 zone=DRIVER(用户原话明确要求改主驾)
+     * 副驾越权 zone(修复):USER_EXPLICIT 的 zone=DRIVER(用户原话明确要求改主驾)
      * 必须归 CAPABILITY 拒绝,不可上诉——不能擅自改 zone=passenger 帮用户执行没要求的动作。
      */
     @Test
@@ -816,7 +816,7 @@ public final class AgentEngineTest {
     }
 
     /**
-     * 第三轮 P1-2 回归:ExplicitIntentConstraints 是 Runtime 受信任边界提取的——
+     * 回归:ExplicitIntentConstraints 是 Runtime 受信任边界提取的——
      * 即使模型 adapter 路径不标 provenance(默认 MODEL_INFERRED),只要 AgentRequest
      * 提取到 explicitZone=DRIVER(用户原话"主驾"),Policy 仍然 CAPABILITY 拒绝。
      *
@@ -845,8 +845,8 @@ public final class AgentEngineTest {
     }
 
     /**
-     * 第四轮 P1-1 漏场景 1:副驾明确要求"主驾调温",模型第一次直接返回 zone=passenger
-     * (用模型自己脑补的合法区域替换用户原意)。第三轮的检查只在 targetZone=DRIVER 时生效,
+     * 漏场景 1:副驾明确要求"主驾调温",模型第一次直接返回 zone=passenger
+     * (用模型自己脑补的合法区域替换用户原意)。原检查只在 targetZone=DRIVER 时生效,
      * 因此漏判——必须 PARAMETER 拒绝,让模型保持用户原目标 zone=driver 重试。
      */
     @Test
@@ -868,7 +868,7 @@ public final class AgentEngineTest {
     }
 
     /**
-     * 第四轮 P1-1 端到端:副驾明确要求"主驾调温"。
+     * 端到端:副驾明确要求"主驾调温"。
      * <ol>
      *   <li>模型第一次返 passenger(脑补)→ PARAMETER 拒绝,让模型保持用户原目标重试</li>
      *   <li>模型重试用 driver(对齐 explicitZone)→ CAPABILITY 拒绝(driver 越权)</li>
@@ -914,7 +914,7 @@ public final class AgentEngineTest {
     }
 
     /**
-     * 第四轮 P1-1 漏场景 2:主驾明确要求"副驾调温",模型错误返回 zone=driver。
+     * 漏场景 2:主驾明确要求"副驾调温",模型错误返回 zone=driver。
      * 旧 Policy 只检查 occupantZone=PASSENGER,主驾请求不会被显式约束保护。
      * 必须 PARAMETER 拒绝,让模型保持 zone=passenger 重试,通过。
      */
@@ -949,7 +949,7 @@ public final class AgentEngineTest {
     }
 
     /**
-     * 第四轮 P1-1:模型固执返回用户没要求的区域时,每次都必须被 PARAMETER 拒绝,
+     * 模型固执返回用户没要求的区域时,每次都必须被 PARAMETER 拒绝,
      * 不能"绕过 1 次后放行"。预算耗尽前一直拒绝,直到 Loop 终止。
      */
     @Test
@@ -973,7 +973,7 @@ public final class AgentEngineTest {
     }
 
     /**
-     * 第三轮 P2-1 回归:AgentOutcome.getInternalResults() 返回真实 ToolResult,
+     * 回归:AgentOutcome.getInternalResults() 返回真实 ToolResult,
      * 而 getResults() 派生自 Audit Trajectory(memory preference value 是 <memory>)。
      * 业务调用方需要真实值时必须用 getInternalResults()。
      */
@@ -991,7 +991,7 @@ public final class AgentEngineTest {
     }
 
     /**
-     * 第四轮 P1-3 回归:Audit Trajectory 中 AssistantMessage.toolCalls 的 arguments
+     * 回归:Audit Trajectory 中 AssistantMessage.toolCalls 的 arguments
      * 必须也过 AuditRedactor。旧实现只 redact content,ToolCall 是原始的——
      * 导致同一 Trajectory 同时存在 ToolCallSnapshot(已脱敏)与 AssistantMessage.toolCalls
      * (未脱敏)两份参数。导航地址 / Memory Value / 联系人 等可能从后者泄漏。
@@ -1015,7 +1015,7 @@ public final class AgentEngineTest {
     }
 
     /**
-     * 第四轮 P2-2 回归:模型输出因 max_tokens 截断(finish_reason=length)时,
+     * 回归:模型输出因 max_tokens 截断(finish_reason=length)时,
      * AgentEngine 必须走 LENGTH_EXCEEDED 异常终止,finalState 不能 SUCCEEDED。
      * 旧实现一律 directAnswer(STOP)→ NO_TOOL_CALL → 可能 SUCCEEDED。
      */
@@ -1033,7 +1033,7 @@ public final class AgentEngineTest {
     }
 
     /**
-     * 第五轮 P2-1 回归:Provider 协议不一致(finish_reason 缺失/未知,或 STOP 但 content 空)
+     * 回归:Provider 协议不一致(finish_reason 缺失/未知,或 STOP 但 content 空)
      * 时,AgentEngine 必须走 PROTOCOL_ERROR 异常终止,不能被错判为 NO_TOOL_CALL → SUCCEEDED。
      * 旧实现把 NONE 一律当作"模型选择直接答复" → SUCCEEDED,把协议错误掩盖成正常完成。
      */
@@ -1052,10 +1052,10 @@ public final class AgentEngineTest {
     }
 
     /**
-     * 第三轮 P1-3 回归:Trajectory 的 ToolCallSnapshot.arguments 必须过 AuditRedactor——
+     * 回归:Trajectory 的 ToolCallSnapshot.arguments 必须过 AuditRedactor——
      * 导航 destination / memory save value 不能原文进 UI/Log。
      *
-     * <p>第四轮 P1-2 升级:destination 现在走 schema-aware 脱敏,整个值替换为 {@code <destination>},
+     * <p>升级:destination 现在走 schema-aware 脱敏,整个值替换为 {@code <destination>},
      * 不再是只 mask sk-xxx 的原值。这样无论用户原话是什么形式,destination 都不会泄漏。
      */
     @Test
@@ -1075,7 +1075,7 @@ public final class AgentEngineTest {
     }
 
     /**
-     * 第四轮 P1-2 回归:memory.preference.save 的 value 必须按 schema 脱敏为 {@code <memory>}。
+     * 回归:memory.preference.save 的 value 必须按 schema 脱敏为 {@code <memory>}。
      * 旧实现只跑凭据正则,只 mask sk-/Bearer 等;memory value(24)、home 地址等业务敏感字段
      * 全部原样进 Audit Snapshot 与 Assistant Message。
      */
@@ -1095,7 +1095,7 @@ public final class AgentEngineTest {
     }
 
     /**
-     * 异常终止状态(P1-3 修复):MAX_ITERATIONS / MAX_TOOL_CALLS / BUDGET_EXHAUSTED / POLICY_HALT
+     * 异常终止状态(修复):MAX_ITERATIONS / MAX_TOOL_CALLS / BUDGET_EXHAUSTED / POLICY_HALT
      * 不能返回 SUCCEEDED——即使之前有成功 Tool。模型一直调成功查询 Tool 直到耗尽预算,
      * 最多 PARTIALLY_SUCCEEDED,不能声称成功。
      */
@@ -1137,7 +1137,7 @@ public final class AgentEngineTest {
     }
 
     /**
-     * 数据边界(P1-2 修复后的正确方向):
+     * 数据边界(修复后的正确方向):
      * - Conversation(喂模型):ModelSanitizer 保留 memory.preference.* 真实 value——
      *   模型需要这些语义才能完成"我喜欢多少度"之类的后续决策。
      * - Trajectory(UI/审计):AuditRedactor 字段级脱敏,memory value → <memory>。
@@ -1196,7 +1196,7 @@ public final class AgentEngineTest {
                 toolExecutor);
     }
 
-    /** V0.4.1 Stage D:注入 SteerMailbox 的工厂,启用运行时追加指令路径。 */
+    /** 注入 SteerMailbox 的工厂,启用运行时追加指令路径。 */
     private AgentEngine createEngineWithSteer(ModelGateway gateway,
             CapabilityProvider capabilityProvider, SteerMailbox mailbox) {
         return new AgentEngine(gateway, modelCallExecutor, new PolicyEngine(registry), registry,
@@ -1206,7 +1206,7 @@ public final class AgentEngineTest {
 
     /**
      * 单射 ModelGateway:第一次 decide 返回固定 ToolCall,看到 Observation 后直接答复。
-     * 与 DemoModelGateway 行为对齐,便于把 V0.3 的 Planner lambda 平移到 Agent Loop。
+     * 与 DemoModelGateway 行为对齐,便于把旧版 Planner lambda 平移到 Agent Loop。
      */
     private static ModelGateway oneShot(ToolCall call, String name) {
         return req -> {
@@ -1223,7 +1223,7 @@ public final class AgentEngineTest {
     }
 
     /**
-     * V0.4.1 Stage D 测试 1:REPROMPT 在第 1 轮 tool_call 完成后注入,第 2 轮 LLM 应看到追加 user message。
+     * 测试 1:REPROMPT 在第 1 轮 tool_call 完成后注入,第 2 轮 LLM 应看到追加 user message。
      *
      * <p>场景:
      * <ol>
@@ -1269,7 +1269,7 @@ public final class AgentEngineTest {
     }
 
     /**
-     * V0.4.1 Stage D 测试 2:FORCE_TOOL 跳过 LLM 直接执行指定 capability。
+     * 测试 2:FORCE_TOOL 跳过 LLM 直接执行指定 capability。
      *
      * <p>场景:第 1 轮 tool_call 完成后,用户强制下一轮调用 vehicle.info.get_tire_pressure。
      * gateway 不会在第 2 轮被调用——直接由 drainSteerBeforeLlm 注入 ToolCall。
@@ -1311,7 +1311,7 @@ public final class AgentEngineTest {
     }
 
     /**
-     * V0.4.1 Stage D 测试 3:DEFER 用户推迟,StopReason.DEFERRED + TaskState.DEFERRED。
+     * 测试 3:DEFER 用户推迟,StopReason.DEFERRED + TaskState.DEFERRED。
      */
     @Test
     public void agentLoopDrainsDeferredSteerStoppingLoop() {
@@ -1338,7 +1338,7 @@ public final class AgentEngineTest {
     }
 
     /**
-     * V0.4.1 Stage D 测试 4:不同 session 的 Steer 不串号。
+     * 测试 4:不同 session 的 Steer 不串号。
      */
     @Test
     public void steerMailboxDrainsPerSession() {

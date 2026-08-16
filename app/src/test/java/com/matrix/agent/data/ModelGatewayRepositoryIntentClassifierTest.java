@@ -15,7 +15,7 @@ import com.matrix.agent.platform.ModelConfig;
 import com.matrix.agent.platform.ModelProviderPreset;
 
 /**
- * V0.5.2-rev 评审 P2-2:ModelGatewayRepository.buildIntentClassifier / buildKeywordClassifier 契约。
+ * ModelGatewayRepository.buildIntentClassifier / buildKeywordClassifier 契约。
  *
  * <p>ViewModel.saveAndApply / useDemoGateway 调用本方法,把 IntentClassifier 与 Gateway 同步切换。
  * 旧实现只切 Gateway,导致切换 Provider 后意图分类仍用旧配置 / Keyword。

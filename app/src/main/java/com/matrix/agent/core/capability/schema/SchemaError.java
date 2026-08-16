@@ -1,7 +1,7 @@
 package com.matrix.agent.core.capability.schema;
 
 /**
- * V0.4.2 Stage B:单条 Schema 校验错误。不可变。
+ * 单条 Schema 校验错误。不可变。
  *
  * <p>{@code path} 用 dot 路径(如 {@code "zone"} / {@code "items.temperature"}),
  * 便于上层把错误归因到具体参数名喂给模型重试。

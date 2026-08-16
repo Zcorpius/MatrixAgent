@@ -14,7 +14,7 @@ import com.matrix.agent.data.db.MemoryRecordDao;
 import com.matrix.agent.data.db.MemoryRecordEntity;
 
 /**
- * V0.5.5 P2-B:RoomMemoryWriter.writeSemantic writer-side defence-in-depth 测试。
+ * RoomMemoryWriter.writeSemantic writer-side defence-in-depth 测试。
  *
  * <p>Schema 在 CapabilityRegistry.memory.semantic.save 注册时已强制 pattern/maxLength,
  * 但 Writer 入口仍 fail-closed 校验——防 Provider 漏检(未来真实 AAOS Provider / 第三方实现)

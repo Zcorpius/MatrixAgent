@@ -17,7 +17,7 @@ import org.junit.Test;
 import com.matrix.agent.core.identity.CancellationToken;
 
 /**
- * V0.5.2 评审 P2-3:RetryPolicy cancel + deadline 感知测试。
+ * RetryPolicy cancel + deadline 感知测试。
  *
  * <p>评审发现旧 {@code invokeWithRetry} 用 {@code Thread.sleep(delay)} 退避,
  * 不感知 cancellation / 剩余 deadline——cancel 后最坏要等 3500ms 退避结束才返回,

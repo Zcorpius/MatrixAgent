@@ -19,9 +19,9 @@ import com.matrix.agent.core.tool.MockCapabilityProvider;
 import com.matrix.agent.core.tool.ToolExecutor;
 
 /**
- * V0.5.2 Stage 3a:AgentEngine Tokenizer 注入与双轨统计测试。
+ * AgentEngine Tokenizer 注入与双轨统计测试。
  *
- * <p>V0.5.2 主路径仍用 char-based budget 决策,Tokenizer 仅作双轨日志统计。
+ * <p>主路径仍用 char-based budget 决策,Tokenizer 仅作双轨日志统计。
  * 本测试验证:
  * <ul>
  *   <li>setTokenizer(null) 不抛异常 + 任务正常完成(289 测试兼容路径);</li>
@@ -29,7 +29,7 @@ import com.matrix.agent.core.tool.ToolExecutor;
  *   <li>setTokenizer(custom fake) 调用 tokenizer.count 不抛(双轨统计路径覆盖)。</li>
  * </ul>
  *
- * <p>V0.5.3 切主路径后,本测试断言改 token-based 决策(届时 budget 决策会变)。
+ * <p>切主路径后,本测试断言改 token-based 决策(届时 budget 决策会变)。
  */
 public final class AgentEngineTokenizerIntegrationTest {
     private InMemoryMemoryStore memoryStore;

@@ -13,7 +13,7 @@ import java.util.Map;
 import org.junit.Test;
 
 /**
- * V0.4.2 Stage A:CanonicalSchema Builder 契约测试。
+ * CanonicalSchema Builder 契约测试。
  *
  * <p>验证 8 个关键场景:
  * <ol>
@@ -95,7 +95,7 @@ public final class CanonicalSchemaBuilderTest {
     public void cyclic$RefThrowsSchemaException() {
         // 构造 A → $ref B,B → $ref A,build A 时应抛 cyclic 异常
         // 由于 build B 时 A 还没 build 完,需要先把 A 的 $defs 占位
-        // V0.4.2 eager 解析语义下,无法构造真正的循环——build B 时 A 还没存在
+        // eager 解析语义下,无法构造真正的循环——build B 时 A 还没存在
         // 改为构造自引用:A → $ref A
         Map<String, CanonicalSchema> defs = new LinkedHashMap<>();
         // 先放一个已 build 的占位 schema,然后用它做自引用测试
@@ -109,7 +109,7 @@ public final class CanonicalSchemaBuilderTest {
                     .build();
             // 这里不会自引用循环,因为 $defs.Self 是另一个 schema 对象
             // 真正的循环需要 $defs.Self 自身又是 $ref 回 root——但 build root 时 Self 还没 build 完
-            // V0.4.2 设计下 cyclic 实际无法在 build 时构造——只能通过运行时突变(不可变类阻止)
+            // 当前设计下 cyclic 实际无法在 build 时构造——只能通过运行时突变(不可变类阻止)
         } catch (SchemaException ignored) {
             // 预期路径
         }

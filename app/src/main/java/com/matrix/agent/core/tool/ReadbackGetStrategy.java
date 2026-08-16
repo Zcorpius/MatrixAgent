@@ -1,7 +1,7 @@
 package com.matrix.agent.core.tool;
 
 /**
- * V0.4.3 Stage D:回读 memory preference verify 策略——
+ * 回读 memory preference verify 策略——
  * {@link com.matrix.agent.core.capability.VerifyMethod#READBACK_GET} 对应实现。
  *
  * <p>对应 capability:memory.preference.save / memory.preference.get。

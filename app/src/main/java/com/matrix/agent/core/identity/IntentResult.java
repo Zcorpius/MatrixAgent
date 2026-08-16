@@ -1,9 +1,9 @@
 package com.matrix.agent.core.identity;
 
 /**
- * V0.5.2 Stage 9:IntentClassifier 分类结果——read-only / write / unknown + 置信度 + 理由。
+ * IntentClassifier 分类结果——read-only / write / unknown + 置信度 + 理由。
  *
- * <p>V0.4.3 {@code IntentClassifier.isReadOnly()} 仅返回 boolean,V0.5.2 升级为带置信度的
+ * <p>旧版 {@code IntentClassifier.isReadOnly()} 仅返回 boolean,升级为带置信度的
  * 结构化结果,支持 LLM-based classifier(LlmIntentClassifier)输出模糊判定:
  * <ul>
  *   <li>{@code confidence < 0.7} 视为 unknown,Repository 按写操作保守处理;</li>
@@ -44,7 +44,7 @@ public final class IntentResult {
         return new IntentResult(false, Math.max(0.0, Math.min(0.69, confidence)), reason);
     }
 
-    /** V0.4.3 兼容——从 boolean 直接构造,confidence=1.0,reason="legacy"。 */
+    /** 旧版兼容——从 boolean 直接构造,confidence=1.0,reason="legacy"。 */
     public static IntentResult legacy(boolean readOnly) {
         return new IntentResult(readOnly, 1.0, "legacy");
     }

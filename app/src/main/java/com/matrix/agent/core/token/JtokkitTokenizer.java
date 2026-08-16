@@ -7,17 +7,17 @@ import com.knuddels.jtokkit.api.EncodingType;
 import com.knuddels.jtokkit.api.IntArrayList;
 
 /**
- * V0.5.0 Stage 5:基于 jtokkit 的 BPE Tokenizer 实现。
+ * 基于 jtokkit 的 BPE Tokenizer 实现。
  *
- * <p>V0.5.0 默认不装配到 AgentEngine 主路径——本类仅提供能力。
- * V0.5.1 切换时按 provider 选 encoding:
+ * <p>默认不装配到 AgentEngine 主路径——本类仅提供能力。
+ * 切换时按 provider 选 encoding:
  * <ul>
  *   <li>OpenAI gpt-4o / gpt-4-turbo → {@link EncodingType#O200K_BASE};</li>
  *   <li>OpenAI gpt-3.5 / gpt-4 (non-turbo) / Anthropic 近似 → {@link EncodingType#CL100K_BASE};</li>
  *   <li>Gemini 等私有 tokenizer → 退化为 {@link CharFallbackTokenizer}。</li>
  * </ul>
  *
- * <p>构造时初始化 {@link EncodingRegistry}(约 5MB 常驻内存);V0.5.1 单例化以避免重复 init。
+ * <p>构造时初始化 {@link EncodingRegistry}(约 5MB 常驻内存);单例化以避免重复 init。
  *
  * <p>jtokkit 1.1.0 的 encodeOrdinary / decode 使用自带 {@link IntArrayList},
  * 不是 JDK {@code List<Integer>} 也不是 fastutil 原生类型——避免装箱开销。

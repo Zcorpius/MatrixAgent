@@ -1,13 +1,13 @@
 package com.matrix.agent.core.identity;
 
 /**
- * V0.4.2 Stage D:不可变车辆状态 value class。
+ * 不可变车辆状态 value class。
  *
  * <p>{@link AgentRequest#getCurrentVehicleState()} 携带当前车辆状态,
  * {@link com.matrix.agent.core.policy.PolicyEngine} 在 schema 校验之前用它判定
  * {@code requiredVehicleStates} 前置条件(归 CAPABILITY 拒绝,不可上诉)。
  *
- * <p>V0.4.2 mock 数据——Stage E MockCapabilityProvider.snapshotVehicleState
+ * <p>mock 数据——MockCapabilityProvider.snapshotVehicleState
  * 直接构造同款 state 注入 AgentRequest。后续版本接真实 Car API 后由
  * VehiclePropertyService 实时读取。
  *

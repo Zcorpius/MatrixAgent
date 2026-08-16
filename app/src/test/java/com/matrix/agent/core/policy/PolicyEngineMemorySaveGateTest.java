@@ -17,7 +17,7 @@ import com.matrix.agent.core.identity.VehicleZone;
 import com.matrix.agent.core.tool.ToolCall;
 
 /**
- * V0.5.5 P1-A:PolicyEngine 必须用 capability-level CAPABILITY_REJECTED 拒绝
+ * PolicyEngine 必须用 capability-level CAPABILITY_REJECTED 拒绝
  * memory.semantic.save + isMemorySaveAllowed=false 的组合。
  *
  * <p>用户硬约束:"应该在 PolicyEngine.evaluate() 中强制 capability == memory.semantic.save

@@ -49,9 +49,11 @@ android {
     }
 
     // V0.5.1 Stage 5:启用 androidTest 源集(V0.5.0 占位升级)。
+    // assets 显式声明:voicecert 正向唤醒门禁样本(VoskRecognizeTest 读测试 APK assets)。
     sourceSets {
         androidTest {
             java.srcDirs = ['src/androidTest/java']
+            assets.srcDirs = ['src/androidTest/assets']
         }
     }
 
@@ -86,7 +88,7 @@ dependencies {
     implementation 'com.knuddels:jtokkit:1.1.0'
 
     // Voice V1 Stage 2:Vosk 离线 ASR/KWS(预编译 aar,含 native .so;Maven Central 0.3.75)。
-    implementation 'com.alphacephei:vosk-android:0.3.75'
+    debugImplementation 'com.alphacephei:vosk-android:0.3.75'
 
     testImplementation 'junit:junit:4.13.2'
     testImplementation 'org.json:json:20240303'
@@ -94,8 +96,27 @@ dependencies {
     // V0.5.1 Stage 5:androidTest 仪器化测试依赖(无 Espresso / Robolectric,纯 JVM 风格)。
     androidTestImplementation 'androidx.test:runner:1.6.2'
     androidTestImplementation 'androidx.test.ext:junit:1.2.1'
+    androidTestImplementation 'androidx.test:rules:1.6.1' // GrantPermissionRule(语音采音仪器测试)
     androidTestImplementation 'androidx.room:room-testing:2.7.0'
     // room-testing 间接依赖 androidx.test:core,提供 ApplicationProvider。
     // 显式拉一遍以确保 SmokeTest 入口可见。
     androidTestImplementation 'androidx.test:core:1.6.1'
+}
+
+// 语音真机认证门禁(app/src/androidTest/.../voicecert 包):需预置 Vosk 模型/真实麦克风/中文 TTS
+// 引擎/焦点抢占行为,与常规 connectedDebugAndroidTest 隔离——常规任务中该包测试 Assume 跳过,
+// 本任务按包过滤 + voiceCert=true 放行,门禁失败即红。模型预置(应用内下载或 run-as 导入)
+// 见 voicecert/VoiceCertification.java 类注释。
+tasks.register('connectedVoiceCertificationAndroidTest') {
+    group = 'verification'
+    description = '语音真机认证门禁(voicecert 包:模型/麦克风/TTS/焦点前提,失败即红)。'
+    dependsOn 'installDebug', 'installDebugAndroidTest'
+    doLast {
+        exec {
+            commandLine android.adbExecutable.absolutePath, 'shell', 'am', 'instrument', '-w',
+                    '-e', 'package', 'com.matrix.agent.voicecert',
+                    '-e', 'voiceCert', 'true',
+                    'com.matrix.agent.test/androidx.test.runner.AndroidJUnitRunner'
+        }
+    }
 }

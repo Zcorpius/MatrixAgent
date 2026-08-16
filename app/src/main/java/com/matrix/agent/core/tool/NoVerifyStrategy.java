@@ -1,7 +1,7 @@
 package com.matrix.agent.core.tool;
 
 /**
- * V0.4.3 Stage D:不 verify 策略——{@link com.matrix.agent.core.capability.VerifyMethod#NONE} 对应实现。
+ * 不 verify 策略——{@link com.matrix.agent.core.capability.VerifyMethod#NONE} 对应实现。
  *
  * <p>对应 capability:vehicle.info.get_battery / vehicle.info.get_tire_pressure / knowledge.answer。
  * 这些 capability 是只读或纯回执,无 commandAndApply,verify 永远 true。

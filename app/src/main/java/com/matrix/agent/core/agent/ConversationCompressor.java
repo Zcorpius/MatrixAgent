@@ -9,14 +9,14 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * V0.5.2 Stage 8:对话上下文压缩——conversation 累计超预算 80% 时,
+ * 对话上下文压缩——conversation 累计超预算 80% 时,
  * 把最老 N 条 turns 摘要成单条 SummaryMessage,腾出预算。
  *
  * <p>触发阈值 0.8——预留 20% 余量给当前迭代的新 user turn / tool result。
- * V0.5.2 主路径仍用 char 估算(Stage 3b 切 token 后改用 Tokenizer 估算);接口不接受
- * Tokenizer,V0.5.3 切换时再扩展。
+ * 主路径仍用 char 估算(切 token 后改用 Tokenizer 估算);接口不接受
+ * Tokenizer,切换时再扩展。
  *
- * <p><b>压缩算法</b>(V0.5.2 评审 P1-4:transaction-aware 截断):
+ * <p><b>压缩算法</b>(transaction-aware 截断):
  * <ol>
  *   <li>估算 conversation 累计字符 / token;</li>
  *   <li>若超 budget.totalInputChars × {@value #COMPRESSION_TRIGGER_RATIO},
@@ -31,7 +31,7 @@ import java.util.List;
  *   <li>返回 [SummaryMessage, ...recentMessages]。</li>
  * </ol>
  *
- * <p><b>transaction 分组必要性</b>(评审 P1-4(b)):旧实现按 {@code conversation.size()/2}
+ * <p><b>transaction 分组必要性</b>:旧实现按 {@code conversation.size()/2}
  * 截断,可能把 assistant.tool_calls 与其后续 tool observation 拆开,observation 进 recent
  * 而 assistant 进摘要——observation 在 recent 中无对应 assistant 父消息,Provider 协议
  * (Anthropic / OpenAI Tool Calling)会拒绝或乱序。新算法保证 transaction 原子性。
@@ -52,16 +52,16 @@ public final class ConversationCompressor {
     static final double COMPRESSION_TRIGGER_RATIO = 0.8;
     /** heuristic 降级时保留的最近 turns 数(2 轮对话 = 4 条 user/assistant)。 */
     static final int HEURISTIC_KEEP_RECENT = 4;
-    /** V0.5.2 评审 P1-4:recent 保留的最大 transaction 数(原子 tool_call + observation 整组保留)。 */
+    /** recent 保留的最大 transaction 数(原子 tool_call + observation 整组保留)。 */
     static final int MAX_RECENT_TRANSACTIONS = 3;
     /** 单次摘要最多取多少 turns(防止超长 prompt 拖慢 Provider)。 */
     static final int MAX_TURNS_TO_SUMMARIZE = 20;
     /**
-     * V0.5.2-rev 评审 P1-4:AgentRequest 剩余预算 < 2s 时,跳过 Provider 直接 heuristic 降级——
+     * AgentRequest 剩余预算 < 2s 时,跳过 Provider 直接 heuristic 降级——
      * Provider 内部 10s 上限 + 重试 buffer 都需要充足时间,< 2s 调用必超时浪费一次重试。
      */
     static final long REMAINING_BUDGET_HEURISTIC_FALLBACK_MS = 2_000L;
-    /** V0.5.2-rev 评审 P2-4:分批摘要上限(3 批 = 60 条老消息,防 unbounded)。 */
+    /** 分批摘要上限(3 批 = 60 条老消息,防 unbounded)。 */
     static final int MAX_SUMMARIZE_BATCHES = 3;
 
     private final SummaryProvider provider;
@@ -100,7 +100,7 @@ public final class ConversationCompressor {
                 + " threshold=" + triggerThreshold + " (budget=" + budget.getTotalInputChars()
                 + " × " + COMPRESSION_TRIGGER_RATIO + ") turns=" + conversation.size());
 
-        // V0.5.2 评审 P1-4:transaction-aware 截断——避免拆开 assistant.tool_calls 与 tool observation。
+        // transaction-aware 截断——避免拆开 assistant.tool_calls 与 tool observation。
         List<AgentMessage> toSummarize = new ArrayList<>();
         List<AgentMessage> recent = new ArrayList<>();
         splitByTransactions(conversation, toSummarize, recent);
@@ -110,14 +110,14 @@ public final class ConversationCompressor {
             return conversation;
         }
 
-        // V0.5.2-rev 评审 P1-3:把 toSummarize 分成 structuredKeep + toSummarizeNatural——
+        // 把 toSummarize 分成 structuredKeep + toSummarizeNatural——
         // 含 tool_call / tool observation / POLICY / EXECUTION_UNKNOWN 的 transaction 整组保留,
         // 不进 LLM 摘要(LLM 摘要可能漏参数 / 改写状态 / 把 EXECUTION_UNKNOWN 说成成功)。
         List<AgentMessage> structuredKeep = new ArrayList<>();
         List<AgentMessage> toSummarizeNatural = new ArrayList<>();
         splitStructuredFromNatural(toSummarize, structuredKeep, toSummarizeNatural);
 
-        // V0.5.2-rev 评审 P1-4:剩余预算 < 2s → 直接 heuristic 降级,不调 Provider
+        // 剩余预算 < 2s → 直接 heuristic 降级,不调 Provider
         // (Provider 内部还会再做一次剩余检查,这里提前跳过节省开销)。
         String summaryText;
         if (request != null && request.remainingMillis() < REMAINING_BUDGET_HEURISTIC_FALLBACK_MS) {
@@ -129,7 +129,7 @@ public final class ConversationCompressor {
             Log.i(TAG, "[Compressor] no natural turns to summarize, structured-only");
             summaryText = heuristicSummaryText(0, toSummarize.size());
         } else {
-            // V0.5.2-rev 评审 P2-4:toSummarizeNatural > MAX_TURNS_TO_SUMMARIZE → 分批摘要,
+            // toSummarizeNatural > MAX_TURNS_TO_SUMMARIZE → 分批摘要,
             // 不静默丢弃(摘要每一批,前一批 summary 拼到下一批 prompt)。
             summaryText = summarizeWithFallback(toSummarizeNatural, request, conversation.size());
         }
@@ -151,7 +151,7 @@ public final class ConversationCompressor {
     }
 
     /**
-     * V0.5.2-rev 评审 P1-3:把 toSummarize 进一步分类——
+     * 把 toSummarize 进一步分类——
      *
      * <p>切分粒度仍按 transaction(toSummarize 来自 splitByTransactions,保持原子性):
      * <ul>
@@ -178,7 +178,7 @@ public final class ConversationCompressor {
     }
 
     /**
-     * V0.5.2-rev 评审 P1-3:transaction 是否含结构化不可压缩事实。
+     * transaction 是否含结构化不可压缩事实。
      *
      * <p>检测信号:role==TOOL(tool observation / POLICY 拒绝 / EXECUTION_UNKNOWN 全以 TOOL 文本承载),
      * 或 assistant 且 toolCalls 非空。任一命中即视为 structured。
@@ -195,7 +195,7 @@ public final class ConversationCompressor {
     }
 
     /**
-     * V0.5.2 评审 P1-4:按 transaction 切分 conversation。
+     * 按 transaction 切分 conversation。
      *
      * <p>transaction 边界定义:
      * <ul>
@@ -275,7 +275,7 @@ public final class ConversationCompressor {
     }
 
     /**
-     * V0.5.2-rev 评审 P2-4:不静默丢弃超 MAX_TURNS_TO_SUMMARIZE 的最老消息——分批摘要。
+     * 不静默丢弃超 MAX_TURNS_TO_SUMMARIZE 的最老消息——分批摘要。
      *
      * <p>策略:
      * <ol>
@@ -335,7 +335,7 @@ public final class ConversationCompressor {
     }
 
     /**
-     * V0.5.2-rev 评审 P1-4:同步调用 SummaryProvider——Provider 实现侧(LlmSummaryProvider)
+     * 同步调用 SummaryProvider——Provider 实现侧(LlmSummaryProvider)
      * 内部把 AgentRequest token + deadline 透传给 ModelApiClient.complete 5 参重载。
      * ConversationCompressor 不再独立管理 timeout(原 summarizeTimeoutMs 字段保留为 caller 观察)。
      *
@@ -375,7 +375,7 @@ public final class ConversationCompressor {
     }
 
     private int estimateChars(List<AgentMessage> conversation) {
-        // V0.5.2 Stage 8 主路径仍用 char(Stage 3b 切 token 后改用 Tokenizer)。
+        // 主路径仍用 char(切 token 后改用 Tokenizer)。
         int total = 0;
         for (AgentMessage m : conversation) {
             total += m.estimateChars();

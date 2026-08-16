@@ -17,12 +17,12 @@ import com.matrix.agent.core.identity.VehicleZone;
 import com.matrix.agent.core.session.SessionLockManager;
 
 /**
- * V0.5.3 评审 P1-4:AbortPolicy 配置下,schedulerPool 队列满(非 shutdown)→ RejectedExecutionException
+ * AbortPolicy 配置下,schedulerPool 队列满(非 shutdown)→ RejectedExecutionException
  * → TaskScheduler.submit 的 catch 块触发 → 返回 REJECTED 终态 outcome(future.get() 立即返回)。
  *
  * <p>与 {@link TaskSchedulerRejectedExecutionTest}(用 pool.shutdown() 触发)互补:本测试验证
- * 真实"队列满 + AbortPolicy" 路径,这是 V0.5.2-rev 加的 catch 块在生产配置下第一次真正生效。
- * V0.5.3 之前 schedulerPool 用 CallerRunsPolicy(默认 3 参),队列满时不抛而是 caller 线程同步执行,
+ * 真实"队列满 + AbortPolicy" 路径,这是新增的 catch 块在生产配置下第一次真正生效。
+ * 此前 schedulerPool 用 CallerRunsPolicy(默认 3 参),队列满时不抛而是 caller 线程同步执行,
  * 让这段 catch 成死代码。
  */
 public final class TaskSchedulerAbortPolicyQueueFullRejectedTest {

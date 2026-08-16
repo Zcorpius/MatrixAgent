@@ -3,7 +3,7 @@ package com.matrix.agent.core.voice;
 import com.matrix.agent.core.agent.TaskState;
 
 /**
- * 可播报结果。Voice V1。
+ * 可播报结果。
  *
  * <p>由 {@link ResponsePresenter} 从 {@link com.matrix.agent.core.agent.AgentOutcome} 生成,
  * 供 TTS 播报。结构上只持有脱敏后的播报文本 {@code text}、语言标签和终态枚举——

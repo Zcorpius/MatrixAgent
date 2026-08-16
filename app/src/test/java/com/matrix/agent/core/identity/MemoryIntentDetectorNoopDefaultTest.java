@@ -5,7 +5,7 @@ import static org.junit.Assert.assertFalse;
 import org.junit.Test;
 
 /**
- * V0.5.4 评审 P1-2:Repository 默认不注入 detector(等价 MemoryIntentDetector.NOOP)时,
+ * Repository 默认不注入 detector(等价 MemoryIntentDetector.NOOP)时,
  * 所有请求 memorySaveAllowed=false(保守起点)。AppContainer 装配 KeywordMemoryIntentDetector
  * 之前,所有 memory.semantic.save 都被 POLICY_REJECTED——宁可让用户发现"我说了记住为什么不存",
  * 也不能让模型自由写。

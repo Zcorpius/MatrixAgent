@@ -28,10 +28,10 @@ import java.util.Set;
 import java.util.TreeSet;
 
 /**
- * V0.5.2 Stage 11:V0.4.0 兼容路径——结构化 JSON 单轮规划(V0.5.2 起 LlmModelGateway 优先
+ * 旧版兼容路径——结构化 JSON 单轮规划(新版本起 LlmModelGateway 优先
  * 走 NATIVE_TOOL_CALLING 直连路径,LlmPlanner 仅作 STRUCTURED_JSON_COMPATIBILITY fallback)。
  *
- * <p>V0.5.2 Stage 11 删除 V0.4.x {@code Planner} 接口——LlmPlanner 自带 {@link #plan}
+ * <p>删除旧版 {@code Planner} 接口——LlmPlanner 自带 {@link #plan}
  * 方法,接口仅在 {@code LlmModelGateway.legacy} 字段以具体类型持有。
  */
 public final class LlmPlanner {
@@ -47,7 +47,7 @@ public final class LlmPlanner {
     private final CapabilityRegistry registry;
     private final MemoryStore memoryStore;
     /**
-     * V0.5.0 Stage 3:可选 Memory 召回——null 时维持 V0.4.3 行为(289 测试兼容)。
+     * 可选 Memory 召回——null 时维持旧版行为(289 测试兼容)。
      * 注入后,savedKeysFor 附加 working/episodic/semantic snippet.key 到 prompt。
      */
     private MemoryRecaller memoryRecaller;
@@ -62,9 +62,9 @@ public final class LlmPlanner {
     }
 
     /**
-     * V0.5.0 Stage 3:接受 {@link LlmClient} 接口的测试用构造器。
+     * 接受 {@link LlmClient} 接口的测试用构造器。
      *
-     * <p>生产路径继续走 {@link ModelApiClient} 构造器(签名不变,向后兼容 V0.4.3)。
+     * <p>生产路径继续走 {@link ModelApiClient} 构造器(签名不变,向后兼容旧版)。
      * 测试用此构造器注入 fake LlmClient,无需起 HttpServer 验证 prompt 装配。
      */
     public LlmPlanner(LlmClient client, ModelConfig config, CapabilityRegistry registry,
@@ -76,14 +76,14 @@ public final class LlmPlanner {
         this.memoryStore = memoryStore;
     }
 
-    /** V0.5.0 Stage 3:可选注入 Memory 召回器。 */
+    /** 可选注入 Memory 召回器。 */
     public void setMemoryRecaller(MemoryRecaller recaller) {
         this.memoryRecaller = recaller;
     }
 
     public TaskPlan plan(AgentRequest request, SessionContext context) {
         try {
-            // V0.4.3 Stage C:per-request zone 投影——主驾/副驾看到不同 tool 列表。
+            // per-request zone 投影——主驾/副驾看到不同 tool 列表。
             List<ToolDefinition> tools = registry.toToolDefinitions(request.getOccupantZone());
             String userPrompt = "发起者=" + request.getActor()
                     + "\n最近上下文=" + context.getRecentTurns()
@@ -129,7 +129,7 @@ public final class LlmPlanner {
      * 列出该用户已保存的所有偏好 key(只 key,不含 value——避免敏感数据进 prompt)。
      * 注入到 prompt 后,模型查询 memory.preference.get 时直接用现有 key,不再脑补命名。
      *
-     * <p>V0.5.0 Stage 3:memoryRecaller != null 时,附加 working/episodic/semantic 层 snippet.key
+     * <p>memoryRecaller != null 时,附加 working/episodic/semantic 层 snippet.key
      * 到末尾(不附加 PREFERENCE——已通过 MemoryStore.getAllPreferences 取)。
      */
     private String savedKeysFor(String userId) {
@@ -153,7 +153,7 @@ public final class LlmPlanner {
         }
     }
 
-    /** V0.5.0 Stage 3:抽出 V0.4.3 偏好 key 列表逻辑,保持向后兼容。 */
+    /** 抽出旧版偏好 key 列表逻辑,保持向后兼容。 */
     private String preferenceKeysFor(String userId) {
         if (memoryStore == null) return "（MemoryStore 未注入,无历史 key）";
         try {

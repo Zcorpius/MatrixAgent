@@ -8,9 +8,9 @@ import androidx.room.Query;
 import java.util.List;
 
 /**
- * V0.5.0 Stage 2:AuditEvent DAO——V0.5.0 预建表(无写入路径);V0.5.1 扩展增量事件。
+ * AuditEvent DAO——预建表(无写入路径);扩展增量事件。
  *
- * <p>V0.5.2 Stage 1:加 deleteByUserZone / queryByUserZone——
+ * <p>加 deleteByUserZone / queryByUserZone——
  * clearByUserZone 跨 4 表删除依赖此方法。
  */
 @Dao
@@ -22,15 +22,15 @@ public interface AuditEventDao {
     List<AuditEventEntity> queryByRequest(String requestId);
 
     /**
-     * V0.5.2 Stage 1:按 (userId, zone) 查询——audit_event 主路径查询接口。
-     * 历史 V0.5.0/V0.5.1 行 userId='' 默认过滤不到。
+     * 按 (userId, zone) 查询——audit_event 主路径查询接口。
+     * 历史行 userId='' 默认过滤不到。
      */
     @Query("SELECT * FROM audit_event WHERE userId = :userId AND zone = :zone "
             + "ORDER BY happenedAtMs ASC")
     List<AuditEventEntity> queryByUserZone(String userId, String zone);
 
     /**
-     * V0.5.2 Stage 1:按 (userId, zone) 删除——clearByUserZone 4 表原子删除入口。
+     * 按 (userId, zone) 删除——clearByUserZone 4 表原子删除入口。
      * 返回删除行数(Room 透明返回)。
      */
     @Query("DELETE FROM audit_event WHERE userId = :userId AND zone = :zone")

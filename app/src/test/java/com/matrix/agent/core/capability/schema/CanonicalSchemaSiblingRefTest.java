@@ -9,11 +9,11 @@ import java.util.Map;
 import org.junit.Test;
 
 /**
- * V0.4.3 Stage E:CanonicalSchema 循环检测修复的回归测试。
+ * CanonicalSchema 循环检测修复的回归测试。
  *
- * <p>V0.4.2 旧实现 properties/items/allOf/oneOf/anyOf 共享 visited 集合,
+ * <p>旧实现 properties/items/allOf/oneOf/anyOf 共享 visited 集合,
  * 两个兄弟 property 引用同一 {@code $defs/Address} 时第二个被误判 cycle。
- * V0.4.3 改为每个 child 独立 visited 快照,兄弟节点互不影响。
+ * 改为每个 child 独立 visited 快照,兄弟节点互不影响。
  */
 public final class CanonicalSchemaSiblingRefTest {
 

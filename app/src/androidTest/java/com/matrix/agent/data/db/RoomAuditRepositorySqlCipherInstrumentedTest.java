@@ -20,7 +20,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 /**
- * V0.5.1 Stage 6 P2.1:RoomAuditRepository.clearByUserZone 在 SQLCipher 真库上的
+ * RoomAuditRepository.clearByUserZone 在 SQLCipher 真库上的
  * 写入 → 按 scope 删 → close/reopen 持久化端到端验证。
  *
  * <p>对照 {@code RoomAuditRepositoryClearByUserZoneInstrumentedTest}(inMemory,验证 Room schema
@@ -28,7 +28,7 @@ import org.junit.runner.RunWith;
  * 真实 {@link MatrixDatabase#getInstance(Context, MasterKeyProvider)} SQLCipher 单例,
  * 验证"删除持久"——close 后重开同一加密库,被删的行仍空,保留的行仍在。
  *
- * <p>reopen 路径覆盖 V0.5.0 P1.1 的核心契约:AndroidKeyStoreMasterKeyProvider 从 SP 加载
+ * <p>reopen 路径覆盖核心契约:AndroidKeyStoreMasterKeyProvider 从 SP 加载
  * 同一 AES-GCM 加密的 passphrase,SupportFactory 用同 passphrase 解密 SQLCipher 文件,
  * 不能因 Keystore/SP 偏好持久化失败而"无法读旧库"。
  *

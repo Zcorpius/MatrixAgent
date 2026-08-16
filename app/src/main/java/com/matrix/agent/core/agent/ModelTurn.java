@@ -9,7 +9,7 @@ import java.util.List;
 /**
  * 单轮模型决策的输出。assistantMessage 已含 toolCalls,观察 finishReason 判断是否继续 Loop。
  *
- * <p>第五轮 P2-1 严格化:工厂方法不再静默降级——
+ * <p>严格化:工厂方法不再静默降级——
  * <ul>
  *   <li>{@link #of(String, FinishReason)} 收到 TOOL_CALLS 必须抛异常(必须用 {@link #ofToolCalls});</li>
  *   <li>{@link #of(String, FinishReason)} 收到 STOP + 空 content 必须抛异常(空答复不是 STOP);</li>
@@ -57,10 +57,10 @@ public final class ModelTurn {
      * 显式指定 FinishReason 的工厂方法——只接受无 tool_call 的状态:
      * STOP / LENGTH / NONE。TOOL_CALLS 必须用 {@link #ofToolCalls}。
      *
-     * <p>第四轮 P2-2:Provider Adapter 解析 finish_reason / stop_reason 后必须用此方法,
+     * <p>Provider Adapter 解析 finish_reason / stop_reason 后必须用此方法,
      * 而不是简单 {@link #directAnswer(String)}——后者硬编码 STOP,会把 LENGTH 截断错误归为正常完成。
      *
-     * <p>第五轮 P2-1 严格化规则:
+     * <p>严格化规则:
      * <ul>
      *   <li>TOOL_CALLS → 抛 {@link IllegalArgumentException}(旧实现静默降级为 STOP,掩盖协议错误);</li>
      *   <li>STOP + 空 content → 抛 {@link IllegalArgumentException}

@@ -8,21 +8,21 @@ import java.util.Set;
 import java.util.regex.Pattern;
 
 /**
- * V0.4.2 Stage B:基于 {@link CanonicalSchema} 的递归 walker,把 V0.4.0
+ * 基于 {@link CanonicalSchema} 的递归 walker,把
  * {@code PolicyEngine.checkStrictSchema + checkTypeAndRangeAndEnum} 完全取代。
  *
  * <p>校验顺序遵循 JSON Schema 2020-12 标准(additionalProperties → required →
  * per-property 递归);property 内部按 const → type → enum → range → length →
  * pattern → array items → object properties → composition short-circuit。
  *
- * <h3>V0.4.0 兼容 quirks(必须保留)</h3>
+ * <h3>兼容 quirks(必须保留)</h3>
  * <ul>
  *   <li><b>enum 字符串大小写不敏感匹配</b>——原 {@code PolicyEngine} 用
- *       {@code allowed.equalsIgnoreCase(sv)},V0.4.2 沿用。integer enum 用
- *       {@code String.valueOf((int)v)} 比对(V0.4.0 测试 {@code validateNumber} 等已固化)。</li>
+ *       {@code allowed.equalsIgnoreCase(sv)},沿用。integer enum 用
+ *       {@code String.valueOf((int)v)} 比对(测试 {@code validateNumber} 等已固化)。</li>
  *   <li><b>String.trim().isEmpty() 拒绝</b>——原 {@code PolicyEngine} 拒空白字符串,
- *       本 validator 沿用(V0.4.0 测试 {@code requireText} 依赖此行为)。</li>
- *   <li><b>integer 严格整数校验</b>——{@code iv != Math.rint(iv)} 拒(V0.4.0 测试
+ *       本 validator 沿用(测试 {@code requireText} 依赖此行为)。</li>
+ *   <li><b>integer 严格整数校验</b>——{@code iv != Math.rint(iv)} 拒(测试
  *       {@code nonIntegerValueIsRejectedForIntegerParam} 依赖)。</li>
  * </ul>
  *
@@ -64,7 +64,7 @@ public final class SchemaValidator {
             return;
         }
 
-        // null 处理——V0.4.2 简化:type=NULL 才允许 null
+        // null 处理——type=NULL 才允许 null
         if (instance == null) {
             if (schema.getType() != SchemaType.NULL) {
                 errors.add(new SchemaError(SchemaErrorCode.NOT_NULL, path, "不能为 null"));
@@ -89,7 +89,7 @@ public final class SchemaValidator {
             return;
         }
 
-        // type 特定校验——按 V0.4.0 顺序:type → enum → range/exclusive → length → pattern
+        // type 特定校验——按顺序:type → enum → range/exclusive → length → pattern
         SchemaErrorCode typeErr = checkTypeSpecific(schema, instance, path);
         if (typeErr != null) {
             errors.add(new SchemaError(typeErr, path, typeSpecificMessage(typeErr, schema, instance)));
@@ -98,7 +98,7 @@ public final class SchemaValidator {
             return;
         }
 
-        // enum(V0.4.0 行为:type 通过后再 enum——integer enum 用 String.valueOf 比对)
+        // enum(type 通过后再 enum——integer enum 用 String.valueOf 比对)
         if (!schema.getEnumValues().isEmpty() && !enumMatches(schema, instance)) {
             errors.add(new SchemaError(SchemaErrorCode.ENUM_VIOLATION, path,
                     "枚举值不在允许集合内:" + schema.getEnumValues()));
@@ -201,9 +201,9 @@ public final class SchemaValidator {
         }
     }
 
-    // ============ V0.4.0 兼容 quirks ============
+    // ============ 兼容 quirks ============
 
-    /** type→Java 实例的匹配,V0.4.0 简化:integer 必须是 Number 且整数值。 */
+    /** type→Java 实例的匹配,integer 必须是 Number 且整数值。 */
     private static boolean typeMatches(SchemaType type, Object instance) {
         switch (type) {
             case NULL: return instance == null;
@@ -250,7 +250,7 @@ public final class SchemaValidator {
             }
             case STRING: {
                 String s = (String) instance;
-                // V0.4.0 quirk:trim 后空字符串拒绝
+                // quirk:trim 后空字符串拒绝
                 if (s.trim().isEmpty()) return SchemaErrorCode.EMPTY_STRING;
                 if (schema.getMinLength() != null && s.length() < schema.getMinLength()) {
                     return SchemaErrorCode.LENGTH_VIOLATION;
@@ -276,7 +276,7 @@ public final class SchemaValidator {
     }
 
     /**
-     * V0.4.0 quirk enum 比对——
+     * enum 比对——
      * <ul>
      *   <li>STRING 大小写不敏感匹配</li>
      *   <li>INTEGER 用 {@code String.valueOf((int)v)} 比对</li>
@@ -284,8 +284,8 @@ public final class SchemaValidator {
      * </ul>
      */
     private static boolean enumMatches(CanonicalSchema schema, Object instance) {
-        // V0.4.0 quirk:INTEGER enum 用 String.valueOf((int)v) 比对——enum value 常以
-        // 字符串形式存(V0.4.0 ToolParameterDefinition.getEnumValues 是 List<String>),
+        // quirk:INTEGER enum 用 String.valueOf((int)v) 比对——enum value 常以
+        // 字符串形式存(ToolParameterDefinition.getEnumValues 是 List<String>),
         // 把 INTEGER instance 转字符串后比对
         if (schema.getType() == SchemaType.INTEGER && instance instanceof Number) {
             String repr = String.valueOf(((Number) instance).intValue());

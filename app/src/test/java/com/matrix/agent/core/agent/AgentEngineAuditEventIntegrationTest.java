@@ -27,7 +27,7 @@ import com.matrix.agent.data.db.AuditEventDao;
 import com.matrix.agent.data.db.AuditEventEntity;
 
 /**
- * V0.5.2 Stage 4:AgentEngine 4 个出口点埋点测试。
+ * AgentEngine 4 个出口点埋点测试。
  *
  * <p>注入 fake AuditEventDao + 同步 Executor + AuditEventRecorder 到 AgentEngine,
  * 跑一个完整任务后验证 audit_event 表写入正确:

@@ -1,9 +1,9 @@
 package com.matrix.agent.core.identity;
 
 /**
- * V0.4.3 Stage B:生产环境默认 {@link VehicleStateSource} 占位。
+ * 生产环境默认 {@link VehicleStateSource} 占位。
  *
- * <p>V0.4.3 不引入 {@code android.car.*} 依赖。本类内部委托给
+ * <p>不引入 {@code android.car.*} 依赖。本类内部委托给
  * {@link MockVehicleStateSource} 的默认 state({@link VehicleState#satisfyAllPredicates()}),
  * 确保所有 capability 在 mock 环境下放行。
  *
@@ -24,7 +24,7 @@ public final class DefaultVehicleStateSource implements VehicleStateSource {
     @Override
     public VehicleState snapshot() {
         // TODO 后续版本:接 CarPropertyManager,读 gear / speed / charging / batteryPercent。
-        // 当前直接返回 mock state,与 V0.4.2 satisfyAllPredicates 默认一致。
+        // 当前直接返回 mock state,与 satisfyAllPredicates 默认一致。
         return delegate.snapshot();
     }
 

@@ -16,7 +16,7 @@ import com.matrix.agent.data.db.MemoryRecordDao;
 import com.matrix.agent.data.db.MemoryRecordEntity;
 
 /**
- * V0.5.2 Stage 2:RoomMemoryMigrator JVM 测试——SP 历史 preference → Room 迁移契约。
+ * RoomMemoryMigrator JVM 测试——SP 历史 preference → Room 迁移契约。
  *
  * <p>用 fake in-memory SpSource + fake MemoryRecordDao 验证:
  * <ul>

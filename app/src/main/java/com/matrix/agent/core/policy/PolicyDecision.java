@@ -3,7 +3,7 @@ package com.matrix.agent.core.policy;
 /**
  * Policy 决策。
  *
- * V0.4.0 引入拒绝二分:
+ * 引入拒绝二分:
  * - CAPABILITY 能力级拒绝(不可上诉):R3、capability 未注册、区域越权、副驾写主驾区。
  *   模型不能通过换参数绕过,Agent Loop 会把对应 capability 加入禁用集合。
  * - PARAMETER 参数级拒绝(可修正重试):数值越界、格式错、缺可补全参数。

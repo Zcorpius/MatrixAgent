@@ -22,20 +22,20 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * V0.5.0 Stage 2:Trajectory ↔ JSON 序列化——纯 Java 工具,无 Android 依赖。
+ * Trajectory ↔ JSON 序列化——纯 Java 工具,无 Android 依赖。
  *
  * <p>序列化的对象在 AgentEngine 内部已 auditRedact 字段级脱敏,可安全落盘。
- * 反向解码还原 Trajectory 等价结构(供 V0.5.1 episodic memory 召回 / 调试回放使用)。
+ * 反向解码还原 Trajectory 等价结构(供 episodic memory 召回 / 调试回放使用)。
  *
- * <p><b>V0.5.4 评审 P1-3 后职责收敛</b>:本类**仅 RoomAuditRepository 使用**(audit 表
+ * <p>职责收敛:本类**仅 RoomAuditRepository 使用**(audit 表
  * 已有 PII redact 兜底,且 audit 列原本就设计为完整 trajectory)。Episodic 写入路径
  * (session_history 表)改用 {@link com.matrix.agent.core.agent.EpisodicSummary}——
  * 不再保留 userText / assistantContent / tool arguments / tool result,避免 PII 回声。
  *
- * <p>已知限制(V0.5.0 接受):
+ * <p>已知限制:
  * <ul>
  *   <li>ToolCallSnapshot.arguments 的 value 类型:Integer/Double/Boolean 在 round-trip 后
- *       可能变成 Long/Double/Boolean(org.json 行为)。V0.5.1 引入 schema-aware codec 后修复。</li>
+ *       可能变成 Long/Double/Boolean(org.json 行为)。引入 schema-aware codec 后修复。</li>
  *   <li>ToolResult.observedState 同上。</li>
  * </ul>
  */

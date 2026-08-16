@@ -13,7 +13,7 @@ import java.util.List;
 import org.junit.Test;
 
 /**
- * V0.5.0 Stage 1:MemoryRouter 召回契约测试——按 layer 优先级合并 + maxItems 截断。
+ * MemoryRouter 召回契约测试——按 layer 优先级合并 + maxItems 截断。
  *
  * <p>用 fake source 验证 Router 本身行为,不依赖具体 source 实现(SessionManager / MemoryStore)。
  */

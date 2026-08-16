@@ -29,12 +29,12 @@ import com.matrix.agent.core.tool.ToolResult;
 import com.matrix.agent.data.audit.NoopAuditRepository;
 
 /**
- * V0.5.5 P1-A:PolicyEngine deny → AgentEngine continue 短路,Provider.execute 永不被调。
+ * PolicyEngine deny → AgentEngine continue 短路,Provider.execute 永不被调。
  *
  * <p>验证用户硬约束:"Engine 不得把该调用提交给 ToolExecutor / Provider"。AgentEngine
  * 在 PolicyDecision.isAllowed()==false 时 continue 短路(AgentEngine.java:571-596),
  * MockCapabilityProvider 的 MemorySemanticSaveHandler 不应被触及——
- * 既证明 PolicyEngine 是主 gate,又证明 V0.5.4 handler 的 defence-in-depth 此刻不需要触发。
+ * 既证明 PolicyEngine 是主 gate,又证明 handler 的 defence-in-depth 此刻不需要触发。
  */
 public final class AgentEngineMemorySaveBypassTest {
 

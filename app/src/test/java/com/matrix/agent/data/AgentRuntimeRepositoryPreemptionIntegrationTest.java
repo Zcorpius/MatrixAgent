@@ -33,12 +33,12 @@ import com.matrix.agent.core.tool.MockCapabilityProvider;
 import com.matrix.agent.core.tool.ToolExecutor;
 
 /**
- * V0.4.3 Round 2 端到端:Repository.execute 把主驾和副驾共享同一 session 队列,
- * 让 TaskScheduler 的主驾优先抢占在 APK 路径真正可触达。V0.4.3 Stage A 旧实现
+ * 端到端:Repository.execute 把主驾和副驾共享同一 session 队列,
+ * 让 TaskScheduler 的主驾优先抢占在 APK 路径真正可触达。旧实现
  * 按 actor 隔离 sessionId(demo-driver / demo-passenger),主驾请求永远进不到副驾队列,
  * 抢占分支永不进入。
  *
- * <p>同时验证 P1.2:Scheduler 内部把 token-cancel 导致的 CANCELLED 重映射为 PREEMPTED,
+ * <p>同时验证:Scheduler 内部把 token-cancel 导致的 CANCELLED 重映射为 PREEMPTED,
  * Repository 拿到的副驾 outcome 是 StopReason.PREEMPTED + TaskState.PREEMPTED
  * (旧实现下永远是 CANCELLED+CANCELLED)。
  */

@@ -14,7 +14,7 @@ import com.matrix.agent.core.identity.VehicleZone;
 import com.matrix.agent.core.session.SessionLockManager;
 
 /**
- * V0.5.2 评审 P1-1:TaskScheduler 在 schedulerPool 队列满 / Executor 拒绝时的契约测试。
+ * TaskScheduler 在 schedulerPool 队列满 / Executor 拒绝时的契约测试。
  *
  * <p>评审发现共享池嵌套等待死锁,改为两独立池 + 显式拒绝处理。TaskScheduler submit 抛
  * RejectedExecutionException 时,返回已完成 Future,值是 REJECTED terminalOutcome

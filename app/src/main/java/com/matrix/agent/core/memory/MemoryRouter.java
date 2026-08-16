@@ -5,13 +5,13 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * V0.5.0 Stage 1:Memory 召回入口实现——按 layer 优先级合并 4 层 source。
+ * Memory 召回入口实现——按 layer 优先级合并 4 层 source。
  *
  * <p>优先级:Working > Episodic > Semantic > Preference。每层调用时传入剩余 slots 数,
  * 保证总数不超过 maxItems 且优先级高的层先填满。
  *
- * <p>V0.5.0 不做相似度打分、token 预算、去重——这些留给 V0.5.1。
- * V0.5.0 只确保 4 层接口稳定、能产出 MemorySnippet 列表给 PromptBuilder / LlmPlanner。
+ * <p>不做相似度打分、token 预算、去重——这些留给后续版本。
+ * 只确保 4 层接口稳定、能产出 MemorySnippet 列表给 PromptBuilder / LlmPlanner。
  */
 public final class MemoryRouter implements MemoryRecaller {
     private final WorkingMemorySource workingSource;

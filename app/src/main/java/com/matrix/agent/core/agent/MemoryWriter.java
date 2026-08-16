@@ -3,11 +3,11 @@ package com.matrix.agent.core.agent;
 import com.matrix.agent.core.identity.AgentRequest;
 
 /**
- * V0.5.3 评审 P1-1:Memory 写入路径——Episodic 自动 + Semantic 显式。
+ * Memory 写入路径——Episodic 自动 + Semantic 显式。
  *
- * <p>V0.5.0 预建 {@code session_history} / {@code memory_record} 表后,V0.5.2 接入了
+ * <p>预建 {@code session_history} / {@code memory_record} 表后,接入了
  * Episodic / Semantic 召回(只读),但**生产路径无任何写入**——召回测试通过是因为
- * fake DAO 测试期塞数据,真实 APK 两表永远空。本接口是 V0.5.3 的写入入口。
+ * fake DAO 测试期塞数据,真实 APK 两表永远空。本接口是写入入口。
  *
  * <p><b>写入策略</b>(用户选择"Episodic 全自动,Semantic 仅显式"):
  * <ul>
@@ -20,7 +20,7 @@ import com.matrix.agent.core.identity.AgentRequest;
  *       handler 调用,精确 key 查询。null 表示无记录。</li>
  * </ul>
  *
- * <p><b>V0.5.4 评审 P1-1 epoch 原子性</b>:写入接口新增 {@code requestEpoch} 参数。实现
+ * <p><b>epoch 原子性</b>:写入接口新增 {@code requestEpoch} 参数。实现
  * 必须在**同一 Room 事务**内"读 __system__ epoch 行 + 比较 + insert/upsert",否则仍有
  * check-then-act race(clearUserData 在另一线程 bump epoch + 清两表,Java 内存比较挡不住)。
  * {@code requestEpoch != currentEpoch} 时事务内 return 不写(fail-log 模式)。

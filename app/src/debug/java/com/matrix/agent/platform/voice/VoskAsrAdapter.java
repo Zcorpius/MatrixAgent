@@ -3,11 +3,12 @@ package com.matrix.agent.platform.voice;
 import android.util.Log;
 
 import com.matrix.agent.core.voice.AsrPort;
+import com.matrix.agent.core.voice.FinalTranscript;
 
 import java.io.IOException;
 
 /**
- * {@link AsrPort} 的 Vosk 实现。Voice V1 Stage 2。
+ * {@link AsrPort} 的 Vosk 实现。
  *
  * <p>委托 {@link VoskAsrEngine},把 engine 的 partial / final 转成 {@link AsrPort.Listener} 回调。
  * 与 {@link VoskEndpointAdapter} 共享同一 engine 实例(构造注入);endpoint 信号由 EndpointAdapter
@@ -32,17 +33,21 @@ public final class VoskAsrAdapter implements AsrPort {
         if (bridge != null) engine.removeListener(bridge);
         bridge = new VoskAsrEngine.Listener() {
             @Override
-            public void onPartial(String text) {
-                if (VoskAsrAdapter.this.listener != null) VoskAsrAdapter.this.listener.onPartial(text);
+            public void onPartial(String text, long sessionId) {
+                if (VoskAsrAdapter.this.listener != null) VoskAsrAdapter.this.listener.onPartial(text, sessionId);
             }
 
             @Override
-            public void onFinal(String text) {
-                if (VoskAsrAdapter.this.listener != null) VoskAsrAdapter.this.listener.onFinal(text);
+            public void onFinal(String text, float confidence, boolean confAvailable, long sessionId) {
+                if (VoskAsrAdapter.this.listener != null) {
+                    // engine 经 VoskResultParser 解析 word conf,构造真实 FinalTranscript。
+                    VoskAsrAdapter.this.listener.onFinal(
+                            new FinalTranscript(text, "zh-CN", confidence, confAvailable), sessionId);
+                }
             }
 
             @Override
-            public void onEndpoint() {
+            public void onEndpoint(long sessionId) {
                 // 由 VoskEndpointAdapter 处理。
             }
         };
@@ -50,22 +55,27 @@ public final class VoskAsrAdapter implements AsrPort {
     }
 
     @Override
-    public void start() {
+    public AsrPort.AsrStartResult start() {
         try {
-            engine.start();
+            return new AsrPort.AsrStartResult(engine.start(), null);
         } catch (IOException e) {
             Log.e(TAG, "[Voice] VoskAsr 启动失败: " + e.getMessage());
-            if (listener != null) listener.onError(ERR_START);
+            return new AsrPort.AsrStartResult(-1L, ERR_START); // 不触发同步 onError,Controller 检查 errorCode
         }
     }
 
     @Override
-    public void feed(byte[] pcm) {
-        engine.feed(pcm);
+    public void feed(byte[] pcm, int len) {
+        engine.feed(pcm, len);
     }
 
     @Override
     public void stop() {
         engine.stop();
+    }
+
+    @Override
+    public void finish() {
+        engine.finish(); // 强制产 final(最大说话时长用)
     }
 }

@@ -12,12 +12,12 @@ import com.matrix.agent.core.memory.MemoryStore;
 import com.matrix.agent.platform.SharedPreferencesMemoryStore;
 
 /**
- * V0.5.3 评审 P1-3:database=null 时 createMemoryStoreSafely 退到 InMemoryMemoryStore
+ * database=null 时 createMemoryStoreSafely 退到 InMemoryMemoryStore
  * (非持久化)+ memoryDegraded=true,不再退到 SharedPreferencesMemoryStore(明文 XML)。
  *
  * <p>本测试用 package-private 静态方法直接调用,无需实例化 AppContainer(避免 Context 依赖)。
  * database=null 路径不调 SharedPreferences,可 JVM 测;Room 正常路径需 Android Robolectric,
- * 不在 V0.5.3 范围(由 androidTest MemorySemanticSaveIntegrationTest 间接覆盖)。
+ * 不在当前范围(由 androidTest MemorySemanticSaveIntegrationTest 间接覆盖)。
  */
 public final class AppContainerMemoryFallbackTest {
 
@@ -35,7 +35,7 @@ public final class AppContainerMemoryFallbackTest {
 
     /**
      * database=null → 返回的 store **不**是 SharedPreferencesMemoryStore(明文 XML)。
-     * 这是 V0.5.3 P1-3 的核心修复——SQLCipher 加密的目的不能被静默绕过。
+     * 这是核心修复——SQLCipher 加密的目的不能被静默绕过。
      */
     @Test
     public void nullDatabaseDoesNotReturnSharedPreferencesMemoryStore() {
@@ -59,7 +59,7 @@ public final class AppContainerMemoryFallbackTest {
 
     /**
      * 旧 2 参重载(@Deprecated)仍工作,内部新建 AtomicBoolean 丢弃。
-     * 向后兼容验证——V0.5.2-rev 测试可能仍调旧重载。
+     * 向后兼容验证——旧测试可能仍调旧重载。
      */
     @Test
     public void deprecatedTwoArgOverloadStillWorks() {

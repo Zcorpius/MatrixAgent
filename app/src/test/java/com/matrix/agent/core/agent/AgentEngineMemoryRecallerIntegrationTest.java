@@ -28,14 +28,14 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 /**
- * V0.5.0 Stage 3:AgentEngine.buildSystemPrompt 接入 MemoryRecaller 的契约测试。
+ * AgentEngine.buildSystemPrompt 接入 MemoryRecaller 的契约测试。
  *
  * <p>用 fake ModelGateway 捕获 ModelTurnRequest.getSystemPrompt(),
  * 断言:
  * <ul>
- *   <li>recaller=null 时退化为 V0.4.3 文案(不含"已召回的 Memory"段);</li>
+ *   <li>recaller=null 时退化为旧版文案(不含"已召回的 Memory"段);</li>
  *   <li>recaller != null 且返回非空 snippet 时,systemPrompt 含 "[layer] key" 列表;</li>
- *   <li>recaller != null 但返回空时,systemPrompt 与 V0.4.3 文案等价。</li>
+ *   <li>recaller != null 但返回空时,systemPrompt 与旧版文案等价。</li>
  * </ul>
  *
  * <p>不验证 value 是否被拼——buildSystemPrompt 故意只拼 key(避免 prompt injection)。
@@ -60,7 +60,7 @@ public final class AgentEngineMemoryRecallerIntegrationTest {
         modelCallExecutor = new ModelCallExecutor(2);
     }
 
-    /** recaller=null:systemPrompt 必须是 V0.4.3 文案(不含"已召回的 Memory")。 */
+    /** recaller=null:systemPrompt 必须是旧版文案(不含"已召回的 Memory")。 */
     @Test
     public void nullRecallerKeepsV043PromptShape() {
         PromptCapturingGateway gateway = new PromptCapturingGateway();
@@ -104,8 +104,8 @@ public final class AgentEngineMemoryRecallerIntegrationTest {
     }
 
     /**
-     * recaller != null 但返回空:systemPrompt 与 V0.4.3 等价(不附加空段)。
-     * 这是 V0.5.0 召回失败的兜底——不会把"已召回的 Memory:"空标题拼到 prompt。
+     * recaller != null 但返回空:systemPrompt 与旧版等价(不附加空段)。
+     * 这是召回失败的兜底——不会把"已召回的 Memory:"空标题拼到 prompt。
      */
     @Test
     public void recallerReturningEmptyKeepsV043Prompt() {
@@ -124,9 +124,9 @@ public final class AgentEngineMemoryRecallerIntegrationTest {
     }
 
     /**
-     * P1.2 修复(评审 V0.5.0):recaller 抛异常必须降级到 base prompt,
+     * 修复:recaller 抛异常必须降级到 base prompt,
      * 不能让记忆故障崩溃车机任务入口。AgentEngine.execute 返回 SUCCEEDED,
-     * systemPrompt 是 V0.4.3 基础文案(不含"已召回的 Memory"段)。
+     * systemPrompt 是旧版基础文案(不含"已召回的 Memory"段)。
      */
     @Test
     public void recallerThrowingDegradesToBasePrompt() {

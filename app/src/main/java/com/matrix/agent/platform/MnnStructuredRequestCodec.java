@@ -18,13 +18,13 @@ import java.util.Map;
  * MNN structured 请求编解码：把 MatrixAgent 的 {@link AgentMessage} conversation + {@link ToolDefinition}
  * tools 编码成 MNN cpp {@code applyStructuredChatTemplate} 期望的 OpenAI 风格 JSON。
  *
- * <p><b>system 去重（P0-5）</b>：AgentEngine 已把 systemPrompt 作为 {@code AgentMessage.system()} 放进
+ * <p><b>system 去重</b>：AgentEngine 已把 systemPrompt 作为 {@code AgentMessage.system()} 放进
  * conversation 首条（AgentEngine L340），并同时传 request.getSystemPrompt()。本 codec <b>以 conversation
  * 的 SYSTEM 为准</b>——首条 SYSTEM 写入 messages[0]，后续内容<b>相同</b>的 SYSTEM 跳过（去重），
  * 内容<b>不同</b>的 SYSTEM（如摘要）合并进 messages[0] 的 content，保证最终只有一条 system message、
  * 且 systemPrompt 文本只出现一次。不再使用 request.getSystemPrompt()。
  *
- * <p><b>多轮历史配对（P0-4）</b>：ASSISTANT 的 tool_calls[].id（=ToolCall.stepId）与紧随的 TOOL 消息的
+ * <p><b>多轮历史配对</b>：ASSISTANT 的 tool_calls[].id（=ToolCall.stepId）与紧随的 TOOL 消息的
  * tool_call_id 严格对应；MNN 每轮 reset 必须传全历史，本 codec 完整映射不丢。
  *
  * <p>tool name 用 {@link ToolDefinition#getModelName()}（与 MatrixAgent 云端 OpenAI 路径一致），
@@ -64,7 +64,7 @@ final class MnnStructuredRequestCodec {
         if (schema != null) {
             parameters = SchemaJsonWriter.INSTANCE.write(schema, SchemaProjectionConfig.OPENAI_STRICT);
         } else {
-            // V0.4.2 Stage C 后全部 capability 带 schema；fallback 用空 object schema（极少触发）
+            // 全部 capability 带 schema；fallback 用空 object schema（极少触发）
             parameters = new JSONObject().put("type", "object")
                     .put("properties", new JSONObject())
                     .put("required", new JSONArray());
@@ -97,7 +97,7 @@ final class MnnStructuredRequestCodec {
                         systemIndex = messages.length() - 1;
                         firstSystemContent = content;
                     } else if (!content.equals(firstSystemContent)) {
-                        // P2-4/5: 对比首条值（非累积值）；用 systemIndex（不假设 messages[0]）
+                        // 对比首条值（非累积值）；用 systemIndex（不假设 messages[0]）
                         JSONObject sysMsg = messages.getJSONObject(systemIndex);
                         sysMsg.put("content", sysMsg.getString("content") + "\n" + content);
                     }

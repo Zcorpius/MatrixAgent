@@ -4,7 +4,7 @@ import androidx.room.Entity;
 import androidx.room.PrimaryKey;
 
 /**
- * Stage 3 端侧模型下载管理——模型下载记录 Room entity。
+ * 端侧模型下载管理——模型下载记录 Room entity。
  *
  * <p>每个模型一行,记录下载进度/状态/校验信息。modelName 既是主键,也是
  * {@code filesDir/models/mnn/<modelName>/} 的目录名。

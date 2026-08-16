@@ -12,7 +12,7 @@ import org.junit.Test;
 import com.matrix.agent.core.capability.CapabilityRegistry;
 
 /**
- * V0.5.3 评审 P1-2:AuditRedactor 业务 PII key 扩充测试。
+ * AuditRedactor 业务 PII key 扩充测试。
  *
  * <p>验证 {@link com.matrix.agent.core.SensitiveKeys#BUILTIN_PII_KEYS} 整合到
  * {@link AuditRedactor#BUILTIN_CREDENTIAL_KEYS} 后的行为:

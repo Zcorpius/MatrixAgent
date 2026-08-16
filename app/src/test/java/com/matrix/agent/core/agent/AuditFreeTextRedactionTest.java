@@ -17,7 +17,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * 第七轮 P1.2:验证审计侧 assistant content 自由文本走 fail-closed 路径
+ * 验证审计侧 assistant content 自由文本走 fail-closed 路径
  * ({@code [redacted:chars=N,sha=xxxxxxxx]}),不再凭据正则 + 长度截断——
  * 模型把 PII (地址 / 联系人 / 电话) 回显进 assistant content 时,凭据正则识别不出。
  *
@@ -31,7 +31,7 @@ public final class AuditFreeTextRedactionTest {
             "^\\[redacted:chars=(\\d+),sha=([0-9a-f]{8})\\]$");
 
     /**
-     * V0.5.1 C 路线评审反馈 P2:测试 SHA-1 兼容路径必须**显式**注入 {@link Sha1AuditDigest}
+     * 测试 SHA-1 兼容路径必须**显式**注入 {@link Sha1AuditDigest}
      * ——AuditRedactor 默认已改为 {@link UnavailableAuditDigest}(fail-closed),
      * 不再退回 SHA-1。本 helper 把"显式 opt-in SHA-1"集中到一处,避免每个 case 重复样板。
      */
@@ -124,7 +124,7 @@ public final class AuditFreeTextRedactionTest {
     /**
      * 旧 {@link AuditRedactor#redact(String)} 路径不动——验证 redact 与 redactFreeText
      * 行为互不影响:前者继续保留原文 (除凭据替换 + 截断),后者一律摘要化。
-     * 这条回归断言保护 V0.4.3 测试不退绿。
+     * 这条回归断言保护历史测试不退绿。
      */
     @Test
     public void redactAndRedactFreeTextAreIndependent() {
@@ -144,10 +144,10 @@ public final class AuditFreeTextRedactionTest {
         assertFalse("redactFreeText 不应保留凭据原文", freeTextResult.contains("sk-ant"));
     }
 
-    // ---- 第八轮 P1.2: ToolObservation 无 audit template 路径 fail-closed ----
+    // ---- ToolObservation 无 audit template 路径 fail-closed ----
 
     /**
-     * 第八轮 P1.2:未配 audit template 的 capability 的 ToolResult message 也是 Provider
+     * 未配 audit template 的 capability 的 ToolResult message 也是 Provider
      * 自由文本——必须走 redactFreeText,而非旧 redact(message) (仅凭据正则 + 截断)。
      *
      * <p>构造一个不在 registry 的 fake capability (避免被 demo registry 的 audit template
@@ -175,7 +175,7 @@ public final class AuditFreeTextRedactionTest {
     }
 
     /**
-     * 第八轮 P1.2:knowledge.answer 已配 auditMessageTemplate,Provider message 应替换为
+     * knowledge.answer 已配 auditMessageTemplate,Provider message 应替换为
      * 模板占位符 (而非原文回显用户问题 / 答案中的 PII)。
      */
     @Test
@@ -202,7 +202,7 @@ public final class AuditFreeTextRedactionTest {
     }
 
     /**
-     * 第八轮 P1.2:knowledge.answer 失败状态走 failureTemplate —— Provider 异常 message
+     * knowledge.answer 失败状态走 failureTemplate —— Provider 异常 message
      * 常含敏感调试信息 (如内网 URL / 错误回显用户输入),必须用模板替换。
      */
     @Test
@@ -227,10 +227,10 @@ public final class AuditFreeTextRedactionTest {
                 auditMessage.contains("redacted"));
     }
 
-    // ---- V0.5.1 Stage 4: HMAC-SHA-256 digest 注入路径 ----
+    // ---- HMAC-SHA-256 digest 注入路径 ----
 
     /**
-     * V0.5.1 Stage 4:注入 HMAC digest 后,redactFreeText 输出格式应从
+     * 注入 HMAC digest 后,redactFreeText 输出格式应从
      * {@code [redacted:chars=N,sha=8hex]} 切换到 {@code [redacted:chars=N,hmac=16hex]}。
      *
      * <p>通过 {@link AuditRedactor#setDigest(AuditDigest)} 注入,生产路径由 AppContainer
@@ -253,10 +253,10 @@ public final class AuditFreeTextRedactionTest {
         assertEquals("hmac 必须是 16 位 hex", 16, m.group(2).length());
     }
 
-    // ---- V0.5.1 C 路线评审反馈 P2: 默认 fail-closed + SHA-1 opt-in ----
+    // ---- 默认 fail-closed + SHA-1 opt-in ----
 
     /**
-     * V0.5.1 C 路线评审反馈 P2:不调 setDigest 时默认走 {@link UnavailableAuditDigest}
+     * 不调 setDigest 时默认走 {@link UnavailableAuditDigest}
      * ——fail-closed,任何输入产出相同摘要 ({@code digest=unavailable}),
      * 不暴露"同输入同输出"的稳定性信号,杜绝 SHA-1 8 位对低熵文本的枚举反推。
      *
@@ -272,7 +272,7 @@ public final class AuditFreeTextRedactionTest {
                 "[redacted:chars=12,digest=unavailable]", result);
     }
 
-    /** setDigest(null) 同样走 fail-closed,不退回 V0.5.0 SHA-1。 */
+    /** setDigest(null) 同样走 fail-closed,不退回旧版 SHA-1。 */
     @Test
     public void setDigestNullIsFailClosedUnavailable() {
         AuditRedactor redactor = new AuditRedactor(4096);
@@ -283,9 +283,9 @@ public final class AuditFreeTextRedactionTest {
     }
 
     /**
-     * V0.5.1 C 路线评审反馈 P2:SHA-1 不再是默认值,但显式 opt-in 仍兼容 V0.5.0 契约。
-     * 这条断言保护 V0.4.3/V0.5.0 的 6 条 sha 路径测试不退绿——它们改用 newSha1Redactor
-     * helper 显式注入后,行为与 V0.5.0 默认路径一致。
+     * SHA-1 不再是默认值,但显式 opt-in 仍兼容旧版契约。
+     * 这条断言保护历史的 6 条 sha 路径测试不退绿——它们改用 newSha1Redactor
+     * helper 显式注入后,行为与旧版默认路径一致。
      */
     @Test
     public void sha1DigestIsOptInViaSetDigest() {

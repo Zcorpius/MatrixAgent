@@ -15,7 +15,7 @@ import com.matrix.agent.data.db.MemoryRecordDao;
 import com.matrix.agent.data.db.MemoryRecordEntity;
 
 /**
- * V0.5.2 Stage 7:SemanticMemorySourceImpl JVM 测试——关键词召回 + score 排序 + fail-open。
+ * SemanticMemorySourceImpl JVM 测试——关键词召回 + score 排序 + fail-open。
  */
 public final class SemanticMemorySourceImplTest {
 

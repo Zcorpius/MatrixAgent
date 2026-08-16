@@ -24,6 +24,8 @@ import com.matrix.agent.core.identity.VehicleZone;
 import com.matrix.agent.core.memory.MemoryStore;
 import com.matrix.agent.core.session.SessionManager;
 import com.matrix.agent.core.tool.MockCapabilityProvider;
+import com.matrix.agent.core.voice.FinalTranscript;
+import com.matrix.agent.core.voice.VoiceAgentRequest;
 import com.matrix.agent.data.audit.AuditEventRecorder;
 import com.matrix.agent.data.audit.AuditRepository;
 import com.matrix.agent.data.audit.ClearOutcome;
@@ -42,12 +44,12 @@ import java.util.concurrent.TimeoutException;
 public final class AgentRuntimeRepository {
     private static final String TAG = "MatrixAgent";
     /**
-     * V0.4.3 Round 2 / Round 3:主驾和副驾共享同一调度仲裁队列(arbitrationKey),
+     * 主驾和副驾共享同一调度仲裁队列(arbitrationKey),
      * 让 TaskScheduler 的主驾优先抢占协议在 APK 路径真正可触达。
      *
-     * <p>Round 3 P1.2 修复:Round 2 直接把 sessionId 共享导致 SessionManager.getOrCreate
+     * <p>直接把 sessionId 共享导致 SessionManager.getOrCreate
      * 与 SteerMailbox 也跟着共享——副驾的 REPROMPT / FORCE_TOOL / DEFER 可能进入主驾 mailbox,
-     * 后续 V0.5 上下文持久化时也会发生主副驾上下文串扰。Round 3 拆成两个 key:
+     * 后续上下文持久化时也会发生主副驾上下文串扰。改为拆成两个 key:
      * <ul>
      *   <li>{@code ARBITRATION_KEY = "demo-vehicle"} —— TaskScheduler 用的同车仲裁键</li>
      *   <li>{@code sessionId = "demo-driver" / "demo-passenger"} —— SessionManager / SteerMailbox 用的乘员隔离键</li>
@@ -55,7 +57,7 @@ public final class AgentRuntimeRepository {
      */
     private static final String ARBITRATION_KEY = "demo-vehicle";
     /**
-     * V0.5.0 第六轮评审 P1:Repository 外层 deadline/interrupt 触发后的收敛窗口。
+     * Repository 外层 deadline/interrupt 触发后的收敛窗口。
      *
      * <p>token.cancel() 之后,ToolExecutor 在 worker 线程上会进入 tryAbort 分支:
      * 不可中断 Provider 返回 EXECUTION_UNKNOWN,可中断 Provider 调 abortIfSupported 后
@@ -68,7 +70,7 @@ public final class AgentRuntimeRepository {
      */
     private static final long GRACE_WINDOW_MILLIS = 500L;
     /**
-     * V0.5.1 Stage 6 P1.1 顺手修:Repository future.get 提前量,根治
+     * Repository future.get 提前量,根治
      * {@code repositoryTimeoutWithDispatchedWriteContainsExecutionUnknown} flaky。
      *
      * <p>根因:Repository {@code future.get(request.remainingMillis())} 与 Engine return
@@ -76,7 +78,7 @@ public final class AgentRuntimeRepository {
      * = min(capability.timeout, request.remainingMillis) 累积耗到 deadline 时 Engine 退出,
      * 与 Repository future.get(timeout) 几乎同时,谁先取决于 CPU 调度。Engine 早完成 →
      * Repository future.get 立即拿到 outcome 不进 catch → token.cancel 不调 →
-     * "token 必须 cancel" 断言失败(Stage 2 测试侧时序调整只能改统计偏向,不消除 race)。
+     * "token 必须 cancel" 断言失败(测试侧时序调整只能改统计偏向,不消除 race)。
      *
      * <p>产品侧修复:Repository 提前 SAFETY_MARGIN_MILLIS 进 catch TimeoutException,
      * 下发 token.cancel 协作取消信号,再用 GRACE_WINDOW_MILLIS=500ms 收敛 Engine 真实
@@ -92,36 +94,36 @@ public final class AgentRuntimeRepository {
     private final SessionManager sessionManager;
     private final MemoryStore memoryStore;
     /**
-     * 第七轮 P2-2:AgentRequest.timeoutMillis 必须用 budget.totalDeadlineMillis 作为单一权威来源,
+     * AgentRequest.timeoutMillis 必须用 budget.totalDeadlineMillis 作为单一权威来源,
      * 不再硬编码 60_000L。AppContainer 把同一个 AgentBudget 注入 Repository 和 AgentEngine。
      */
     private final AgentBudget budget;
     /**
-     * V0.4.3 Stage A:V0.4.1 主驾优先调度器——V0.4.3 才真正接入 APK 链路。
+     * 主驾优先调度器——在此真正接入 APK 链路。
      * Repository.execute 改走 {@link TaskScheduler#submit},把抢占/排队语义生效。
      */
     private final TaskScheduler scheduler;
     /**
-     * V0.4.3 Stage B:车辆运动状态源——Repository.execute build 时调
+     * 车辆运动状态源——Repository.execute build 时调
      * {@link VehicleStateSource#snapshot()} 注入到 AgentRequest,
      * 让 PolicyEngine 的 requiredVehicleStates 前置约束真正生效。
      */
     private final VehicleStateSource vehicleStateSource;
     /**
-     * V0.4.3 Stage C:per-zone readOnlyHint 派生源——按 actor.zone 派生 TaskScheduler 抢占判定 hint。
+     * per-zone readOnlyHint 派生源——按 actor.zone 派生 TaskScheduler 抢占判定 hint。
      */
     private final CapabilityRegistry registry;
     /**
-     * V0.4.3 Round 3 P1.1:模型调用前的查询/写意图分类器——决定 readOnlyHint,
-     * 让车控写操作不被主驾优先调度半路强制中断。V0.5.0 可替换为 LLM-based classifier。
+     * 模型调用前的查询/写意图分类器——决定 readOnlyHint,
+     * 让车控写操作不被主驾优先调度半路强制中断。后续可替换为 LLM-based classifier。
      *
-     * <p>V0.5.2 评审 P1-5:改为 volatile —— AppContainer.setModelGateway 切换 LLM 网关时,
+     * <p>改为 volatile —— AppContainer.setModelGateway 切换 LLM 网关时,
      * 通过 {@link #setIntentClassifier(IntentClassifier)} 替换为 FallbackIntentClassifier
      * (新 LlmIntentClassifier + Keyword),让运行时分类器与 Provider 配置同步演进。
      */
     private volatile IntentClassifier intentClassifier;
     /**
-     * V0.5.4 评审 P1-2:显式语义记忆意图检测器——决定 {@code AgentRequest.memorySaveAllowed},
+     * 显式语义记忆意图检测器——决定 {@code AgentRequest.memorySaveAllowed},
      * 让 {@code memory.semantic.save} capability handler 在 false 时直接 POLICY_REJECTED。
      *
      * <p>默认 {@link MemoryIntentDetector#NOOP}(始终返回 false)——保守起点,AppContainer
@@ -138,7 +140,7 @@ public final class AgentRuntimeRepository {
     /** 端侧 gateway 生命周期管理器；null（未装配端侧）时 setModelGateway 跳过退役。 */
     private volatile GatewayLifecycleManager gatewayLifecycleManager;
     /**
-     * V0.5.0 第三轮评审 P1:Repository 层兜底 Audit——保证所有终态(含 Repository
+     * Repository 层兜底 Audit——保证所有终态(含 Repository
      * catch 分支构造的 TIMED_OUT / CANCELLED + Scheduler 内部生成的 TIMED_OUT / CANCELLED)
      * 都进 Audit,与 AgentEngine 5 个出口点审计短期并存(requestId 作幂等键,REPLACE 语义)。
      */
@@ -146,19 +148,19 @@ public final class AgentRuntimeRepository {
     private volatile AgentEngine agentEngine;
     private volatile String activeModelGateway;
     /**
-     * 第七轮 P1.3:当前在途任务 token——{@link #clearUserData()} 时统一 cancel(),
-     * 让 Engine 进入协作取消 + grace window 收敛(第六轮 P1 已就位),
+     * 当前在途任务 token——{@link #clearUserData()} 时统一 cancel(),
+     * 让 Engine 进入协作取消 + grace window 收敛(收敛窗口已就位),
      * 避免写操作清完后才落盘,把刚清的数据写回。
      */
     private final java.util.Set<com.matrix.agent.core.identity.CancellationToken> activeTokens =
             java.util.concurrent.ConcurrentHashMap.newKeySet();
     /**
-     * 第七轮 P1.3:Repository 必须能 clearAll SteerMailbox——AppContainer 显式注入。
+     * Repository 必须能 clearAll SteerMailbox——AppContainer 显式注入。
      * 为兼容现有测试(不依赖 mailbox 清理),setter 为可选;clearUserData 调用时 null 仅记 warn。
      */
     private volatile SteerMailbox steerMailbox;
     /**
-     * V0.5.2 评审 P1-3:增量 audit_event recorder——可选注入(默认 NOOP)。
+     * 增量 audit_event recorder——可选注入(默认 NOOP)。
      *
      * <p>clearUserDataDetailed 在 epoch 自增后调 {@link AuditEventRecorder#advanceEpoch(long)}
      * 让在队列里、还未落库的旧 epoch 事件被 gate drop;在清理 audit 表前调
@@ -168,7 +170,7 @@ public final class AgentRuntimeRepository {
      */
     private volatile AuditEventRecorder auditEventRecorder = AuditEventRecorder.NOOP;
     /**
-     * 第八轮 P1.3 引入 epoch gate / 第九轮 P1.1 修正:MemoryStore 是 epoch 单一权威。
+     * MemoryStore 是 epoch 单一权威。
      *
      * <p>删除本类的 epochCounter——评审指出双来源在进程重启后失步 (Repository 重建回到 0,
      * SharedPreferencesMemoryStore 从 prefs 加载保留 N),导致 clearData 重启再 clearData 后
@@ -194,7 +196,7 @@ public final class AgentRuntimeRepository {
                 KeywordIntentClassifier.INSTANCE, NoopAuditRepository.INSTANCE);
     }
 
-    /** V0.4.3 Round 3 P1.1:注入自定义 IntentClassifier(测试 / 未来 LLM-based 替换用)。 */
+    /** 注入自定义 IntentClassifier(测试 / 未来 LLM-based 替换用)。 */
     public AgentRuntimeRepository(AgentEngineFactory engineFactory,
             MockCapabilityProvider mockProvider, SessionManager sessionManager, MemoryStore memoryStore,
             ModelGateway initialGateway, String initialDisplayName, AgentBudget budget,
@@ -206,13 +208,13 @@ public final class AgentRuntimeRepository {
     }
 
     /**
-     * V0.5.0 第三轮评审 P1:Repository 层兜底 Audit 装配入口。
+     * Repository 层兜底 Audit 装配入口。
      *
      * <p>AppContainer 显式传入 RoomAuditRepository(与 AgentEngine 共享同一实例);
      * Repository.execute 在所有 return outcome 路径统一 persist,与 Engine 5 出口点
      * 短期并存(requestId 作幂等键,TrajectoryDao `@Insert(REPLACE)` 让 Repository 后写覆盖)。
      *
-     * <p>旧 3 个构造器链默认 NoopAuditRepository.INSTANCE,V0.4.3 现有测试 0 回归。
+     * <p>旧 3 个构造器链默认 NoopAuditRepository.INSTANCE,现有测试 0 回归。
      */
     public AgentRuntimeRepository(AgentEngineFactory engineFactory,
             MockCapabilityProvider mockProvider, SessionManager sessionManager, MemoryStore memoryStore,
@@ -238,21 +240,51 @@ public final class AgentRuntimeRepository {
     }
 
     public AgentOutcome execute(String command, Actor actor, CancellationToken token) {
-        // V0.4.3 Round 3 P1.2:sessionId 按乘员隔离(SessionManager / SteerMailbox 用),
+        // 文本/触摸入口:沿用 Builder 默认 inputSource=TOUCH / languageTag=zh-CN /
+        // asrConfidence=1.0f / confidenceAvailable=true,与此前逐字节等价(既有测试零回归)。
+        return dispatch(newRequestBuilder(command, actor, token).build(), token);
+    }
+
+    /**
+     * 语音入口。把 {@link VoiceAgentRequest} 的 VOICE 标记、语言、置信度、
+     * 音区贯通到 {@link AgentRequest};派生逻辑(sessionId/intent/epoch/zone/vehicleState)与文本入口
+     * 复用 {@link #newRequestBuilder},执行/取消/audit 路径复用 {@link #dispatch}。
+     */
+    public AgentOutcome execute(VoiceAgentRequest voiceRequest) {
+        FinalTranscript transcript = voiceRequest.transcript();
+        CancellationToken token = voiceRequest.cancellationToken();
+        AgentRequest request = newRequestBuilder(transcript.text(), voiceRequest.actor(), token)
+                .inputSource(voiceRequest.inputSource())
+                .languageTag(transcript.languageTag())
+                .asrConfidence(transcript.confidence())
+                .confidenceAvailable(transcript.confidenceAvailable())
+                .audioZoneId(voiceRequest.audioZoneId())
+                .build();
+        return dispatch(request, token);
+    }
+
+    /**
+     * 构造请求 Builder 的公共派生段:sessionId(乘员隔离)/arbitrationKey(同车仲裁)/
+     * intentReadOnly(IntentClassifier)/memorySaveAllowed(MemoryIntentDetector)/epoch(MemoryStore
+     * 单一权威)/vehicleState 实时快照。不 build——调用方(文本/语音入口)各自补
+     * inputSource/languageTag/asrConfidence/audioZoneId/confidenceAvailable(或走 Builder 默认)后再 build。
+     */
+    private AgentRequest.Builder newRequestBuilder(String command, Actor actor, CancellationToken token) {
+        // sessionId 按乘员隔离(SessionManager / SteerMailbox 用),
         // arbitrationKey 同车共享(TaskScheduler 抢占仲裁用)。两个 key 解耦后,
         // 副驾的 REPROMPT/FORCE_TOOL/DEFER 不会进入主驾 mailbox,对话上下文也不串扰。
         String sessionId = actor == Actor.DRIVER ? "demo-driver" : "demo-passenger";
         String arbitrationKey = ARBITRATION_KEY;
-        // V0.4.3 Round 3 P1.1:IntentClassifier 在 LLM 调用前给出保守的查询/写意图分类,
+        // IntentClassifier 在 LLM 调用前给出保守的查询/写意图分类,
         // 决定 readOnlyHint。车控写操作(打开空调/设座椅加热/开始导航)→ false → 不可抢占;
         // 查询类(查电量/查胎压)→ true → 可被主驾查询抢占;未知 → false(保守)。
         boolean intentReadOnly = intentClassifier.isReadOnly(command);
-        // V0.5.4 评审 P1-2:用户硬约束——"长期记忆仅由用户决定"。Repository.execute 入口
+        // 用户硬约束——"长期记忆仅由用户决定"。Repository.execute 入口
         // (模型调用前)用 MemoryIntentDetector 判定用户原文是否含"记住/保存/以后默认/不要忘记"
         // 等显式动词。false 时 memory.semantic.save handler 直接 POLICY_REJECTED,
         // 杜绝模型在"查天气"等纯查询请求里自由调 save 污染长期记忆(prompt 约定 + 硬 gate 双重防线)。
         boolean memorySaveAllowed = memoryIntentDetector.isExplicitMemorySave(command);
-        // 第七轮 P2-4:command 是完整用户输入,绝不原文进 logcat。仅保留字符数 + 元数据。
+        // command 是完整用户输入,绝不原文进 logcat。仅保留字符数 + 元数据。
         Log.i(TAG, "[Repo] execute command=" + com.matrix.agent.core.agent.SafeLog.USER_INPUT_PLACEHOLDER
                 + " commandChars=" + (command == null ? 0 : command.length())
                 + " actor=" + actor + " session=" + sessionId
@@ -261,45 +293,51 @@ public final class AgentRuntimeRepository {
                 + " memSave=" + memorySaveAllowed
                 + " budgetDeadlineMs=" + budget.getTotalDeadlineMillis());
         VehicleZone zone = actor == Actor.DRIVER ? VehicleZone.DRIVER : VehicleZone.PASSENGER;
-        // 第八轮 P1.3 / 第九轮 P1.1:MemoryStore 是 epoch 单一权威——execute 入口直接读本值,
+        // MemoryStore 是 epoch 单一权威——execute 入口直接读本值,
         // 不再维护本类独立 epochCounter (评审指出双来源失步:Repository 重启回 0 / SP 保留 N
         // 会让 clearData 重启再 clearData 后新写入被错误拒绝)。
         long capturedEpoch = memoryStore.currentEpoch();
-        AgentRequest request = AgentRequest.builder(command, actor)
+        return AgentRequest.builder(command, actor)
                 .sessionId(sessionId)
                 .arbitrationKey(arbitrationKey)
                 .occupantZone(zone)
                 .timeoutMillis(budget.getTotalDeadlineMillis())
                 .cancellationToken(token)
-                // V0.4.3 Stage B:注入车辆运动状态,让 PolicyEngine 的 requiredVehicleStates
-                // 前置约束(PARKED_ONLY 等)真正生效。V0.4.2 默认 satisfyAllPredicates 让所有约束放行,
+                // 注入车辆运动状态,让 PolicyEngine 的 requiredVehicleStates
+                // 前置约束(PARKED_ONLY 等)真正生效。旧版默认 satisfyAllPredicates 让所有约束放行,
                 // 这里替换为实时快照——demo 切 gear=D 即可触发 PARKED_ONLY 拒绝。
                 .vehicleState(vehicleStateSource.snapshot())
-                // V0.4.3 Round 3 P1.1:readOnlyHint 来自 IntentClassifier——车控写不被抢占
+                // readOnlyHint 来自 IntentClassifier——车控写不被抢占
                 .readOnlyHint(intentReadOnly)
-                // 第八轮 P1.3:注入 epoch,Provider/MemoryStore 校验
+                // 注入 epoch,Provider/MemoryStore 校验
                 .epoch(capturedEpoch)
-                // V0.5.4 评审 P1-2:注入显式记忆许可——memory.semantic.save handler 在 false 时
+                // 注入显式记忆许可——memory.semantic.save handler 在 false 时
                 // 直接 POLICY_REJECTED。默认 false(保守),命中关键词(记住/保存/以后默认/...)才 true。
-                .memorySaveAllowed(memorySaveAllowed)
-                .build();
+                .memorySaveAllowed(memorySaveAllowed);
+    }
+
+    /**
+     * 执行段:TaskScheduler 提交 + deadline/超时/中断兜底 + Repository 层 audit。
+     * catch 分支按 {@link AgentRequest#isReadOnlyHint()} 决定写操作的 EXECUTION_UNKNOWN 保守语义。
+     */
+    private AgentOutcome dispatch(AgentRequest request, CancellationToken token) {
         AgentOutcome outcome;
         long started = System.nanoTime();
         Future<AgentOutcome> future = null;
-        // 第七轮 P1.3:注册到 activeTokens——clearUserData 时可统一 cancel(),
-        // 配合第六轮 P1 收敛窗口,保证在途写操作不会在 clear 之后才完成写回。
+        // 注册到 activeTokens——clearUserData 时可统一 cancel(),
+        // 配合收敛窗口,保证在途写操作不会在 clear 之后才完成写回。
         activeTokens.add(token);
         try {
-            // V0.5.1 Stage 6 P1.1:waitMillis 减去 SAFETY_MARGIN_MILLIS,让 Repository 必先于
-            // Engine budget 到期超时——根治 Stage 2 flaky(见 SAFETY_MARGIN_MILLIS 注释)。
+            // waitMillis 减去 SAFETY_MARGIN_MILLIS,让 Repository 必先于
+            // Engine budget 到期超时——根治测试 flaky(见 SAFETY_MARGIN_MILLIS 注释)。
             long remaining = request.remainingMillis();
             long waitMillis = Math.max(1L, remaining - SAFETY_MARGIN_MILLIS);
             future = scheduler.submit(request, agentEngine::execute);
             outcome = future.get(waitMillis, TimeUnit.MILLISECONDS);
         } catch (TimeoutException timeout) {
-            // V0.5.0 第六轮评审 P1:不立刻 future.cancel(true) 覆盖结果。
+            // 不立刻 future.cancel(true) 覆盖结果。
             //
-            // <p>读操作(intentReadOnly=true):无副作用,直接 V0.4.x fallback TIMED_OUT
+            // <p>读操作(intentReadOnly=true):无副作用,直接 fallback TIMED_OUT
             // (跳过 grace window,避免 token.cancel 触发 Engine abortHook → CANCELLED
             // 掩盖 Repository 的 TIMED_OUT 语义)。
             //
@@ -309,9 +347,9 @@ public final class AgentRuntimeRepository {
             // → fallback EXECUTION_UNKNOWN(命令已下发,绝不能宣称 TIMED_OUT)。
             Log.w(TAG, "[Repo] scheduler future timeout req=" + request.getRequestId()
                     + " msg=" + timeout.getMessage()
-                    + " — cooperative cancel (intentReadOnly=" + intentReadOnly + ")");
+                    + " — cooperative cancel (intentReadOnly=" + request.isReadOnlyHint() + ")");
             token.cancel();
-            if (intentReadOnly) {
+            if (request.isReadOnlyHint()) {
                 if (future != null) future.cancel(true);
                 outcome = terminalOutcome(request, TaskState.TIMED_OUT, StopReason.TIMEOUT,
                         "scheduler future timeout", started);
@@ -320,7 +358,7 @@ public final class AgentRuntimeRepository {
                         "scheduler future timeout");
             }
         } catch (ExecutionException executionError) {
-            // 第八轮 P2.3:ExecutionException 不再直接抛 RuntimeException——
+            // ExecutionException 不再直接抛 RuntimeException——
             // (1) cause.getMessage() 可能含 PII / 敏感调试信息,直接进 logcat 会泄露;
             // (2) 直接抛会让 Repository 失去 outcome + audit 落库机会,Engine 内部异常
             //     无法被结构化追踪,UI 也只能拿到崩溃而不是终态。
@@ -341,30 +379,30 @@ public final class AgentRuntimeRepository {
                     "scheduler execution failed: " + cause.getClass().getSimpleName(), started);
         } catch (InterruptedException interrupted) {
             Thread.currentThread().interrupt();
-            // V0.5.0 第六轮评审 P1:外部线程已被中断,不能用 future.get(graceMillis) 阻塞
+            // 外部线程已被中断,不能用 future.get(graceMillis) 阻塞
             // (InterruptedException 立即重抛)。直接 fallback:写操作 EXECUTION_UNKNOWN(命令可能
             // 已被 Engine 分发到 Provider),读操作 CANCELLED(无副作用,可安全宣称未发生)。
             Log.w(TAG, "[Repo] scheduler future interrupted req=" + request.getRequestId()
                     + " — cooperative cancel + immediate writeAware fallback (intentReadOnly="
-                    + intentReadOnly + ")");
+                    + request.isReadOnlyHint() + ")");
             token.cancel();
             if (future != null) future.cancel(true);
-            TaskState state = intentReadOnly ? TaskState.CANCELLED : TaskState.EXECUTION_UNKNOWN;
-            StopReason reason = intentReadOnly ? StopReason.CANCELLED : StopReason.EXECUTION_UNKNOWN;
+            TaskState state = request.isReadOnlyHint() ? TaskState.CANCELLED : TaskState.EXECUTION_UNKNOWN;
+            StopReason reason = request.isReadOnlyHint() ? StopReason.CANCELLED : StopReason.EXECUTION_UNKNOWN;
             outcome = terminalOutcome(request, state, reason, "scheduler future interrupted", started);
         } finally {
-            // 第七轮 P1.3:无论成功 / 失败 / cancel,token 都退出 active 集合。
+            // 无论成功 / 失败 / cancel,token 都退出 active 集合。
             // clearUserData 的等待循环靠 activeTokens.isEmpty() 收敛。
             activeTokens.remove(token);
         }
         Log.i(TAG, "[Repo] <- outcome state=" + outcome.getFinalState()
                 + " stop=" + outcome.getStopReason()
                 + " durationMs=" + outcome.getDurationMillis());
-        // V0.5.0 第三轮评审 P1:Repository 层兜底 Audit——保证所有终态(含 catch 分支构造的
+        // Repository 层兜底 Audit——保证所有终态(含 catch 分支构造的
         // TIMED_OUT / CANCELLED + Scheduler 内部生成的 TIMED_OUT / CANCELLED + Engine 正常返回)
         // 都进 Audit。requestId 作幂等键,TrajectoryDao `@Insert(REPLACE)` 让 Repository 后写
         // 覆盖 Engine 内部已写的版本(Engine 5 个出口点 audit 短期并存,最终以 Repository 版本为准)。
-        // fail-open:auditRepository.persist 内部 try/catch,失败仅 log,不抛(评审 P1.3 已对齐)。
+        // fail-open:auditRepository.persist 内部 try/catch,失败仅 log,不抛(已对齐)。
         auditRepository.persist(outcome, request);
         return outcome;
     }
@@ -375,7 +413,7 @@ public final class AgentRuntimeRepository {
         boolean newIsRetirable = gateway instanceof RetirableModelGateway;
         if (lastRetirableGateway != null) {
             if (newIsRetirable) {
-                // P1-5: 端侧→端侧切换——先同步 retire+close 旧（防新+旧 GB 级峰值 OOM）
+                // 端侧→端侧切换——先同步 retire+close 旧（防新+旧 GB 级峰值 OOM）
                 RetirableModelGateway old = lastRetirableGateway;
                 old.retire();
                 try {
@@ -415,9 +453,9 @@ public final class AgentRuntimeRepository {
     public Map<String, List<String>> getSessionTurns() { return sessionManager.snapshotTurns(); }
 
     /**
-     * 第七轮 P1.3:Repository 必须能 clearAll SteerMailbox——AppContainer 显式注入。
+     * Repository 必须能 clearAll SteerMailbox——AppContainer 显式注入。
      *
-     * <p>为兼容现有测试(289 个 V0.4.3 测试不依赖 mailbox 清理),setter 为可选;
+     * <p>为兼容现有测试(289 个测试不依赖 mailbox 清理),setter 为可选;
      * {@link #clearUserData()} 调用时 {@code mailbox == null} 仅记 warn 不 NPE。
      */
     public void setSteerMailbox(SteerMailbox mailbox) {
@@ -425,7 +463,7 @@ public final class AgentRuntimeRepository {
     }
 
     /**
-     * V0.5.2 评审 P1-5:替换意图分类器——AppContainer 在 setModelGateway 切换 LLM 网关时,
+     * 替换意图分类器——AppContainer 在 setModelGateway 切换 LLM 网关时,
      * 用新 ModelConfig 重新构造 FallbackIntentClassifier(LlmIntentClassifier, Keyword) 并注入。
      *
      * <p>volatile 替换,{@link #execute} 路径下次读取即生效。null 输入退化为
@@ -441,7 +479,7 @@ public final class AgentRuntimeRepository {
     }
 
     /**
-     * V0.5.4 评审 P1-2:注入显式语义记忆意图检测器——AppContainer 装配 KeywordMemoryIntentDetector。
+     * 注入显式语义记忆意图检测器——AppContainer 装配 KeywordMemoryIntentDetector。
      *
      * <p>volatile 替换,{@link #execute} 路径下次读取即生效。null 输入退化为
      * {@link MemoryIntentDetector#NOOP}(始终返回 false,保守拒绝所有 semantic.save)。
@@ -454,7 +492,7 @@ public final class AgentRuntimeRepository {
     }
 
     /**
-     * V0.5.2 评审 P1-3:注入增量 audit_event recorder(可选,默认 NOOP)。
+     * 注入增量 audit_event recorder(可选,默认 NOOP)。
      *
      * <p>AppContainer 装配 auditEventRecorder 后调用此 setter。clearUserDataDetailed 会:
      * <ol>
@@ -469,7 +507,7 @@ public final class AgentRuntimeRepository {
     }
 
     /**
-     * 第七轮 P1.3:重写为"取消—等待—清空"序列,保证原子性。
+     * 重写为"取消—等待—清空"序列,保证原子性。
      *
      * <p>评审场景:旧实现仅清 MemoryStore + SessionManager,与在途写操作非原子——
      * <ul>
@@ -482,7 +520,7 @@ public final class AgentRuntimeRepository {
      * <p>新实现:
      * <ol>
      *   <li><b>取消</b>:统一 cancel 所有在途 token,触发 Engine abort hooks
-     *       + 让 write dispatch 进入第六轮 P1 的 GRACE_WINDOW_MILLIS=500ms 收敛窗口;</li>
+     *       + 让 write dispatch 进入 GRACE_WINDOW_MILLIS=500ms 收敛窗口;</li>
      *   <li><b>等待</b>:最多 1000ms(2× grace window) 等 activeTokens 收敛——
      *       让在途写操作要么在 clear 之前完成,要么被 token.cancel 后的
      *       EXECUTION_UNKNOWN 路径放弃 observation 写回;</li>
@@ -490,9 +528,9 @@ public final class AgentRuntimeRepository {
      *       + SessionManager。</li>
      * </ol>
      *
-     * <p>第九轮 P1.1 已落地 MemoryStore 单一权威 epoch(见 §16),第十轮 P1 已落地"epoch 自增 + clear×2"
+     * <p>已落地 MemoryStore 单一权威 epoch(见 §16),也已落地"epoch 自增 + clear×2"
      * 原子操作(MemoryStore.clearUserDataAndBump,见 §17)——杜绝 check-then-act race。
-     * Steer / Tool 回写 epoch gate(让旧 epoch 的 Steer / 异步结果被拒绝)仍推迟到 V0.5.1,
+     * Steer / Tool 回写 epoch gate(让旧 epoch 的 Steer / 异步结果被拒绝)仍推迟到后续版本,
      * 见 MatrixAgent-V0.5.0-Code-Review.md §16 / §17 跟进点。
      */
     public void clearUserData() {
@@ -500,7 +538,7 @@ public final class AgentRuntimeRepository {
     }
 
     /**
-     * V0.5.1 Stage 6 P1.2:结构化返回版 clearUserData——透传 driver/passenger 两 zone 的
+     * 结构化返回版 clearUserData——透传 driver/passenger 两 zone 的
      * {@link ClearOutcome},让 ViewModel 据此选择"已清空" vs "上下文已清,审计删除失败"文案。
      *
      * <p>主流程(MemoryStore / SteerMailbox / Session)失败仍抛 RuntimeException,
@@ -523,7 +561,7 @@ public final class AgentRuntimeRepository {
                 // 兜底:cancel() 内部已 try/catch,这里再兜一层防止异常 iteration
             }
         }
-        // 2. 第十轮 P1:原子"epoch 自增 + 清空 driver/passenger"——单次 MemoryStore.clearUserDataAndBump
+        // 2. 原子"epoch 自增 + 清空 driver/passenger"——单次 MemoryStore.clearUserDataAndBump
         //    内部用同一把锁(InMemoryMemoryStore synchronized / SharedPreferencesMemoryStore lock +
         //    commit 同步落盘),杜绝 check-then-act race(旧 putPreferenceChecked 通过 epoch 校验后,
         //    bumpEpoch + clear 异步执行,旧 putPreference 仍在 SP 队列 → 偏好"复活")。
@@ -543,7 +581,7 @@ public final class AgentRuntimeRepository {
         }
         Log.i(TAG, "[Repo] clearUserData epoch -> " + newEpoch
                 + " (MemoryStore.putPreferenceChecked now rejects old epoch writes atomically)");
-        // V0.5.2 评审 P1-3:同步推进 audit_event recorder 的 stale epoch gate——
+        // 同步推进 audit_event recorder 的 stale epoch gate——
         // 让已经在 pending 队列里的旧 epoch 事件在 scheduler flush 前 / 后被 drop,
         // 避免 clearByUserZone 后异步 flush 把旧事件写回 audit_event 表。
         // 必须在 clearAuditSafe 之前调用,与 steerMailbox.advanceEpoch 同模式。
@@ -553,14 +591,14 @@ public final class AgentRuntimeRepository {
             Log.w(TAG, "[Repo] clearUserData: auditEventRecorder.advanceEpoch threw"
                     + " cause=" + t.getClass().getSimpleName() + ": " + t.getMessage());
         }
-        // V0.5.2 Stage 5:同步推进 SteerMailbox epoch——epoch gate 让 stamped.epoch < newEpoch
+        // 同步推进 SteerMailbox epoch——epoch gate 让 stamped.epoch < newEpoch
         // 的 Steer 在 drain 时 drop + audit(STEER_DROPPED_STALE)。必须在 SteerMailbox.clearAll
         // 之前调用(虽然 clearAll 全清,但 advanceEpoch 是为 clearUserData 之后新 offer 的
         // session 准备的——确保下次任务 drain 时仍能识别本批 stale)。
         if (steerMailbox != null) {
             steerMailbox.advanceEpoch(newEpoch);
         }
-        // 3. 等 activeTokens 收敛(第六轮 P1 GRACE_WINDOW_MILLIS=500ms 的 2 倍冗余)
+        // 3. 等 activeTokens 收敛(GRACE_WINDOW_MILLIS=500ms 的 2 倍冗余)
         long deadline = System.currentTimeMillis() + 1_000L;
         while (!activeTokens.isEmpty() && System.currentTimeMillis() < deadline) {
             try {
@@ -583,10 +621,10 @@ public final class AgentRuntimeRepository {
             Log.w(TAG, "[Repo] clearUserData: steerMailbox not injected, skip mailbox clear");
         }
         sessionManager.clear();
-        // 5. V0.5.1 Stage 6 + P1.2:清空 Room Audit 落库数据——trajectory / session_history /
+        // 5. 清空 Room Audit 落库数据——trajectory / session_history /
         //    memory_record 3 表跨表 transaction 删除。失败封装进 ClearOutcome,不抛(主流程
         //    已清,audit 失败由 ViewModel 文案提示用户重试)。
-        // V0.5.2 评审 P1-3:先 drain pending 队列 + 加 stale gate,再 clearByUserZone——
+        // 先 drain pending 队列 + 加 stale gate,再 clearByUserZone——
         // 这样即使 scheduler tick 在 clearByUserZone 后触发,旧 epoch 事件已被 gate drop,
         // 不会被重新 insert 回 audit_event 表。失败仅 log,不阻塞 clearByUserZone。
         try {
@@ -602,7 +640,7 @@ public final class AgentRuntimeRepository {
     }
 
     /**
-     * V0.5.1 Stage 6 P1.2:auditRepository.clearByUserZone 已 try/catch 不抛,
+     * auditRepository.clearByUserZone 已 try/catch 不抛,
      * 这里再加一层 Throwable 防御 fake / 异常实现抛错。
      */
     private ClearOutcome clearAuditSafe(String userId, String zone) {
@@ -617,7 +655,7 @@ public final class AgentRuntimeRepository {
         }
     }
 
-    /** V0.4.3 Stage A:scheduler shutdown 钩子,MainActivity.onDestroy 调。 */
+    /** scheduler shutdown 钩子,MainActivity.onDestroy 调。 */
     public void shutdown() {
         Log.i(TAG, "[Repo] shutdown scheduler");
         scheduler.shutdown();
@@ -632,7 +670,7 @@ public final class AgentRuntimeRepository {
     }
 
     /**
-     * V0.5.0 第六轮评审 P1:Repository 外层 deadline 触发后,<b>仅对写操作</b>启用的收敛窗口。
+     * Repository 外层 deadline 触发后,<b>仅对写操作</b>启用的收敛窗口。
      *
      * <p>调用方已先 token.cancel()——这是协作取消信号,会让 ToolExecutor 进入 tryAbort 分支
      * (写操作返回 EXECUTION_UNKNOWN,可中断 Provider 调 abortIfSupported)。本方法用
@@ -644,7 +682,7 @@ public final class AgentRuntimeRepository {
      * {@link StopReason#EXECUTION_UNKNOWN},与 ToolExecutor 的 resolveTerminal(写分支)语义对齐
      * ——命令可能已下发,绝不能宣称 TIMED_OUT/CANCELLED。
      *
-     * <p>读操作走 V0.4.x 路径(直接 TIMED_OUT fallback),不进入本方法——读无副作用,
+     * <p>读操作走旧路径(直接 TIMED_OUT fallback),不进入本方法——读无副作用,
      * 不需要 EXECUTION_UNKNOWN 保护,也避免 token.cancel 触发 Engine abortHook CANCELLED
      * 掩盖 TIMED_OUT 语义。
      */

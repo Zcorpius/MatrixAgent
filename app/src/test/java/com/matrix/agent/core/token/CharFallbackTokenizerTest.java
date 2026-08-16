@@ -6,9 +6,9 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertSame;
 
 /**
- * V0.5.0 Stage 5:CharFallbackTokenizer 契约测试。
+ * CharFallbackTokenizer 契约测试。
  *
- * <p>验证 char-based fallback 行为——V0.5.0 默认装配实现,与 V0.4.x
+ * <p>验证 char-based fallback 行为——默认装配实现,与旧版
  * AgentEngine.estimateConversationChars 字面等价。
  */
 public final class CharFallbackTokenizerTest {
